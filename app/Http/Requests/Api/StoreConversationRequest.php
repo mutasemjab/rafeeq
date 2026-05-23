@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Models\Conversation;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreConversationRequest extends FormRequest
 {
@@ -13,7 +15,7 @@ class StoreConversationRequest extends FormRequest
         return [
             'child_id' => 'nullable|exists:children,id',
             'title'    => 'nullable|string|max:255',
-            'source'   => 'nullable|in:mobile,web,voice',
+            'source'   => ['nullable', Rule::in(Conversation::acceptedInputSources())],
         ];
     }
 }

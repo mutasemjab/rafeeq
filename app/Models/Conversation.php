@@ -10,6 +10,14 @@ class Conversation extends Model
 {
     use HasFactory, SoftDeletes;
 
+    public const SOURCE_INPUT_ALIASES = [
+        'text' => 'text',
+        'voice' => 'voice',
+        'app' => 'text',
+        'mobile' => 'text',
+        'web' => 'text',
+    ];
+
     protected $fillable = [
         'user_id',
         'child_id',
@@ -23,6 +31,20 @@ class Conversation extends Model
     protected $casts = [
         'last_message_at' => 'datetime',
     ];
+
+    public static function acceptedInputSources(): array
+    {
+        return array_keys(self::SOURCE_INPUT_ALIASES);
+    }
+
+    public static function normalizeSource(?string $source): string
+    {
+        if ($source === null || trim($source) === '') {
+            return 'text';
+        }
+
+        return self::SOURCE_INPUT_ALIASES[$source] ?? 'text';
+    }
 
     public function user()
     {

@@ -12,9 +12,8 @@ class ConversationFactory extends Factory
         return [
             'user_id'       => User::factory(),
             'title'         => $this->faker->sentence(3),
-            'source'        => 'mobile',
+            'source'        => 'text',
             'status'        => 'active',
-            'message_count' => 0,
         ];
     }
 }

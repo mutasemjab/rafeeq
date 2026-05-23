@@ -17,6 +17,7 @@ class ConversationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->artisan('passport:install', ['--no-interaction' => true])->assertExitCode(0);
         $this->user      = User::factory()->create();
         $this->otherUser = User::factory()->create();
     }
@@ -27,6 +28,39 @@ class ConversationTest extends TestCase
             ->postJson('/api/v1/conversations', ['title' => 'Test Chat'])
             ->assertStatus(201)
             ->assertJsonPath('title', 'Test Chat');
+
+        $this->assertDatabaseHas('conversations', [
+            'user_id' => $this->user->id,
+            'title'   => 'Test Chat',
+            'source'  => 'text',
+        ]);
+    }
+
+    public function test_user_can_create_conversation_with_legacy_source_aliases(): void
+    {
+        $this->actingAs($this->user, 'user-api')
+            ->postJson('/api/v1/conversations', [
+                'title' => 'Web Chat',
+                'source' => 'web',
+            ])
+            ->assertStatus(201)
+            ->assertJsonPath('source', 'text');
+
+        $this->actingAs($this->user, 'user-api')
+            ->postJson('/api/v1/conversations', [
+                'title' => 'Voice Chat',
+                'source' => 'voice',
+            ])
+            ->assertStatus(201)
+            ->assertJsonPath('source', 'voice');
+
+        $this->actingAs($this->user, 'user-api')
+            ->postJson('/api/v1/conversations', [
+                'title' => 'App Chat',
+                'source' => 'app',
+            ])
+            ->assertStatus(201)
+            ->assertJsonPath('source', 'text');
     }
 
     public function test_user_cannot_access_another_users_conversation(): void

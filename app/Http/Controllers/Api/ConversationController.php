@@ -41,7 +41,7 @@ class ConversationController extends Controller
         $conversation = $request->user()->conversations()->create([
             'child_id' => $data['child_id'] ?? null,
             'title'    => $data['title'] ?? null,
-            'source'   => $data['source'] ?? 'mobile',
+            'source'   => Conversation::normalizeSource($data['source'] ?? null),
             'status'   => 'active',
         ]);
 
