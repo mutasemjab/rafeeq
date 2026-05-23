@@ -1,0 +1,942 @@
+{
+  "info": {
+    "name": "Rafiq API v1",
+    "_postman_id": "rafiq-api-v1",
+    "description": "Complete API collection for the Rafiq caregiver support application",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost/rafeeq/public", "type": "string" },
+    { "key": "token", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set(\"token\", pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\",\n  \"preferred_language\": \"en\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "register"]
+            },
+            "description": "Register a new user account"
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set(\"token\", pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"password123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "description": "Login with existing credentials and receive a bearer token"
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "me"]
+            },
+            "description": "Get the currently authenticated user's profile"
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"phone\": \"+1234567890\",\n  \"preferred_language\": \"en\",\n  \"theme_preference\": \"light\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/profile",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "profile"]
+            },
+            "description": "Update the authenticated user's profile information"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "logout"]
+            },
+            "description": "Logout and invalidate the current bearer token"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Children",
+      "item": [
+        {
+          "name": "List Children",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/children",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "children"]
+            },
+            "description": "Retrieve a list of all children for the authenticated user"
+          }
+        },
+        {
+          "name": "Create Child",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alice Doe\",\n  \"date_of_birth\": \"2015-06-15\",\n  \"gender\": \"female\",\n  \"diagnosis\": \"Autism Spectrum Disorder\",\n  \"notes\": \"Additional notes about the child\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/children",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "children"]
+            },
+            "description": "Add a new child profile"
+          }
+        },
+        {
+          "name": "Get Child",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/children/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "children", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Child ID" }
+              ]
+            },
+            "description": "Retrieve a specific child's profile by ID"
+          }
+        },
+        {
+          "name": "Update Child",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alice Doe\",\n  \"date_of_birth\": \"2015-06-15\",\n  \"gender\": \"female\",\n  \"diagnosis\": \"Updated diagnosis\",\n  \"notes\": \"Updated notes\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/children/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "children", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Child ID" }
+              ]
+            },
+            "description": "Update an existing child's profile"
+          }
+        },
+        {
+          "name": "Delete Child",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/children/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "children", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Child ID" }
+              ]
+            },
+            "description": "Delete a child's profile by ID"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Child Documents",
+      "item": [
+        {
+          "name": "List Child Documents",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/children/:child_id/documents",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "children", ":child_id", "documents"],
+              "variable": [
+                { "key": "child_id", "value": "1", "description": "Child ID" }
+              ]
+            },
+            "description": "Retrieve all documents for a specific child"
+          }
+        },
+        {
+          "name": "Upload Child Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "", "description": "Document file to upload" },
+                { "key": "title", "value": "Medical Report 2024", "type": "text", "description": "Title of the document" },
+                { "key": "document_type", "value": "medical_report", "type": "text", "description": "Type of document" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/children/:child_id/documents",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "children", ":child_id", "documents"],
+              "variable": [
+                { "key": "child_id", "value": "1", "description": "Child ID" }
+              ]
+            },
+            "description": "Upload a document for a specific child using multipart form-data"
+          }
+        },
+        {
+          "name": "Delete Child Document",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/children/:child_id/documents/:document_id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "children", ":child_id", "documents", ":document_id"],
+              "variable": [
+                { "key": "child_id", "value": "1", "description": "Child ID" },
+                { "key": "document_id", "value": "1", "description": "Document ID" }
+              ]
+            },
+            "description": "Delete a specific document belonging to a child"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Child Memories",
+      "item": [
+        {
+          "name": "List Child Memories",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/children/:child_id/memories",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "children", ":child_id", "memories"],
+              "variable": [
+                { "key": "child_id", "value": "1", "description": "Child ID" }
+              ]
+            },
+            "description": "Retrieve all memories for a specific child"
+          }
+        },
+        {
+          "name": "Create Memory",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"child_id\": 1,\n  \"key\": \"first_word\",\n  \"content\": \"Alice said her first word today: 'mama'\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/memories",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "memories"]
+            },
+            "description": "Create a new memory entry for a child"
+          }
+        },
+        {
+          "name": "Update Memory",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"first_word\",\n  \"content\": \"Updated memory content\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/memories/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "memories", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Memory ID" }
+              ]
+            },
+            "description": "Update an existing memory entry"
+          }
+        },
+        {
+          "name": "Delete Memory",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/memories/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "memories", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Memory ID" }
+              ]
+            },
+            "description": "Delete a specific memory entry"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Conversations",
+      "item": [
+        {
+          "name": "List Conversations",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/conversations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "conversations"]
+            },
+            "description": "Retrieve all conversations for the authenticated user"
+          }
+        },
+        {
+          "name": "Create Conversation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"child_id\": 1,\n  \"title\": \"Behavior management strategies\",\n  \"source\": \"app\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/conversations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "conversations"]
+            },
+            "description": "Start a new conversation, optionally linked to a child"
+          }
+        },
+        {
+          "name": "Get Conversation",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/conversations/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "conversations", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Conversation ID" }
+              ]
+            },
+            "description": "Retrieve a specific conversation with its messages"
+          }
+        },
+        {
+          "name": "Delete Conversation",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/conversations/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "conversations", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Conversation ID" }
+              ]
+            },
+            "description": "Delete a specific conversation and all its messages"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "item": [
+        {
+          "name": "Send Chat Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"How can I help my child with sensory processing issues?\",\n  \"language\": \"en\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/conversations/:conversation_id/chat",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "conversations", ":conversation_id", "chat"],
+              "variable": [
+                { "key": "conversation_id", "value": "1", "description": "Conversation ID" }
+              ]
+            },
+            "description": "Send a message in a conversation and receive an AI response"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat Attachments",
+      "item": [
+        {
+          "name": "List Conversation Attachments",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/conversations/:conversation_id/attachments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "conversations", ":conversation_id", "attachments"],
+              "variable": [
+                { "key": "conversation_id", "value": "1", "description": "Conversation ID" }
+              ]
+            },
+            "description": "Retrieve all attachments for a specific conversation"
+          }
+        },
+        {
+          "name": "Upload Attachment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "", "description": "File to attach to the conversation" },
+                { "key": "conversation_id", "value": "1", "type": "text", "description": "Conversation ID to attach file to" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/attachments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "attachments"]
+            },
+            "description": "Upload a file attachment for a conversation"
+          }
+        },
+        {
+          "name": "Delete Attachment",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/attachments/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "attachments", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Attachment ID" }
+              ]
+            },
+            "description": "Delete a specific attachment"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Specialists",
+      "item": [
+        {
+          "name": "List Specialists",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/specialists?language=en&specialization=occupational_therapy",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "specialists"],
+              "query": [
+                { "key": "language", "value": "en", "description": "Filter by language spoken by specialist" },
+                { "key": "specialization", "value": "occupational_therapy", "description": "Filter by specialization" }
+              ]
+            },
+            "description": "Retrieve a list of specialists with optional filters for language and specialization"
+          }
+        },
+        {
+          "name": "Get Specialist",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/specialists/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "specialists", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Specialist ID" }
+              ]
+            },
+            "description": "Retrieve a specific specialist's full profile"
+          }
+        },
+        {
+          "name": "Get Specialist Availabilities",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/specialists/:id/availabilities?date=2024-12-01",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "specialists", ":id", "availabilities"],
+              "query": [
+                { "key": "date", "value": "2024-12-01", "description": "Date to check availability (YYYY-MM-DD)" }
+              ],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Specialist ID" }
+              ]
+            },
+            "description": "Get available time slots for a specialist on a given date"
+          }
+        },
+        {
+          "name": "Get Specialist Reviews",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/specialists/:id/reviews",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "specialists", ":id", "reviews"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Specialist ID" }
+              ]
+            },
+            "description": "Retrieve all reviews for a specific specialist"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Appointments",
+      "item": [
+        {
+          "name": "List Appointments",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/appointments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "appointments"]
+            },
+            "description": "Retrieve all appointments for the authenticated user"
+          }
+        },
+        {
+          "name": "Create Appointment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"specialist_id\": 1,\n  \"child_id\": 1,\n  \"scheduled_date\": \"2024-12-15\",\n  \"start_time\": \"10:00\",\n  \"end_time\": \"11:00\",\n  \"timezone\": \"Asia/Amman\",\n  \"notes\": \"First consultation session\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/appointments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "appointments"]
+            },
+            "description": "Book a new appointment with a specialist for a child"
+          }
+        },
+        {
+          "name": "Get Appointment",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/appointments/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "appointments", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Appointment ID" }
+              ]
+            },
+            "description": "Retrieve details for a specific appointment"
+          }
+        },
+        {
+          "name": "Cancel Appointment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Schedule conflict, need to reschedule\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/appointments/:id/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "appointments", ":id", "cancel"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Appointment ID" }
+              ]
+            },
+            "description": "Cancel a specific appointment with an optional reason"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reviews",
+      "item": [
+        {
+          "name": "Submit Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"appointment_id\": 1,\n  \"rating\": 5,\n  \"review\": \"Excellent session, very helpful and professional specialist.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/reviews",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "reviews"]
+            },
+            "description": "Submit a rating and review for a completed appointment (rating: 1-5)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Plans",
+      "item": [
+        {
+          "name": "List Plans",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/plans",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "plans"]
+            },
+            "description": "Retrieve all available subscription plans (public endpoint, no auth required)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscription",
+      "item": [
+        {
+          "name": "Get Current Subscription",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription"]
+            },
+            "description": "Retrieve the authenticated user's current active subscription details"
+          }
+        },
+        {
+          "name": "Get Subscription History",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/history",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "history"]
+            },
+            "description": "Retrieve the full subscription history for the authenticated user"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications"]
+            },
+            "description": "Retrieve all notifications for the authenticated user"
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/:id/read",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications", ":id", "read"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Notification ID" }
+              ]
+            },
+            "description": "Mark a specific notification as read"
+          }
+        },
+        {
+          "name": "Mark All Notifications as Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/read-all",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "notifications", "read-all"]
+            },
+            "description": "Mark all notifications as read for the authenticated user"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Knowledge Base (Admin)",
+      "item": [
+        {
+          "name": "List Knowledge Base",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/knowledge",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "knowledge"]
+            },
+            "description": "Retrieve all knowledge base entries (Admin access required)"
+          }
+        },
+        {
+          "name": "Upload Knowledge Base Entry",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "", "description": "Knowledge base document file" },
+                { "key": "title", "value": "Autism Spectrum Disorder Guide", "type": "text", "description": "Title of the knowledge base entry" },
+                { "key": "category", "value": "autism", "type": "text", "description": "Category of the knowledge base entry" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/knowledge",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "knowledge"]
+            },
+            "description": "Upload a new document to the knowledge base (Admin access required)"
+          }
+        },
+        {
+          "name": "Delete Knowledge Base Entry",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/knowledge/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "knowledge", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Knowledge base entry ID" }
+              ]
+            },
+            "description": "Delete a specific knowledge base entry (Admin access required)"
+          }
+        }
+      ]
+    }
+  ]
+}

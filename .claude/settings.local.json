@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\xampp\\\\htdocs\\\\rafeeq\\\\app\\\\Http\\\\Resources\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\xampp\\\\htdocs\\\\rafeeq\\\\app\\\\Policies\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\xampp\\\\htdocs\\\\rafeeq\\\\app\\\\Http\\\\Requests\\\\Api\")",
+      "Bash(New-Item -ItemType Directory -Force \"c:\\\\xampp\\\\htdocs\\\\rafeeq\\\\app\\\\Http\\\\Controllers\\\\Admin\")",
+      "Bash(Out-Null)",
+      "Bash(New-Item -ItemType Directory -Force \"c:\\\\xampp\\\\htdocs\\\\rafeeq\\\\resources\\\\views\\\\admin\\\\children\")",
+      "Bash(New-Item -ItemType Directory -Force \"c:\\\\xampp\\\\htdocs\\\\rafeeq\\\\resources\\\\views\\\\admin\\\\specialists\")",
+      "Bash(New-Item -ItemType Directory -Force \"c:\\\\xampp\\\\htdocs\\\\rafeeq\\\\resources\\\\views\\\\admin\\\\plans\")",
+      "Bash(New-Item -ItemType Directory -Force \"c:\\\\xampp\\\\htdocs\\\\rafeeq\\\\resources\\\\views\\\\admin\\\\appointments\")",
+      "Bash(New-Item -ItemType Directory -Force \"c:\\\\xampp\\\\htdocs\\\\rafeeq\\\\resources\\\\views\\\\admin\\\\knowledge\")",
+      "Bash(New-Item -ItemType Directory -Force \"c:\\\\xampp\\\\htdocs\\\\rafeeq\\\\resources\\\\views\\\\admin\\\\subscriptions\")",
+      "Bash(New-Item -ItemType Directory -Force \"c:\\\\xampp\\\\htdocs\\\\rafeeq\\\\resources\\\\views\\\\admin\\\\activity\")",
+      "Bash(Write-Host \"All directories created.\")",
+      "Bash(Test-Path \"c:\\\\xampp\\\\htdocs\\\\rafeeq\\\\README.md\")"
+    ]
+  }
+}
