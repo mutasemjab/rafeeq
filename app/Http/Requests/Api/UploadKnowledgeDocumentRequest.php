@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Models\KnowledgeDocument;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UploadKnowledgeDocumentRequest extends FormRequest
@@ -11,7 +12,7 @@ class UploadKnowledgeDocumentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'file'     => 'required|file|mimes:pdf,docx,doc,pptx,txt|max:51200',
+            'file'     => KnowledgeDocument::uploadRules(),
             'title'    => 'nullable|string|max:255',
             'category' => 'nullable|string|max:100',
         ];

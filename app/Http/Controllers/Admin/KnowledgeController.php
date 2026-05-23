@@ -46,7 +46,7 @@ class KnowledgeController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'file'     => 'required|file|mimes:pdf,docx,doc,pptx,txt|max:51200',
+            'file'     => KnowledgeDocument::uploadRules(),
             'title'    => 'nullable|string|max:255',
             'category' => 'nullable|string|max:100',
         ]);
@@ -67,7 +67,7 @@ class KnowledgeController extends Controller
             'uploaded_by'   => null,
         ]);
 
-        ProcessKnowledgeDocumentJob::dispatchWithSyncFallback($doc->id);
+        ProcessKnowledgeDocumentJob::dispatchAfterResponse($doc->id);
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json($this->serializeDocument($doc->loadCount('chunks')), 201);
@@ -122,7 +122,7 @@ class KnowledgeController extends Controller
             'processing_error' => null,
             'processed_at'     => null,
         ]);
-        ProcessKnowledgeDocumentJob::dispatchWithSyncFallback($knowledge->id);
+        ProcessKnowledgeDocumentJob::dispatchAfterResponse($knowledge->id);
         return back()->with('success', 'Document queued for reprocessing.');
     }
 

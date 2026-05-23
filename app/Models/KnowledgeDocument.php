@@ -11,6 +11,7 @@ class KnowledgeDocument extends Model
     use HasFactory, SoftDeletes;
 
     public const IN_PROGRESS_STATUSES = ['uploaded', 'processing'];
+    public const SUPPORTED_UPLOAD_EXTENSIONS = ['pdf', 'docx', 'doc', 'pptx', 'txt'];
 
     protected $fillable = [
         'title',
@@ -37,6 +38,42 @@ class KnowledgeDocument extends Model
     public function uploader()
     {
         return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
+    public static function supportedUploadExtensions(): array
+    {
+        return self::SUPPORTED_UPLOAD_EXTENSIONS;
+    }
+
+    public static function supportedUploadAcceptAttribute(): string
+    {
+        return collect(self::supportedUploadExtensions())
+            ->map(fn(string $extension) => '.' . $extension)
+            ->implode(',');
+    }
+
+    public static function uploadRules(int $maxKilobytes = 51200): array
+    {
+        return [
+            'required',
+            'file',
+            'max:' . $maxKilobytes,
+            function (string $attribute, mixed $file, \Closure $fail): void {
+                $extension = strtolower((string) pathinfo(
+                    $file?->getClientOriginalName() ?? '',
+                    PATHINFO_EXTENSION
+                ));
+
+                if ($extension === 'ppt') {
+                    $fail('Legacy PowerPoint .ppt files are not supported. Please save the file as .pptx and upload it again.');
+                    return;
+                }
+
+                if (!in_array($extension, self::supportedUploadExtensions(), true)) {
+                    $fail('The file must be a file of type: ' . implode(', ', self::supportedUploadExtensions()) . '.');
+                }
+            },
+        ];
     }
 
     public static function titleFromFilename(string $filename): string

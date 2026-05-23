@@ -477,7 +477,7 @@
                         <input
                             type="file"
                             id="fileInput"
-                            accept=".pdf,.docx,.doc,.pptx,.txt"
+                            accept="{{ \App\Models\KnowledgeDocument::supportedUploadAcceptAttribute() }}"
                             multiple
                             hidden
                         >
@@ -615,7 +615,7 @@
             : `${chunks} knowledge chunks were created.`,
     };
 
-    const supportedExtensions = new Set(['pdf', 'doc', 'docx', 'pptx', 'txt']);
+    const supportedExtensions = new Set(@json(\App\Models\KnowledgeDocument::supportedUploadExtensions()));
     const inProgressStatuses = new Set(['uploaded', 'processing']);
 
     const form = document.getElementById('knowledgeBatchForm');
