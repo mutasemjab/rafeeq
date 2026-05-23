@@ -15,7 +15,7 @@ class OpenAiProvider implements LlmProviderInterface
 
         if (empty($apiKey)) {
             throw new RuntimeException(
-                'OpenAI API key is not configured. Set AI_OPENAI_API_KEY in your .env file.'
+                'OpenAI API key is not configured. Set OPENAI_API_KEY in your .env file.'
             );
         }
     }
