@@ -16,24 +16,25 @@ class Plan extends Model
         'billing_period',
         'price',
         'currency',
-        'ai_daily_limit',
-        'child_limit',
+        'ai_messages_per_day',
+        'max_children',
+        'max_documents_per_child',
+        'has_specialist_access',
         'has_voice_mode',
-        'has_advanced_ai',
-        'has_evaluation_reports',
+        'has_progress_reports',
         'has_priority_support',
         'is_active',
         'metadata',
     ];
 
     protected $casts = [
-        'has_voice_mode'         => 'bool',
-        'has_advanced_ai'        => 'bool',
-        'has_evaluation_reports' => 'bool',
-        'has_priority_support'   => 'bool',
-        'is_active'              => 'bool',
-        'metadata'               => 'array',
-        'price'                  => 'float',
+        'has_specialist_access'   => 'bool',
+        'has_voice_mode'          => 'bool',
+        'has_progress_reports'    => 'bool',
+        'has_priority_support'    => 'bool',
+        'is_active'               => 'bool',
+        'metadata'                => 'array',
+        'price'                   => 'float',
     ];
 
     public function subscriptions()
