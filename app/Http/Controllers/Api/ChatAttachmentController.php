@@ -55,7 +55,7 @@ class ChatAttachmentController extends Controller
             'status'          => 'uploaded',
         ]);
 
-        ProcessChatAttachmentJob::dispatch($attachment->id);
+        ProcessChatAttachmentJob::dispatchWithSyncFallback($attachment->id);
 
         return response()->json(new ChatAttachmentResource($attachment), 201);
     }

@@ -67,7 +67,7 @@ class KnowledgeController extends Controller
             'uploaded_by'   => null,
         ]);
 
-        ProcessKnowledgeDocumentJob::dispatch($doc->id);
+        ProcessKnowledgeDocumentJob::dispatchWithSyncFallback($doc->id);
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json($this->serializeDocument($doc->loadCount('chunks')), 201);
@@ -122,7 +122,7 @@ class KnowledgeController extends Controller
             'processing_error' => null,
             'processed_at'     => null,
         ]);
-        ProcessKnowledgeDocumentJob::dispatch($knowledge->id);
+        ProcessKnowledgeDocumentJob::dispatchWithSyncFallback($knowledge->id);
         return back()->with('success', 'Document queued for reprocessing.');
     }
 

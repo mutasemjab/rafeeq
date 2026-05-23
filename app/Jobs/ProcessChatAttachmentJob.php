@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Jobs\Concerns\DispatchesWithSyncFallback;
 use App\Models\ChatAttachment;
 use App\Models\ChatAttachmentChunk;
 use App\Services\AI\Contracts\LlmProviderInterface;
@@ -16,7 +17,7 @@ use Throwable;
 
 class ProcessChatAttachmentJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, DispatchesWithSyncFallback, InteractsWithQueue, Queueable, SerializesModels;
 
     public function __construct(private int $attachmentId)
     {

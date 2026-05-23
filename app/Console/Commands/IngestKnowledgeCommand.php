@@ -88,7 +88,7 @@ class IngestKnowledgeCommand extends Command
             if ($sync) {
                 ProcessKnowledgeDocumentJob::dispatchSync($doc->id);
             } else {
-                ProcessKnowledgeDocumentJob::dispatch($doc->id);
+                ProcessKnowledgeDocumentJob::dispatchWithSyncFallback($doc->id);
             }
 
             $this->info("Queued: {$name}");

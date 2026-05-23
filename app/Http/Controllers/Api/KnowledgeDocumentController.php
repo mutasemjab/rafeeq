@@ -45,7 +45,7 @@ class KnowledgeDocumentController extends Controller
             'uploaded_by'   => $user->id,
         ]);
 
-        ProcessKnowledgeDocumentJob::dispatch($doc->id);
+        ProcessKnowledgeDocumentJob::dispatchWithSyncFallback($doc->id);
 
         return response()->json(new KnowledgeDocumentResource($doc), 201);
     }

@@ -13,7 +13,7 @@ use App\Http\Controllers\Admin\SubscriptionsController;
 use App\Http\Controllers\Admin\ActivityLogController;
 use Mcamara\LaravelLocalization\Facades\LaravelLocalization;
 
-define('PAGINATION_COUNT', 15);
+defined('PAGINATION_COUNT') || define('PAGINATION_COUNT', 15);
 
 Route::group([
     'prefix' => LaravelLocalization::setLocale(),

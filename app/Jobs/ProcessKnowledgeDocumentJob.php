@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Jobs\Concerns\DispatchesWithSyncFallback;
 use App\Models\KnowledgeDocument;
 use App\Models\KnowledgeDocumentChunk;
 use App\Services\AI\Contracts\LlmProviderInterface;
@@ -16,7 +17,7 @@ use Throwable;
 
 class ProcessKnowledgeDocumentJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, DispatchesWithSyncFallback, InteractsWithQueue, Queueable, SerializesModels;
 
     public function __construct(private int $documentId)
     {
