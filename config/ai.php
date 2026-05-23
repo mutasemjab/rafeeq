@@ -50,7 +50,7 @@ return [
     | API Keys (resolved from env — never hardcoded)
     |--------------------------------------------------------------------------
     */
-    'openai_api_key'    => env('OPENAI_API_KEY'),
+    'openai_api_key'    => env('OPENAI_API_KEY', env('AI_OPENAI_API_KEY')),
     'gemini_api_key'    => env('GEMINI_API_KEY'),
     'anthropic_api_key' => env('ANTHROPIC_API_KEY'),
     'brave_api_key'     => env('BRAVE_SEARCH_API_KEY'),

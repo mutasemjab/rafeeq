@@ -2,6 +2,7 @@
 
 namespace App\Services\AI\Providers;
 
+use App\Services\AI\OpenAiConfigResolver;
 use App\Services\AI\Contracts\LlmProviderInterface;
 use OpenAI\Laravel\Facades\OpenAI;
 use RuntimeException;
@@ -9,15 +10,17 @@ use Throwable;
 
 class OpenAiProvider implements LlmProviderInterface
 {
-    public function __construct()
+    public function __construct(private OpenAiConfigResolver $configResolver)
     {
-        $apiKey = config('ai.openai_api_key');
+        $apiKey = $this->configResolver->apiKey();
 
         if (empty($apiKey)) {
             throw new RuntimeException(
-                'OpenAI API key is not configured. Set OPENAI_API_KEY in your .env file.'
+                'OpenAI API key is not configured. Set OPENAI_API_KEY in your .env file or server environment.'
             );
         }
+
+        $this->configResolver->syncIntoRuntimeConfig();
     }
 
     /**
