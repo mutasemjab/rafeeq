@@ -26,7 +26,10 @@ class ProcessKnowledgeDocumentJob implements ShouldQueue
     {
         $doc = KnowledgeDocument::findOrFail($this->documentId);
 
-        $doc->update(['status' => 'processing']);
+        $doc->update([
+            'status'           => 'processing',
+            'processing_error' => null,
+        ]);
 
         try {
             /** @var DocumentTextExtractor $extractor */
@@ -67,8 +70,9 @@ class ProcessKnowledgeDocumentJob implements ShouldQueue
             }
 
             $doc->update([
-                'status'       => 'processed',
-                'processed_at' => now(),
+                'status'           => 'processed',
+                'processed_at'     => now(),
+                'processing_error' => null,
             ]);
         } catch (Throwable $e) {
             $doc->update([

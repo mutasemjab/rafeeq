@@ -20,7 +20,7 @@ class DocumentTextExtractor
         }
 
         $extension = strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION));
-        $mimeType  = $mimeType ?? mime_content_type($absolutePath);
+        $mimeType  = (string) ($mimeType ?? mime_content_type($absolutePath) ?: '');
 
         if ($extension === 'txt' || str_contains($mimeType, 'text/plain')) {
             return $this->extractTxt($absolutePath);
@@ -32,6 +32,10 @@ class DocumentTextExtractor
 
         if (in_array($extension, ['docx', 'doc']) || str_contains($mimeType, 'wordprocessingml')) {
             return $this->extractDocx($absolutePath);
+        }
+
+        if ($extension === 'pptx' || str_contains($mimeType, 'presentationml') || str_contains($mimeType, 'powerpoint')) {
+            return $this->extractPptx($absolutePath);
         }
 
         if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
@@ -95,6 +99,94 @@ class DocumentTextExtractor
             throw new RuntimeException('DOCX extracted no usable text.');
         }
         return [['page' => null, 'text' => $fullText]];
+    }
+
+    private function extractPptx(string $path): array
+    {
+        if (!class_exists(\ZipArchive::class)) {
+            throw new RuntimeException('The PHP zip extension is required to process PPTX files.');
+        }
+
+        $zip = new \ZipArchive();
+
+        if ($zip->open($path) !== true) {
+            throw new RuntimeException('Unable to open PPTX file.');
+        }
+
+        $slides = [];
+        $notes  = [];
+
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $entryName = $zip->getNameIndex($i);
+
+            if (preg_match('#^ppt/slides/slide(\d+)\.xml$#', $entryName, $matches)) {
+                $slides[(int) $matches[1]] = $entryName;
+            }
+
+            if (preg_match('#^ppt/notesSlides/notesSlide(\d+)\.xml$#', $entryName, $matches)) {
+                $notes[(int) $matches[1]] = $entryName;
+            }
+        }
+
+        ksort($slides);
+        ksort($notes);
+
+        $result = [];
+
+        foreach ($slides as $slideNumber => $slideEntry) {
+            $slideText = $this->extractOpenXmlText($zip->getFromName($slideEntry) ?: '');
+            $notesText = isset($notes[$slideNumber])
+                ? $this->extractOpenXmlText($zip->getFromName($notes[$slideNumber]) ?: '')
+                : '';
+
+            $text = $this->normalize(trim($slideText . ' ' . $notesText));
+
+            if ($text !== '') {
+                $result[] = [
+                    'page' => $slideNumber,
+                    'text' => $text,
+                ];
+            }
+        }
+
+        $zip->close();
+
+        if (empty($result)) {
+            throw new RuntimeException('PPTX extracted no usable text.');
+        }
+
+        return $result;
+    }
+
+    private function extractOpenXmlText(string $xml): string
+    {
+        if ($xml === '') {
+            return '';
+        }
+
+        $document = new \DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $loaded   = $document->loadXML($xml);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        if (!$loaded) {
+            return trim(strip_tags($xml));
+        }
+
+        $xpath = new \DOMXPath($document);
+        $xpath->registerNamespace('a', 'http://schemas.openxmlformats.org/drawingml/2006/main');
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        $parts = [];
+
+        foreach (['//a:t', '//w:t'] as $query) {
+            foreach ($xpath->query($query) ?: [] as $node) {
+                $parts[] = $node->textContent;
+            }
+        }
+
+        return implode(' ', $parts);
     }
 
     private function normalize(string $text): string

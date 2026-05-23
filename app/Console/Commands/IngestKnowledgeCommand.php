@@ -38,7 +38,7 @@ class IngestKnowledgeCommand extends Command
         $this->info("Scanning storage path: {$storagePath}");
 
         $files     = Storage::files($storagePath);
-        $supported = ['pdf', 'docx', 'txt'];
+        $supported = ['pdf', 'docx', 'doc', 'pptx', 'txt'];
 
         if (empty($files)) {
             $this->warn('No files found in the specified path.');
@@ -75,9 +75,10 @@ class IngestKnowledgeCommand extends Command
             $doc = KnowledgeDocument::updateOrCreate(
                 ['file_path' => $file],
                 [
-                    'title'         => $name,
+                    'title'         => KnowledgeDocument::titleFromFilename($name),
                     'original_name' => $name,
                     'mime_type'     => $mimeType,
+                    'file_size'     => file_exists($absolutePath) ? filesize($absolutePath) : null,
                     'category'      => $category,
                     'status'        => 'uploaded',
                     'uploaded_by'   => null,

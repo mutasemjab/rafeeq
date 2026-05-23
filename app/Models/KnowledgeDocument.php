@@ -10,6 +10,8 @@ class KnowledgeDocument extends Model
 {
     use HasFactory, SoftDeletes;
 
+    public const IN_PROGRESS_STATUSES = ['uploaded', 'processing'];
+
     protected $fillable = [
         'title',
         'original_name',
@@ -35,5 +37,14 @@ class KnowledgeDocument extends Model
     public function uploader()
     {
         return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
+    public static function titleFromFilename(string $filename): string
+    {
+        $baseName = pathinfo($filename, PATHINFO_FILENAME);
+        $title = preg_replace('/[_-]+/', ' ', $baseName);
+        $title = preg_replace('/\s+/', ' ', $title);
+
+        return trim($title) ?: $baseName;
     }
 }

@@ -30,12 +30,12 @@ class ChildDocumentController extends Controller
             'child_id'      => $child->id,
             'user_id'       => $request->user()->id,
             'title'         => $request->input('title', $file->getClientOriginalName()),
-            'document_type' => $request->input('document_type', 'other'),
+            'category'      => $request->input('document_type', 'other'),
             'file_path'     => $path,
             'original_name' => $file->getClientOriginalName(),
             'mime_type'     => $file->getMimeType(),
             'file_size'     => $file->getSize(),
-            'status'        => 'pending',
+            'status'        => 'uploaded',
         ]);
 
         return response()->json(new ChildDocumentResource($doc), 201);

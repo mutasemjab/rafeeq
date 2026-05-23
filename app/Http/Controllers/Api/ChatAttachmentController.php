@@ -52,7 +52,7 @@ class ChatAttachmentController extends Controller
             'original_name'   => $file->getClientOriginalName(),
             'mime_type'       => $file->getMimeType(),
             'file_size'       => $file->getSize(),
-            'status'          => 'pending',
+            'status'          => 'uploaded',
         ]);
 
         ProcessChatAttachmentJob::dispatch($attachment->id);

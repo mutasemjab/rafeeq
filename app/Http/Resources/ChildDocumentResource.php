@@ -12,7 +12,7 @@ class ChildDocumentResource extends JsonResource
             'id'            => $this->id,
             'child_id'      => $this->child_id,
             'title'         => $this->title,
-            'document_type' => $this->document_type,
+            'document_type' => $this->category,
             'file_path'     => $this->file_path ? asset('storage/' . $this->file_path) : null,
             'status'        => $this->status,
             'created_at'    => $this->created_at?->toISOString(),

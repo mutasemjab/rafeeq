@@ -33,13 +33,15 @@ class KnowledgeDocumentController extends Controller
         $path = $file->store('knowledge', 'public');
 
         $doc = KnowledgeDocument::create([
-            'title'         => $request->input('title', $file->getClientOriginalName()),
+            'title'         => $request->filled('title')
+                ? $request->input('title')
+                : KnowledgeDocument::titleFromFilename($file->getClientOriginalName()),
             'category'      => $request->input('category'),
             'file_path'     => $path,
             'original_name' => $file->getClientOriginalName(),
             'mime_type'     => $file->getMimeType(),
             'file_size'     => $file->getSize(),
-            'status'        => 'pending',
+            'status'        => 'uploaded',
             'uploaded_by'   => $user->id,
         ]);
 

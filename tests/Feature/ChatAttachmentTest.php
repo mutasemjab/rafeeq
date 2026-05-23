@@ -35,7 +35,7 @@ class ChatAttachmentTest extends TestCase
                 'file'            => UploadedFile::fake()->create('test.pdf', 100, 'application/pdf'),
             ])
             ->assertStatus(201)
-            ->assertJsonPath('status', 'pending');
+            ->assertJsonPath('status', 'uploaded');
     }
 
     public function test_max_5_attachments_per_conversation(): void
