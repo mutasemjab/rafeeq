@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessKnowledgeDocumentJob;
 use App\Models\KnowledgeDocument;
+use App\Services\AI\OpenAiConfigResolver;
+use App\Services\AI\OpenAiRuntimeConfigStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -38,9 +40,32 @@ class KnowledgeController extends Controller
         return view('admin.knowledge.index', compact('docs', 'search', 'status', 'stats', 'liveIds'));
     }
 
-    public function create()
+    public function create(OpenAiConfigResolver $openAiConfigResolver, OpenAiRuntimeConfigStore $runtimeConfigStore)
     {
-        return view('admin.knowledge.create');
+        $aiConfig = [
+            'configured' => !empty($openAiConfigResolver->apiKey()),
+            'source'     => $openAiConfigResolver->apiKeySource(),
+            'stored'     => $runtimeConfigStore->exists(),
+        ];
+
+        return view('admin.knowledge.create', compact('aiConfig'));
+    }
+
+    public function updateAiConfig(Request $request, OpenAiRuntimeConfigStore $runtimeConfigStore)
+    {
+        $data = $request->validate([
+            'openai_api_key'       => 'required|string|max:500',
+            'openai_organization'  => 'nullable|string|max:255',
+        ]);
+
+        $runtimeConfigStore->save(
+            $data['openai_api_key'],
+            $data['openai_organization'] ?? null
+        );
+
+        return redirect()
+            ->route('admin.knowledge.create')
+            ->with('success', 'OpenAI credentials saved for this server. You can retry failed documents now.');
     }
 
     public function store(Request $request)

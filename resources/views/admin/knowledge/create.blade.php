@@ -92,6 +92,33 @@
     border-radius: 22px;
 }
 
+.runtime-config-card {
+    border-radius: 22px;
+    border: 1px solid #dbe4ff;
+    background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+    box-shadow: 0 16px 28px rgba(15, 23, 42, 0.05);
+}
+
+.runtime-config-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.runtime-config-status.is-ok {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.runtime-config-status.is-missing {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
 .dropzone {
     position: relative;
     padding: 28px;
@@ -437,6 +464,94 @@
 
     <div class="row g-4">
         <div class="col-xl-5">
+            <div class="runtime-config-card p-4 mb-4">
+                <div class="d-flex flex-column gap-3">
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                        <div>
+                            <h3 class="admin-card-title mb-2">
+                                <i class="fas fa-key"></i>
+                                {{ $locale === 'ar' ? 'إعداد مفتاح OpenAI' : 'OpenAI Setup' }}
+                            </h3>
+                            <p class="mb-0 text-muted">
+                                {{ $locale === 'ar'
+                                    ? 'إذا لم يكن الخادم يقرأ ملف البيئة بشكل صحيح، يمكنك حفظ المفتاح هنا لتشغيل معالجة الملفات مباشرة.'
+                                    : 'If the server is not reading the environment file correctly, save the key here so document processing can still run.' }}
+                            </p>
+                        </div>
+                        <span class="runtime-config-status {{ !empty($aiConfig['configured']) ? 'is-ok' : 'is-missing' }}">
+                            <i class="fas {{ !empty($aiConfig['configured']) ? 'fa-circle-check' : 'fa-triangle-exclamation' }}"></i>
+                            @if(!empty($aiConfig['configured']))
+                                {{ $locale === 'ar' ? 'تم العثور على المفتاح' : 'Key detected' }}
+                            @else
+                                {{ $locale === 'ar' ? 'المفتاح غير موجود' : 'Key missing' }}
+                            @endif
+                        </span>
+                    </div>
+
+                    <div class="small text-muted">
+                        @php
+                            $sourceLabels = [
+                                'config' => $locale === 'ar' ? 'إعدادات التطبيق' : 'application config',
+                                'env_file' => $locale === 'ar' ? 'ملف البيئة' : 'environment file',
+                                'server_env' => $locale === 'ar' ? 'متغيرات الخادم' : 'server environment',
+                                'runtime_file' => $locale === 'ar' ? 'ملف الإعدادات المحلي' : 'runtime settings file',
+                            ];
+                            $sourceLabel = $sourceLabels[$aiConfig['source'] ?? ''] ?? ($locale === 'ar' ? 'غير معروف' : 'unknown');
+                        @endphp
+                        @if(!empty($aiConfig['configured']))
+                            {{ $locale === 'ar'
+                                ? 'المصدر الحالي للمفتاح: '
+                                : 'Current key source: ' }}{{ $sourceLabel }}.
+                        @else
+                            {{ $locale === 'ar'
+                                ? 'المعالجة ستفشل حتى يتم توفير مفتاح صالح من ملف البيئة أو من النموذج التالي.'
+                                : 'Processing will keep failing until a valid key is available from the environment or the form below.' }}
+                        @endif
+                    </div>
+
+                    <form action="{{ route('admin.knowledge.openai-config') }}" method="POST" class="row g-3">
+                        @csrf
+                        <div class="col-12">
+                            <label for="openaiApiKey" class="form-label fw-500">
+                                {{ $locale === 'ar' ? 'مفتاح OpenAI API' : 'OpenAI API Key' }}
+                            </label>
+                            <input
+                                type="password"
+                                id="openaiApiKey"
+                                name="openai_api_key"
+                                class="form-control @error('openai_api_key') is-invalid @enderror"
+                                placeholder="sk-proj-..."
+                                autocomplete="off"
+                            >
+                            @error('openai_api_key')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-12">
+                            <label for="openaiOrganization" class="form-label fw-500">
+                                {{ $locale === 'ar' ? 'المؤسسة (اختياري)' : 'Organization (Optional)' }}
+                            </label>
+                            <input
+                                type="text"
+                                id="openaiOrganization"
+                                name="openai_organization"
+                                class="form-control @error('openai_organization') is-invalid @enderror"
+                                placeholder="{{ $locale === 'ar' ? 'اتركه فارغاً غالباً' : 'Usually leave this empty' }}"
+                            >
+                            @error('openai_organization')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-outline-primary">
+                                <i class="fas fa-floppy-disk me-1"></i>
+                                {{ $locale === 'ar' ? 'حفظ المفتاح لهذا الخادم' : 'Save Key For This Server' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <div class="admin-card batch-panel">
                 <div class="admin-card-header">
                     <h3 class="admin-card-title">

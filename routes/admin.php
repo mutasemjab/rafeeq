@@ -55,6 +55,7 @@ Route::group([
         Route::get('knowledge', [KnowledgeController::class, 'index'])->name('knowledge.index');
         Route::get('knowledge/create', [KnowledgeController::class, 'create'])->name('knowledge.create');
         Route::get('knowledge/statuses', [KnowledgeController::class, 'statuses'])->name('knowledge.statuses');
+        Route::post('knowledge/openai-config', [KnowledgeController::class, 'updateAiConfig'])->name('knowledge.openai-config');
         Route::post('knowledge', [KnowledgeController::class, 'store'])->name('knowledge.store');
         Route::delete('knowledge/{knowledge}', [KnowledgeController::class, 'destroy'])->name('knowledge.destroy');
         Route::post('knowledge/{knowledge}/reprocess', [KnowledgeController::class, 'reprocess'])->name('knowledge.reprocess');
