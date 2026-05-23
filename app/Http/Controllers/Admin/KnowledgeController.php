@@ -8,6 +8,7 @@ use App\Services\AI\OpenAiConfigResolver;
 use App\Services\AI\OpenAiRuntimeConfigStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Throwable;
 
 class KnowledgeController extends Controller
 {
@@ -58,10 +59,18 @@ class KnowledgeController extends Controller
             'openai_organization'  => 'nullable|string|max:255',
         ]);
 
-        $runtimeConfigStore->save(
-            $data['openai_api_key'],
-            $data['openai_organization'] ?? null
-        );
+        try {
+            $runtimeConfigStore->save(
+                $data['openai_api_key'],
+                $data['openai_organization'] ?? null
+            );
+        } catch (Throwable $exception) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'openai_api_key' => 'Could not save the OpenAI key on this server. Please check storage write permissions.',
+                ]);
+        }
 
         return redirect()
             ->route('admin.knowledge.create')

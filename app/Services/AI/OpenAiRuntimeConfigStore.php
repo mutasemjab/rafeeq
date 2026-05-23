@@ -2,6 +2,8 @@
 
 namespace App\Services\AI;
 
+use RuntimeException;
+
 class OpenAiRuntimeConfigStore
 {
     private ?array $cached = null;
@@ -34,11 +36,15 @@ class OpenAiRuntimeConfigStore
             mkdir($directory, 0755, true);
         }
 
-        file_put_contents(
+        $written = file_put_contents(
             $this->path(),
             json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
             LOCK_EX
         );
+
+        if ($written === false) {
+            throw new RuntimeException('Unable to save OpenAI runtime configuration file.');
+        }
 
         @chmod($this->path(), 0600);
 
