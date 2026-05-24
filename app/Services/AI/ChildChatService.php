@@ -41,9 +41,9 @@ class ChildChatService
 
         // 3. Search chat attachments first (user-scoped)
         $attachmentSources = $this->attachmentSearch->search(
-            $userMessage,
             $userId,
-            $conversation->id
+            (int) $conversation->id,
+            $userMessage
         );
 
         // 4. Search knowledge base

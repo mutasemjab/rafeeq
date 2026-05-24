@@ -49,8 +49,8 @@ class ChildChatController extends Controller
         $message = $this->chatService->ask(
             $conversation,
             $request->input('message'),
-            $user->id,
-            $conversation->child_id,
+            (int) $user->id,
+            $conversation->child_id !== null ? (int) $conversation->child_id : null,
             $request->input('language', $user->preferred_language ?? 'en'),
         );
 
