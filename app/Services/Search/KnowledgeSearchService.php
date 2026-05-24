@@ -30,33 +30,12 @@ class KnowledgeSearchService
 
         $results = $this->repo->searchKnowledge($embedding, $limit, $threshold);
 
-        Log::channel('daily')->info('KnowledgeSearch: query completed', [
-            'question'       => $question,
-            'limit'          => $limit,
-            'threshold'      => $threshold,
-            'chunks_found'   => count($results),
-        ]);
-
         foreach ($results as $i => &$result) {
             $result['source_label'] = 'KB_SOURCE_' . ($i + 1);
             $result['source_type']  = 'knowledge_base';
             $result['snippet']      = substr($result['content'] ?? '', 0, 200);
-
-            Log::channel('daily')->info('KnowledgeSearch: chunk #' . ($i + 1), [
-                'source_label'    => $result['source_label'],
-                'document_id'     => $result['knowledge_document_id'] ?? null,
-                'similarity'      => $result['similarity'] ?? null,
-                'content_preview' => substr($result['content'] ?? '', 0, 300),
-            ]);
         }
         unset($result);
-
-        if (empty($results)) {
-            Log::channel('daily')->warning('KnowledgeSearch: no chunks found above threshold', [
-                'question'  => $question,
-                'threshold' => $threshold,
-            ]);
-        }
 
         return $results;
     }
