@@ -25,6 +25,7 @@ class Conversation extends Model
         'summary',
         'source',
         'status',
+        'message_count',
         'last_message_at',
     ];
 

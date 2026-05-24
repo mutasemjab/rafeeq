@@ -14,8 +14,9 @@ return new class extends Migration
             $table->foreignId('child_id')->nullable()->constrained('children')->nullOnDelete();
             $table->string('title')->nullable();
             $table->longText('summary')->nullable();
-            $table->enum('source', ['text', 'voice'])->default('text');
+            $table->enum('source', ['text', 'voice', 'mobile', 'web'])->default('text');
             $table->enum('status', ['active', 'archived'])->default('active');
+            $table->unsignedInteger('message_count')->default(0);
             $table->timestamp('last_message_at')->nullable();
             $table->timestamps();
             $table->softDeletes();
