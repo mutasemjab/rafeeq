@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Repositories\Contracts\VectorSearchRepositoryInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
 {
@@ -22,44 +23,81 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
             ->where('d.status', 'processed')
             ->whereNull('d.deleted_at')
             ->select([
-                'c.id          as chunk_id',
-                'd.id          as document_id',
+                'c.id            as chunk_id',
+                'd.id            as document_id',
                 'd.original_name as document_name',
-                'd.title       as title',
-                'd.category    as category',
-                'c.page_number as page_number',
-                'c.chunk_index as chunk_index',
-                'c.content     as content',
-                'c.embedding   as embedding',
+                'd.title         as title',
+                'd.category      as category',
+                'c.page_number   as page_number',
+                'c.chunk_index   as chunk_index',
+                'c.content       as content',
+                'c.embedding     as embedding',
             ])
             ->get();
 
-        $results = [];
+        Log::info('[VectorSearch] Knowledge: rows fetched from DB', [
+            'total_rows' => $rows->count(),
+            'threshold'  => $threshold,
+            'limit'      => $limit,
+        ]);
+
+        $results      = [];
+        $nullCount    = 0;
+        $belowThresh  = 0;
+        $topSimilarity = 0.0;
 
         foreach ($rows as $row) {
             $embedding = $this->decodeEmbedding($row->embedding);
 
             if ($embedding === null) {
+                $nullCount++;
                 continue;
             }
 
-            $similarity = $this->cosine($queryEmbedding, $embedding);
+            $similarity    = $this->cosine($queryEmbedding, $embedding);
+            $topSimilarity = max($topSimilarity, $similarity);
 
             if ($similarity < $threshold) {
+                $belowThresh++;
                 continue;
             }
 
             $results[] = [
-                'chunk_id'      => $row->chunk_id,
-                'document_id'   => $row->document_id,
-                'document_name' => $row->document_name,
-                'title'         => $row->title,
-                'category'      => $row->category,
-                'page_number'   => $row->page_number,
-                'chunk_index'   => $row->chunk_index,
-                'content'       => $row->content,
-                'similarity'    => $similarity,
+                'chunk_id'               => $row->chunk_id,
+                'knowledge_document_id'  => $row->document_id,
+                'document_name'          => $row->document_name,
+                'title'                  => $row->title,
+                'category'               => $row->category,
+                'page_number'            => $row->page_number,
+                'chunk_index'            => $row->chunk_index,
+                'content'                => $row->content,
+                'similarity'             => $similarity,
             ];
+        }
+
+        Log::info('[VectorSearch] Knowledge: scoring complete', [
+            'total_rows'     => $rows->count(),
+            'null_embeddings'=> $nullCount,
+            'below_threshold'=> $belowThresh,
+            'passed'         => count($results),
+            'top_similarity' => round($topSimilarity, 4),
+            'threshold'      => $threshold,
+        ]);
+
+        if ($nullCount > 0) {
+            Log::warning('[VectorSearch] Knowledge: some chunks had null/invalid embeddings', [
+                'null_count' => $nullCount,
+            ]);
+        }
+
+        if (count($results) === 0 && $rows->count() > 0) {
+            Log::warning('[VectorSearch] Knowledge: all chunks below threshold', [
+                'top_similarity' => round($topSimilarity, 4),
+                'threshold'      => $threshold,
+                'suggestion'     => $topSimilarity > 0
+                    ? 'Consider lowering document_similarity_threshold in config/ai.php'
+                    : 'Embeddings may all be null — check if ProcessKnowledgeDocumentJob ran successfully',
+            ]);
         }
 
         usort($results, fn($a, $b) => $b['similarity'] <=> $a['similarity']);
