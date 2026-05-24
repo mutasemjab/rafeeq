@@ -26,7 +26,7 @@ return [
     | RAG / Retrieval Settings
     |--------------------------------------------------------------------------
     */
-    'document_similarity_threshold' => (float) env('AI_DOCUMENT_SIMILARITY_THRESHOLD', 0.70),
+    'document_similarity_threshold' => (float) env('AI_DOCUMENT_SIMILARITY_THRESHOLD', 0.50),
 
     'max_chat_attachment_chunks' => (int) env('AI_MAX_CHAT_ATTACHMENT_CHUNKS', 6),
     'max_knowledge_chunks'       => (int) env('AI_MAX_KNOWLEDGE_CHUNKS', 8),
