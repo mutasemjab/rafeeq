@@ -6,6 +6,7 @@
 @section('content')
 @php
     $locale = app()->getLocale();
+    $availabilityApiUrl = url('/api/v1/specialists/' . $specialist->id . '/availabilities');
     $specializations = is_array($specialist->specializations)
         ? implode(', ', $specialist->specializations)
         : implode(', ', json_decode($specialist->specializations ?? '[]', true));
@@ -205,6 +206,170 @@
                 </div>
             </div>
         </form>
+    </div>
+</div>
+
+<div class="admin-card mt-4">
+    <div class="admin-card-header">
+        <h3 class="admin-card-title">
+            <i class="fas fa-calendar-days"></i>
+            {{ $locale === 'ar' ? 'مواعيد التوفر' : 'Availability Slots' }}
+        </h3>
+    </div>
+    <div class="p-4">
+        <div class="alert alert-info">
+            <div class="fw-600 mb-1">
+                {{ $locale === 'ar' ? 'تظهر هذه المواعيد في الـ API عند طلب نفس التاريخ.' : 'These slots appear in the API when the requested date matches.' }}
+            </div>
+            <div class="small">
+                {{ $locale === 'ar' ? 'مثال:' : 'Example:' }}
+                <code>{{ $availabilityApiUrl }}?date=2026-06-10</code>
+            </div>
+            <div class="small mt-1">
+                {{ $locale === 'ar'
+                    ? 'إذا لم ترسل باراميتر التاريخ فسيتم إرجاع مواعيد تاريخ اليوم فقط.'
+                    : 'If you do not send the date query parameter, the endpoint only returns slots for the current day.' }}
+            </div>
+        </div>
+
+        <form action="{{ route('admin.specialists.availabilities.store', $specialist->id) }}" method="POST" class="row g-3 mb-4">
+            @csrf
+
+            <div class="col-md-3">
+                <label class="form-label fw-500">
+                    {{ $locale === 'ar' ? 'التاريخ' : 'Date' }} <span class="text-danger">*</span>
+                </label>
+                <input type="date"
+                       name="available_date"
+                       class="form-control @error('available_date', 'availability') is-invalid @enderror"
+                       value="{{ old('available_date') }}"
+                       required>
+                @error('available_date', 'availability')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label fw-500">
+                    {{ $locale === 'ar' ? 'وقت البداية' : 'Start Time' }} <span class="text-danger">*</span>
+                </label>
+                <input type="time"
+                       name="start_time"
+                       class="form-control @error('start_time', 'availability') is-invalid @enderror"
+                       value="{{ old('start_time') }}"
+                       required>
+                @error('start_time', 'availability')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label fw-500">
+                    {{ $locale === 'ar' ? 'وقت النهاية' : 'End Time' }} <span class="text-danger">*</span>
+                </label>
+                <input type="time"
+                       name="end_time"
+                       class="form-control @error('end_time', 'availability') is-invalid @enderror"
+                       value="{{ old('end_time') }}"
+                       required>
+                @error('end_time', 'availability')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label fw-500">
+                    {{ $locale === 'ar' ? 'مدة الجلسة بالدقائق' : 'Slot Duration (minutes)' }} <span class="text-danger">*</span>
+                </label>
+                <input type="number"
+                       name="slot_duration_minutes"
+                       class="form-control @error('slot_duration_minutes', 'availability') is-invalid @enderror"
+                       value="{{ old('slot_duration_minutes', 30) }}"
+                       min="1"
+                       max="1440"
+                       required>
+                @error('slot_duration_minutes', 'availability')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label fw-500">
+                    {{ $locale === 'ar' ? 'السعة' : 'Capacity' }} <span class="text-danger">*</span>
+                </label>
+                <input type="number"
+                       name="capacity"
+                       class="form-control @error('capacity', 'availability') is-invalid @enderror"
+                       value="{{ old('capacity', 1) }}"
+                       min="1"
+                       max="1000"
+                       required>
+                @error('capacity', 'availability')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           name="slot_is_available"
+                           id="availability_is_available"
+                           value="1"
+                           {{ old('slot_is_available', 1) ? 'checked' : '' }}>
+                    <label class="form-check-label fw-500" for="availability_is_available">
+                        {{ $locale === 'ar' ? 'إظهار في الـ API' : 'Visible in API' }}
+                    </label>
+                </div>
+            </div>
+
+            <div class="col-md-6 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>
+                    {{ $locale === 'ar' ? 'إضافة موعد' : 'Add Slot' }}
+                </button>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>{{ $locale === 'ar' ? 'التاريخ' : 'Date' }}</th>
+                        <th>{{ $locale === 'ar' ? 'من' : 'From' }}</th>
+                        <th>{{ $locale === 'ar' ? 'إلى' : 'To' }}</th>
+                        <th>{{ $locale === 'ar' ? 'المدة' : 'Duration' }}</th>
+                        <th>{{ $locale === 'ar' ? 'السعة' : 'Capacity' }}</th>
+                        <th>{{ $locale === 'ar' ? 'الحالة' : 'Status' }}</th>
+                        <th class="text-end">{{ $locale === 'ar' ? 'إجراءات' : 'Actions' }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($specialist->availabilities as $availability)
+                        <tr>
+                            <td>{{ $availability->available_date?->format('Y-m-d') }}</td>
+                            <td>{{ \Illuminate\Support\Str::of($availability->start_time)->substr(0, 5) }}</td>
+                            <td>{{ \Illuminate\Support\Str::of($availability->end_time)->substr(0, 5) }}</td>
+                            <td>{{ $availability->slot_duration_minutes }} {{ $locale === 'ar' ? 'دقيقة' : 'min' }}</td>
+                            <td>{{ $availability->capacity }}</td>
+                            <td>
+                                @if($availability->is_available)
+                                    <span class="badge rounded-pill bg-success">{{ $locale === 'ar' ? 'ظاهر' : 'Visible' }}</span>
+                                @else
+                                    <span class="badge rounded-pill bg-secondary">{{ $locale === 'ar' ? 'مخفي' : 'Hidden' }}</span>
+                                @endif
+                            </td>
+                            <td class="text-end">
+                                <form action="{{ route('admin.specialists.availabilities.destroy', [$specialist->id, $availability->id]) }}" method="POST" onsubmit="return confirm('{{ $locale === 'ar' ? 'هل تريد حذف هذا الموعد؟' : 'Delete this availability slot?' }}');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash"></i>
+                                        {{ $locale === 'ar' ? 'حذف' : 'Delete' }}
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                {{ $locale === 'ar' ? 'لا توجد مواعيد توفر حتى الآن.' : 'No availability slots added yet.' }}
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 

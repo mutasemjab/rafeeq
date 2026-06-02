@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Http\Controllers\Admin\SpecialistsController;
 use App\Models\Admin;
 use App\Models\Specialist;
+use App\Models\SpecialistAvailability;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Tests\TestCase;
@@ -55,5 +56,38 @@ class AdminSpecialistTest extends TestCase
         $this->assertTrue($specialist->is_active);
         $this->assertTrue($specialist->is_available);
         $this->assertNotSame('', $specialist->slug);
+    }
+
+    public function test_admin_can_add_specialist_availability_from_dashboard(): void
+    {
+        $specialist = Specialist::factory()->create([
+            'name' => 'Mona Ali',
+        ]);
+
+        $editRoute = route('admin.specialists.edit', $specialist);
+
+        $request = Request::create('/admin/specialists/'.$specialist->id.'/availabilities', 'POST', [
+            'available_date' => '2026-06-10',
+            'start_time' => '09:00',
+            'end_time' => '09:30',
+            'slot_duration_minutes' => '30',
+            'capacity' => '2',
+            'slot_is_available' => '1',
+        ]);
+
+        $response = app(SpecialistsController::class)->storeAvailability($request, $specialist);
+
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertSame($editRoute, $response->getTargetUrl());
+
+        $availability = SpecialistAvailability::query()->sole();
+
+        $this->assertSame($specialist->id, $availability->specialist_id);
+        $this->assertSame('2026-06-10', $availability->available_date?->toDateString());
+        $this->assertSame('09:00:00', $availability->start_time);
+        $this->assertSame('09:30:00', $availability->end_time);
+        $this->assertSame(30, $availability->slot_duration_minutes);
+        $this->assertSame(2, $availability->capacity);
+        $this->assertTrue($availability->is_available);
     }
 }

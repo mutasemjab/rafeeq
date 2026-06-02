@@ -35,6 +35,15 @@
         </h3>
     </div>
     <div class="p-4">
+        <div class="alert alert-info d-flex align-items-start gap-2">
+            <i class="fas fa-circle-info mt-1"></i>
+            <div>
+                {{ $locale === 'ar'
+                    ? 'بعد حفظ المتخصص يمكنك إضافة مواعيد التوفر من صفحة التعديل.'
+                    : 'After saving the specialist, you can add availability slots from the Edit page.' }}
+            </div>
+        </div>
+
         <form action="{{ route('admin.specialists.store') }}" method="POST" enctype="multipart/form-data">
             @csrf
 

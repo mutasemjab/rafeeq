@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Specialist;
+use App\Models\SpecialistAvailability;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -42,6 +44,12 @@ class SpecialistsController extends Controller
 
     public function edit(Specialist $specialist)
     {
+        $specialist->load([
+            'availabilities' => fn($query) => $query
+                ->orderBy('available_date')
+                ->orderBy('start_time'),
+        ]);
+
         return view('admin.specialists.edit', compact('specialist'));
     }
 
@@ -62,6 +70,40 @@ class SpecialistsController extends Controller
     {
         $specialist->delete();
         return back()->with('success', 'Specialist deleted.');
+    }
+
+    public function storeAvailability(Request $request, Specialist $specialist)
+    {
+        $data = $request->validateWithBag('availability', [
+            'available_date' => 'required|date',
+            'start_time' => 'required|date_format:H:i',
+            'end_time' => 'required|date_format:H:i|after:start_time',
+            'slot_duration_minutes' => 'required|integer|min:1|max:1440',
+            'capacity' => 'required|integer|min:1|max:1000',
+            'slot_is_available' => 'boolean',
+        ]);
+
+        $data['start_time'] = Carbon::createFromFormat('H:i', $data['start_time'])->format('H:i:s');
+        $data['end_time'] = Carbon::createFromFormat('H:i', $data['end_time'])->format('H:i:s');
+        $data['is_available'] = $request->boolean('slot_is_available');
+        unset($data['slot_is_available']);
+
+        $specialist->availabilities()->create($data);
+
+        return redirect()
+            ->route('admin.specialists.edit', $specialist)
+            ->with('success', 'Availability slot added.');
+    }
+
+    public function destroyAvailability(Specialist $specialist, SpecialistAvailability $availability)
+    {
+        abort_unless($availability->specialist_id === $specialist->id, 404);
+
+        $availability->delete();
+
+        return redirect()
+            ->route('admin.specialists.edit', $specialist)
+            ->with('success', 'Availability slot deleted.');
     }
 
     private function validatedData(Request $request): array

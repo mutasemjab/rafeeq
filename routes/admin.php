@@ -42,6 +42,10 @@ Route::group([
 
         // Specialists
         Route::resource('specialists', SpecialistsController::class);
+        Route::post('specialists/{specialist}/availabilities', [SpecialistsController::class, 'storeAvailability'])
+            ->name('specialists.availabilities.store');
+        Route::delete('specialists/{specialist}/availabilities/{availability}', [SpecialistsController::class, 'destroyAvailability'])
+            ->name('specialists.availabilities.destroy');
 
         // Plans
         Route::resource('plans', PlansController::class);
