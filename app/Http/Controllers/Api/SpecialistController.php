@@ -13,8 +13,13 @@ class SpecialistController extends Controller
     public function index(Request $request): JsonResponse
     {
         $specialists = Specialist::where('is_active', true)
-            ->when($request->input('language'), fn($q, $lang) => $q->where('languages', 'like', "%{$lang}%"))
-            ->when($request->input('specialization'), fn($q, $s) => $q->where('specializations', 'like', "%{$s}%"))
+            ->when($request->input('language'), fn($query, $language) => $query->whereJsonContains('metadata->languages', $language))
+            ->when($request->input('specialization'), function ($query, $specialization) {
+                $query->where(function ($query) use ($specialization) {
+                    $query->where('specialty', 'like', "%{$specialization}%")
+                        ->orWhereJsonContains('metadata->specializations', $specialization);
+                });
+            })
             ->orderByDesc('rating_avg')
             ->paginate(15);
 
