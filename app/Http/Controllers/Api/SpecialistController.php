@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\SpecialistResource;
 use App\Models\Specialist;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -36,17 +37,24 @@ class SpecialistController extends Controller
 
     public function availabilities(Request $request, Specialist $specialist): JsonResponse
     {
-        $date = $request->input('date', today()->toDateString());
+        $data = $request->validate([
+            'date' => 'nullable|date',
+        ]);
+
+        $date = Carbon::parse($data['date'] ?? today()->toDateString())->toDateString();
 
         $slots = $specialist->availabilities()
-            ->where('day_of_week', now()->parse($date)->dayOfWeek)
-            ->where('is_active', true)
+            ->whereDate('available_date', $date)
+            ->where('is_available', true)
+            ->orderBy('start_time')
             ->get()
             ->map(fn($slot) => [
-                'day_of_week'         => $slot->day_of_week,
+                'available_date'      => $slot->available_date?->toDateString(),
+                'day_of_week'         => $slot->available_date?->dayOfWeek,
                 'start_time'          => $slot->start_time,
                 'end_time'            => $slot->end_time,
                 'slot_duration_minutes' => $slot->slot_duration_minutes,
+                'capacity'            => $slot->capacity,
             ]);
 
         return response()->json(['date' => $date, 'slots' => $slots]);
