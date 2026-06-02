@@ -182,6 +182,8 @@ BRAVE_API_KEY=
 | POST | `/appointments/{id}/cancel` | Cancel |
 | POST | `/reviews` | Submit review (completed only) |
 
+`POST /appointments` supports an optional `payment_method`. Use `card` for the normal flow. For testing only, `pay_for_later` can be enabled with `PAY_FOR_LATER_ENABLED=true`; when selected, the API creates a pending test payment record and confirms the appointment immediately.
+
 ### Plans & Subscriptions
 | Method | Endpoint | Description |
 |---|---|---|

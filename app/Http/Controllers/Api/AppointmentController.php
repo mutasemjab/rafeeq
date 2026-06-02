@@ -9,6 +9,8 @@ use App\Models\Specialist;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class AppointmentController extends Controller
 {
@@ -16,7 +18,7 @@ class AppointmentController extends Controller
     {
         $appointments = $request->user()
             ->appointments()
-            ->with('specialist')
+            ->with(['specialist', 'payment'])
             ->latest()
             ->paginate(15);
 
@@ -28,6 +30,12 @@ class AppointmentController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $paymentMethods = ['card'];
+
+        if ($this->payForLaterEnabled()) {
+            $paymentMethods[] = 'pay_for_later';
+        }
+
         $data = $request->validate([
             'specialist_id'    => 'required|exists:specialists,id',
             'child_id'         => 'nullable|exists:children,id',
@@ -37,10 +45,20 @@ class AppointmentController extends Controller
             'end_time'         => 'required|date_format:H:i|after:start_time',
             'timezone'         => 'nullable|string|max:50',
             'notes'            => 'nullable|string',
+            'payment_method'   => ['nullable', 'string', Rule::in($paymentMethods)],
         ]);
 
         if (isset($data['child_id'])) {
             $request->user()->children()->findOrFail($data['child_id']);
+        }
+
+        $paymentMethod = $data['payment_method'] ?? 'card';
+        $specialist = Specialist::query()->findOrFail($data['specialist_id']);
+
+        if ($paymentMethod === 'pay_for_later' && ! $this->payForLaterEnabled()) {
+            throw ValidationException::withMessages([
+                'payment_method' => ['The pay_for_later method is disabled.'],
+            ]);
         }
 
         $appointment = Appointment::create([
@@ -54,16 +72,36 @@ class AppointmentController extends Controller
             'end_time'         => $data['end_time'],
             'timezone'         => $data['timezone'] ?? 'UTC',
             'notes'            => $data['notes'] ?? null,
-            'status'           => 'pending_payment',
+            'status'           => $paymentMethod === 'pay_for_later' ? 'confirmed' : 'pending_payment',
         ]);
 
-        return response()->json(new AppointmentResource($appointment->load('specialist')), 201);
+        if ($paymentMethod === 'pay_for_later') {
+            $payment = $request->user()->payments()->create([
+                'payable_type' => Appointment::class,
+                'payable_id' => $appointment->id,
+                'payment_type' => 'appointment',
+                'provider' => 'pay_for_later_test',
+                'amount' => $specialist->session_fee,
+                'currency' => $specialist->currency ?: 'USD',
+                'status' => 'pending',
+                'metadata' => [
+                    'payment_method' => 'pay_for_later',
+                    'test_only' => true,
+                ],
+            ]);
+
+            $appointment->update([
+                'payment_id' => $payment->id,
+            ]);
+        }
+
+        return response()->json(new AppointmentResource($appointment->load(['specialist', 'payment'])), 201);
     }
 
     public function show(Request $request, Appointment $appointment): JsonResponse
     {
         $this->authorize('view', $appointment);
-        return response()->json(new AppointmentResource($appointment->load('specialist')));
+        return response()->json(new AppointmentResource($appointment->load(['specialist', 'payment'])));
     }
 
     public function cancel(Request $request, Appointment $appointment): JsonResponse
@@ -77,6 +115,14 @@ class AppointmentController extends Controller
             'canceled_reason' => $data['reason'] ?? null,
         ]);
 
-        return response()->json(['message' => 'Appointment canceled.', 'appointment' => new AppointmentResource($appointment->fresh())]);
+        return response()->json([
+            'message' => 'Appointment canceled.',
+            'appointment' => new AppointmentResource($appointment->fresh()->load(['specialist', 'payment'])),
+        ]);
+    }
+
+    private function payForLaterEnabled(): bool
+    {
+        return (bool) config('payments.pay_for_later_enabled', false);
     }
 }

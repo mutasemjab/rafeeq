@@ -8,6 +8,8 @@ class AppointmentResource extends JsonResource
 {
     public function toArray($request): array
     {
+        $payment = $this->relationLoaded('payment') ? $this->payment : null;
+
         return [
             'id'                => $this->id,
             'booking_reference' => $this->booking_reference,
@@ -22,6 +24,16 @@ class AppointmentResource extends JsonResource
             'join_url'          => $this->join_url,
             'join_available_at' => $this->join_available_at?->toISOString(),
             'notes'             => $this->notes,
+            'payment'           => $payment ? [
+                'id' => $payment->id,
+                'type' => $payment->payment_type,
+                'provider' => $payment->provider,
+                'method' => data_get($payment->metadata, 'payment_method'),
+                'status' => $payment->status,
+                'amount' => $payment->amount,
+                'currency' => $payment->currency,
+                'test_only' => (bool) data_get($payment->metadata, 'test_only', false),
+            ] : null,
             'created_at'        => $this->created_at?->toISOString(),
         ];
     }
