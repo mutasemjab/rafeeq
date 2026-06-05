@@ -1,23 +1,21 @@
-@extends('layouts.admin')
+<?php $__env->startSection('title', __('messages.dashboard')); ?>
+<?php $__env->startSection('page_title', __('messages.dashboard')); ?>
 
-@section('title', __('messages.dashboard'))
-@section('page_title', __('messages.dashboard'))
-
-@section('content')
-@php $locale = app()->getLocale(); @endphp
+<?php $__env->startSection('content'); ?>
+<?php $locale = app()->getLocale(); ?>
 
 <div class="page-header">
     <div class="page-header-left">
-        <h1>{{ __('messages.dashboard') }}</h1>
+        <h1><?php echo e(__('messages.dashboard')); ?></h1>
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item active">{{ __('messages.dashboard') }}</li>
+                <li class="breadcrumb-item active"><?php echo e(__('messages.dashboard')); ?></li>
             </ol>
         </nav>
     </div>
 </div>
 
-{{-- Stat Cards --}}
+
 <div class="row g-4 mb-4">
 
     <div class="col-12 col-sm-6 col-xl-3">
@@ -26,22 +24,23 @@
                 <i class="fas fa-users"></i>
             </div>
             <div class="stat-info">
-                <div class="stat-number">{{ $usersCount ?? 0 }}</div>
-                <div class="stat-label">{{ __('messages.users') }}</div>
+                <div class="stat-number"><?php echo e($usersCount ?? 0); ?></div>
+                <div class="stat-label"><?php echo e(__('messages.users')); ?></div>
             </div>
         </div>
     </div>
 
     <div class="col-12 col-sm-6 col-xl-3">
-        <a href="{{ route('admin.appointments.index') }}" class="stat-card text-decoration-none h-100" style="display:block;">
+        <a href="<?php echo e(route('admin.appointments.index')); ?>" class="stat-card text-decoration-none h-100" style="display:block;">
             <div class="stat-icon-wrap bg-success-soft">
                 <i class="fas fa-calendar-check"></i>
             </div>
             <div class="stat-info">
-                <div class="stat-number">{{ $appointmentsCount ?? 0 }}</div>
-                <div class="stat-label">{{ $locale === 'ar' ? 'المواعيد' : 'Appointments' }}</div>
+                <div class="stat-number"><?php echo e($appointmentsCount ?? 0); ?></div>
+                <div class="stat-label"><?php echo e($locale === 'ar' ? 'المواعيد' : 'Appointments'); ?></div>
                 <div style="font-size:0.75rem; color:#2563eb; margin-top:6px;">
-                    {{ $locale === 'ar' ? 'فتح المواعيد' : 'Open Appointments' }}
+                    <?php echo e($locale === 'ar' ? 'فتح المواعيد' : 'Open Appointments'); ?>
+
                 </div>
             </div>
         </a>
@@ -54,7 +53,7 @@
             </div>
             <div class="stat-info">
                 <div class="stat-number">0</div>
-                <div class="stat-label">{{ __('messages.messages') }}</div>
+                <div class="stat-label"><?php echo e(__('messages.messages')); ?></div>
             </div>
         </div>
     </div>
@@ -66,24 +65,26 @@
             </div>
             <div class="stat-info">
                 <div class="stat-number">0</div>
-                <div class="stat-label">{{ __('messages.catalogs') }}</div>
+                <div class="stat-label"><?php echo e(__('messages.catalogs')); ?></div>
             </div>
         </div>
     </div>
 
 </div>
 
-{{-- Recent Users --}}
+
 <div class="row g-4">
     <div class="col-12 col-lg-8">
         <div class="admin-card">
             <div class="admin-card-header">
                 <h3 class="admin-card-title">
                     <i class="fas fa-users"></i>
-                    {{ __('messages.recent_users') }}
+                    <?php echo e(__('messages.recent_users')); ?>
+
                 </h3>
-                <a href="{{ route('admin.users.index') }}" class="btn btn-sm btn-outline-primary">
-                    {{ __('messages.view_all') }}
+                <a href="<?php echo e(route('admin.users.index')); ?>" class="btn btn-sm btn-outline-primary">
+                    <?php echo e(__('messages.view_all')); ?>
+
                 </a>
             </div>
             <div class="table-responsive">
@@ -91,38 +92,39 @@
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>{{ __('messages.user_name') }}</th>
-                            <th>{{ __('messages.email') }}</th>
-                            <th>{{ __('messages.phone') }}</th>
-                            <th>{{ __('messages.created_at') }}</th>
+                            <th><?php echo e(__('messages.user_name')); ?></th>
+                            <th><?php echo e(__('messages.email')); ?></th>
+                            <th><?php echo e(__('messages.phone')); ?></th>
+                            <th><?php echo e(__('messages.created_at')); ?></th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($recentUsers ?? [] as $user)
+                        <?php $__empty_1 = true; $__currentLoopData = $recentUsers ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $user): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                         <tr>
-                            <td>{{ $user->id }}</td>
+                            <td><?php echo e($user->id); ?></td>
                             <td>
                                 <div class="d-flex align-items-center gap-2">
                                     <div class="user-avatar-sm">
-                                        {{ strtoupper(substr($user->name, 0, 1)) }}
+                                        <?php echo e(strtoupper(substr($user->name, 0, 1))); ?>
+
                                     </div>
-                                    <span class="fw-600">{{ $user->name }}</span>
+                                    <span class="fw-600"><?php echo e($user->name); ?></span>
                                 </div>
                             </td>
-                            <td>{{ $user->email }}</td>
-                            <td>{{ $user->phone ?? '—' }}</td>
-                            <td>{{ $user->created_at->format('d M Y') }}</td>
+                            <td><?php echo e($user->email); ?></td>
+                            <td><?php echo e($user->phone ?? '—'); ?></td>
+                            <td><?php echo e($user->created_at->format('d M Y')); ?></td>
                         </tr>
-                        @empty
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <tr>
                             <td colspan="5">
                                 <div class="empty-state">
                                     <i class="fas fa-users"></i>
-                                    <p>{{ __('messages.no_users_yet') }}</p>
+                                    <p><?php echo e(__('messages.no_users_yet')); ?></p>
                                 </div>
                             </td>
                         </tr>
-                        @endforelse
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -134,7 +136,8 @@
             <div class="admin-card-header">
                 <h3 class="admin-card-title">
                     <i class="fas fa-circle-info"></i>
-                    {{ $locale === 'ar' ? 'معلومات النظام' : 'System Info' }}
+                    <?php echo e($locale === 'ar' ? 'معلومات النظام' : 'System Info'); ?>
+
                 </h3>
             </div>
             <div class="admin-card-body">
@@ -142,30 +145,34 @@
                     <li class="d-flex justify-content-between align-items-center">
                         <span style="color:#64748b; font-size:0.85rem;">
                             <i class="fas fa-code-branch me-2 text-primary"></i>
-                            {{ $locale === 'ar' ? 'إطار العمل' : 'Framework' }}
+                            <?php echo e($locale === 'ar' ? 'إطار العمل' : 'Framework'); ?>
+
                         </span>
                         <span class="fw-600">Laravel 9</span>
                     </li>
                     <li class="d-flex justify-content-between align-items-center">
                         <span style="color:#64748b; font-size:0.85rem;">
                             <i class="fas fa-calendar me-2 text-success"></i>
-                            {{ $locale === 'ar' ? 'التاريخ' : 'Date' }}
+                            <?php echo e($locale === 'ar' ? 'التاريخ' : 'Date'); ?>
+
                         </span>
-                        <span class="fw-600">{{ now()->format('d M Y') }}</span>
+                        <span class="fw-600"><?php echo e(now()->format('d M Y')); ?></span>
                     </li>
                     <li class="d-flex justify-content-between align-items-center">
                         <span style="color:#64748b; font-size:0.85rem;">
                             <i class="fas fa-globe me-2 text-info"></i>
-                            {{ $locale === 'ar' ? 'اللغة' : 'Language' }}
+                            <?php echo e($locale === 'ar' ? 'اللغة' : 'Language'); ?>
+
                         </span>
-                        <span class="fw-600">{{ $locale === 'ar' ? 'العربية' : 'English' }}</span>
+                        <span class="fw-600"><?php echo e($locale === 'ar' ? 'العربية' : 'English'); ?></span>
                     </li>
                     <li class="d-flex justify-content-between align-items-center">
                         <span style="color:#64748b; font-size:0.85rem;">
                             <i class="fas fa-user-shield me-2 text-warning"></i>
-                            {{ $locale === 'ar' ? 'المدير' : 'Admin' }}
+                            <?php echo e($locale === 'ar' ? 'المدير' : 'Admin'); ?>
+
                         </span>
-                        <span class="fw-600">{{ auth()->user()->name ?? auth()->user()->username }}</span>
+                        <span class="fw-600"><?php echo e(auth()->user()->name ?? auth()->user()->username); ?></span>
                     </li>
                 </ul>
             </div>
@@ -173,4 +180,6 @@
     </div>
 </div>
 
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.admin', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH /Users/tajawal/Downloads/rafeeq/resources/views/admin/dashboard.blade.php ENDPATH**/ ?>

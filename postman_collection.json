@@ -711,6 +711,30 @@
           }
         },
         {
+          "name": "Update Appointment",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"child_id\": 1,\n  \"scheduled_date\": \"2026-06-12\",\n  \"start_time\": \"12:00:00\",\n  \"end_time\": \"12:45:00\",\n  \"timezone\": \"Asia/Dubai\",\n  \"notes\": \"Rescheduled from mobile\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/appointments/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "appointments", ":id"],
+              "variable": [
+                { "key": "id", "value": "1", "description": "Appointment ID" }
+              ]
+            },
+            "description": "Update an editable appointment. Only pending_payment, confirmed, or upcoming appointments owned by the authenticated user can be edited."
+          }
+        },
+        {
           "name": "Cancel Appointment",
           "request": {
             "method": "POST",

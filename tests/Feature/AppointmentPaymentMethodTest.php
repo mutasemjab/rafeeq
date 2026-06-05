@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\Api\AppointmentController;
 use App\Models\Appointment;
+use App\Models\Child;
 use App\Models\Payment;
 use App\Models\Specialist;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -137,5 +139,85 @@ class AppointmentPaymentMethodTest extends TestCase
 
         $this->assertSame('10:00:00', $appointment->start_time);
         $this->assertSame('10:30:00', $appointment->end_time);
+    }
+
+    public function test_user_can_update_own_appointment_details(): void
+    {
+        $user = User::factory()->create();
+        $child = Child::query()->create([
+            'user_id' => $user->id,
+            'name' => 'Maya',
+            'birth_date' => '2020-06-01',
+        ]);
+        $specialist = Specialist::factory()->create([
+            'is_active' => true,
+        ]);
+        $appointment = Appointment::factory()->create([
+            'user_id' => $user->id,
+            'specialist_id' => $specialist->id,
+            'scheduled_date' => now()->addDays(4)->toDateString(),
+            'start_time' => '10:00:00',
+            'end_time' => '10:30:00',
+            'status' => 'confirmed',
+            'notes' => 'Before update',
+        ]);
+
+        $this->actingAs($user);
+
+        $request = Request::create('/api/v1/appointments/'.$appointment->id, 'PUT', [
+            'child_id' => $child->id,
+            'scheduled_date' => now()->addDays(6)->toDateString(),
+            'start_time' => '12:00:00',
+            'end_time' => '12:45:00',
+            'timezone' => 'Asia/Dubai',
+            'notes' => 'Rescheduled from mobile',
+        ]);
+        $request->setUserResolver(fn() => $user);
+
+        $response = app(AppointmentController::class)->update($request, $appointment);
+        $payload = $response->getData(true);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame($child->id, $payload['child_id']);
+        $this->assertSame(now()->addDays(6)->toDateString(), $payload['scheduled_date']);
+        $this->assertSame('12:00:00', $payload['start_time']);
+        $this->assertSame('12:45:00', $payload['end_time']);
+        $this->assertSame('Asia/Dubai', $payload['timezone']);
+        $this->assertSame('Rescheduled from mobile', $payload['notes']);
+
+        $appointment->refresh();
+
+        $this->assertSame($child->id, $appointment->child_id);
+        $this->assertSame(now()->addDays(6)->toDateString(), $appointment->scheduled_date?->toDateString());
+        $this->assertSame('12:00:00', $appointment->start_time);
+        $this->assertSame('12:45:00', $appointment->end_time);
+        $this->assertSame('Asia/Dubai', $appointment->timezone);
+        $this->assertSame('Rescheduled from mobile', $appointment->notes);
+        $this->assertSame($specialist->id, $appointment->specialist_id);
+        $this->assertSame('confirmed', $appointment->status);
+    }
+
+    public function test_user_cannot_update_completed_appointment(): void
+    {
+        $user = User::factory()->create();
+        $specialist = Specialist::factory()->create([
+            'is_active' => true,
+        ]);
+        $appointment = Appointment::factory()->create([
+            'user_id' => $user->id,
+            'specialist_id' => $specialist->id,
+            'status' => 'completed',
+        ]);
+
+        $this->actingAs($user);
+
+        $request = Request::create('/api/v1/appointments/'.$appointment->id, 'PUT', [
+            'notes' => 'This should fail',
+        ]);
+        $request->setUserResolver(fn() => $user);
+
+        $this->expectException(AuthorizationException::class);
+
+        app(AppointmentController::class)->update($request, $appointment);
     }
 }

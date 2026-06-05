@@ -179,10 +179,13 @@ BRAVE_API_KEY=
 | POST | `/appointments` | Book appointment |
 | GET | `/appointments` | List own appointments |
 | GET | `/appointments/{id}` | View appointment |
+| PUT/PATCH | `/appointments/{id}` | Edit own upcoming appointment |
 | POST | `/appointments/{id}/cancel` | Cancel |
 | POST | `/reviews` | Submit review (completed only) |
 
 `POST /appointments` supports an optional `payment_method`. Use `card` for the normal flow. For testing only, `pay_for_later` can be enabled with `PAY_FOR_LATER_ENABLED=true`; when selected, the API creates a pending test payment record and confirms the appointment immediately.
+
+`PUT/PATCH /appointments/{id}` lets the appointment owner update `child_id`, `appointment_type`, `scheduled_date`, `start_time`, `end_time`, `timezone`, and `notes` while the appointment is still `pending_payment`, `confirmed`, or `upcoming`. The specialist and payment method stay unchanged.
 
 ### Plans & Subscriptions
 | Method | Endpoint | Description |
@@ -249,7 +252,7 @@ Seed plans: `php artisan db:seed --class=PlanSeeder`
 
 | Section | URL | Features |
 |---|---|---|
-| Dashboard | `/admin/` | Stats + recent users |
+| Dashboard | `/admin/` | Stats + recent users + appointments shortcut |
 | Users | `/admin/users` | Full CRUD |
 | Children | `/admin/children` | View, soft-delete, restore |
 | Specialists | `/admin/specialists` | Full CRUD + avatar |

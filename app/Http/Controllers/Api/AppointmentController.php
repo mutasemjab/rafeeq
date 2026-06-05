@@ -31,44 +31,13 @@ class AppointmentController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $paymentMethods = ['card'];
+        $data = $this->validateStorePayload($request);
 
-        if ($this->payForLaterEnabled()) {
-            $paymentMethods[] = 'pay_for_later';
-        }
-
-        $data = $request->validate([
-            'specialist_id'    => 'required|exists:specialists,id',
-            'child_id'         => 'nullable|exists:children,id',
-            'appointment_type' => 'nullable|string|max:100',
-            'scheduled_date'   => 'required|date|after_or_equal:today',
-            'start_time'       => ['required', 'string', function ($attribute, $value, $fail) {
-                if ($this->normalizeTime($value) === null) {
-                    $fail("The {$attribute} does not match the format HH:MM or HH:MM:SS.");
-                }
-            }],
-            'end_time'         => ['required', 'string', function ($attribute, $value, $fail) {
-                if ($this->normalizeTime($value) === null) {
-                    $fail("The {$attribute} does not match the format HH:MM or HH:MM:SS.");
-                }
-            }],
-            'timezone'         => 'nullable|string|max:50',
-            'notes'            => 'nullable|string',
-            'payment_method'   => ['nullable', 'string', Rule::in($paymentMethods)],
-        ]);
-
-        if (isset($data['child_id'])) {
+        if (array_key_exists('child_id', $data) && $data['child_id'] !== null) {
             $request->user()->children()->findOrFail($data['child_id']);
         }
 
-        $data['start_time'] = $this->normalizeTime($data['start_time']);
-        $data['end_time'] = $this->normalizeTime($data['end_time']);
-
-        if ($data['end_time'] <= $data['start_time']) {
-            throw ValidationException::withMessages([
-                'end_time' => ['The end time must be after start time.'],
-            ]);
-        }
+        $data = $this->applyNormalizedTimes($data);
 
         $paymentMethod = $data['payment_method'] ?? 'card';
         $specialist = Specialist::query()->findOrFail($data['specialist_id']);
@@ -116,6 +85,37 @@ class AppointmentController extends Controller
         return response()->json(new AppointmentResource($appointment->load(['specialist', 'payment'])), 201);
     }
 
+    public function update(Request $request, Appointment $appointment): JsonResponse
+    {
+        $this->authorize('update', $appointment);
+
+        $data = $this->validateUpdatePayload($request);
+
+        if ($data === []) {
+            throw ValidationException::withMessages([
+                'appointment' => ['At least one editable field is required.'],
+            ]);
+        }
+
+        if (array_key_exists('child_id', $data) && $data['child_id'] !== null) {
+            $request->user()->children()->findOrFail($data['child_id']);
+        }
+
+        $data = $this->applyNormalizedTimes($data, $appointment);
+
+        $updates = [];
+
+        foreach (['child_id', 'appointment_type', 'scheduled_date', 'start_time', 'end_time', 'timezone', 'notes'] as $field) {
+            if (array_key_exists($field, $data)) {
+                $updates[$field] = $data[$field];
+            }
+        }
+
+        $appointment->update($updates);
+
+        return response()->json(new AppointmentResource($appointment->fresh()->load(['specialist', 'payment'])));
+    }
+
     public function show(Request $request, Appointment $appointment): JsonResponse
     {
         $this->authorize('view', $appointment);
@@ -142,6 +142,75 @@ class AppointmentController extends Controller
     private function payForLaterEnabled(): bool
     {
         return (bool) config('payments.pay_for_later_enabled', false);
+    }
+
+    private function validateStorePayload(Request $request): array
+    {
+        $paymentMethods = ['card'];
+
+        if ($this->payForLaterEnabled()) {
+            $paymentMethods[] = 'pay_for_later';
+        }
+
+        return $request->validate([
+            'specialist_id'    => 'required|exists:specialists,id',
+            'child_id'         => 'nullable|exists:children,id',
+            'appointment_type' => 'nullable|string|max:100',
+            'scheduled_date'   => 'required|date|after_or_equal:today',
+            'start_time'       => ['required', 'string', $this->timeValidationRule()],
+            'end_time'         => ['required', 'string', $this->timeValidationRule()],
+            'timezone'         => 'nullable|string|max:50',
+            'notes'            => 'nullable|string',
+            'payment_method'   => ['nullable', 'string', Rule::in($paymentMethods)],
+        ]);
+    }
+
+    private function validateUpdatePayload(Request $request): array
+    {
+        return $request->validate([
+            'child_id'         => 'sometimes|nullable|exists:children,id',
+            'appointment_type' => 'sometimes|nullable|string|max:100',
+            'scheduled_date'   => 'sometimes|date|after_or_equal:today',
+            'start_time'       => ['sometimes', 'string', $this->timeValidationRule()],
+            'end_time'         => ['sometimes', 'string', $this->timeValidationRule()],
+            'timezone'         => 'sometimes|nullable|string|max:50',
+            'notes'            => 'sometimes|nullable|string',
+        ]);
+    }
+
+    private function applyNormalizedTimes(array $data, ?Appointment $appointment = null): array
+    {
+        $startTime = array_key_exists('start_time', $data)
+            ? $this->normalizeTime($data['start_time'])
+            : ($appointment ? $this->normalizeTime((string) $appointment->start_time) : null);
+        $endTime = array_key_exists('end_time', $data)
+            ? $this->normalizeTime($data['end_time'])
+            : ($appointment ? $this->normalizeTime((string) $appointment->end_time) : null);
+
+        if ($startTime !== null && $endTime !== null && $endTime <= $startTime) {
+            throw ValidationException::withMessages([
+                'end_time' => ['The end time must be after start time.'],
+            ]);
+        }
+
+        if (array_key_exists('start_time', $data)) {
+            $data['start_time'] = $startTime;
+        }
+
+        if (array_key_exists('end_time', $data)) {
+            $data['end_time'] = $endTime;
+        }
+
+        return $data;
+    }
+
+    private function timeValidationRule(): \Closure
+    {
+        return function ($attribute, $value, $fail) {
+            if ($this->normalizeTime($value) === null) {
+                $fail("The {$attribute} does not match the format HH:MM or HH:MM:SS.");
+            }
+        };
     }
 
     private function normalizeTime(string $value): ?string
