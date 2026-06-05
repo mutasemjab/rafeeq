@@ -59,6 +59,29 @@ class AppointmentPaymentMethodTest extends TestCase
         $this->assertTrue((bool) data_get($payment->metadata, 'test_only'));
     }
 
+    public function test_user_can_list_appointments(): void
+    {
+        $user = User::factory()->create();
+        $specialist = Specialist::factory()->create([
+            'is_active' => true,
+        ]);
+
+        Appointment::factory()->create([
+            'user_id' => $user->id,
+            'specialist_id' => $specialist->id,
+        ]);
+
+        $request = Request::create('/api/v1/appointments', 'GET', ['page' => 1]);
+        $request->setUserResolver(fn() => $user);
+
+        $response = app(AppointmentController::class)->index($request);
+        $payload = $response->getData(true);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertCount(1, $payload['data']);
+        $this->assertSame(1, $payload['meta']['total']);
+    }
+
     public function test_pay_for_later_is_rejected_when_disabled(): void
     {
         config()->set('payments.pay_for_later_enabled', false);

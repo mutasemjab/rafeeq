@@ -89,6 +89,11 @@ class User extends Authenticatable
         return $this->hasMany(Payment::class);
     }
 
+    public function appointments()
+    {
+        return $this->hasMany(Appointment::class);
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
