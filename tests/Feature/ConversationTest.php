@@ -17,7 +17,7 @@ class ConversationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->artisan('passport:install', ['--no-interaction' => true])->assertExitCode(0);
+        $this->setUpPassport();
         $this->user      = User::factory()->create();
         $this->otherUser = User::factory()->create();
     }

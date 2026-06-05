@@ -3,8 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Plan;
+use App\Models\SocialAccount;
 use App\Models\User;
+use App\Services\Auth\SocialIdentityVerifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery\MockInterface;
 use Tests\TestCase;
 
 class AuthTest extends TestCase
@@ -15,7 +18,7 @@ class AuthTest extends TestCase
     {
         parent::setUp();
         Plan::factory()->create(['type' => 'free', 'slug' => 'free', 'is_active' => true, 'ai_messages_per_day' => 5]);
-        $this->artisan('passport:install', ['--no-interaction' => true])->assertExitCode(0);
+        $this->setUpPassport();
     }
 
     public function test_user_can_register(): void
@@ -58,7 +61,7 @@ class AuthTest extends TestCase
 
     public function test_inactive_user_cannot_login(): void
     {
-        $user = User::factory()->create(['password' => bcrypt('secret123'), 'status' => 'inactive']);
+        $user = User::factory()->create(['password' => bcrypt('secret123'), 'status' => 'suspended']);
 
         $this->postJson('/api/v1/auth/login', [
             'email'    => $user->email,
@@ -89,5 +92,163 @@ class AuthTest extends TestCase
     public function test_unauthenticated_request_is_rejected(): void
     {
         $this->getJson('/api/v1/auth/me')->assertStatus(401);
+    }
+
+    public function test_user_can_login_with_google_social_and_new_account_is_created(): void
+    {
+        $this->mock(SocialIdentityVerifier::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('verify')
+                ->once()
+                ->with('google', 'google-token')
+                ->andReturn([
+                    'provider_user_id' => 'google-user-1',
+                    'email' => 'social@example.com',
+                    'email_verified' => true,
+                    'name' => 'Sara Ahmed',
+                    'first_name' => 'Sara',
+                    'last_name' => 'Ahmed',
+                    'avatar' => null,
+                    'provider_data' => ['sub' => 'google-user-1'],
+                ]);
+        });
+
+        $this->postJson('/api/v1/auth/social', [
+            'provider' => 'google',
+            'id_token' => 'google-token',
+            'preferred_language' => 'en',
+        ])
+            ->assertOk()
+            ->assertJsonPath('provider', 'google')
+            ->assertJsonPath('is_new_user', true)
+            ->assertJsonPath('user.email', 'social@example.com')
+            ->assertJsonStructure(['token', 'user']);
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'social@example.com',
+            'first_name' => 'Sara',
+            'last_name' => 'Ahmed',
+            'preferred_language' => 'en',
+        ]);
+        $this->assertDatabaseHas('social_accounts', [
+            'provider' => 'google',
+            'provider_user_id' => 'google-user-1',
+            'provider_email' => 'social@example.com',
+        ]);
+        $this->assertDatabaseHas('subscriptions', ['status' => 'active']);
+    }
+
+    public function test_social_login_links_existing_user_by_email(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'existing@example.com',
+            'status' => 'active',
+        ]);
+
+        $this->mock(SocialIdentityVerifier::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('verify')
+                ->once()
+                ->with('google', 'existing-google-token')
+                ->andReturn([
+                    'provider_user_id' => 'google-user-2',
+                    'email' => 'existing@example.com',
+                    'email_verified' => true,
+                    'name' => 'Existing User',
+                    'first_name' => 'Existing',
+                    'last_name' => 'User',
+                    'avatar' => null,
+                    'provider_data' => ['sub' => 'google-user-2'],
+                ]);
+        });
+
+        $this->postJson('/api/v1/auth/social', [
+            'provider' => 'google',
+            'id_token' => 'existing-google-token',
+        ])
+            ->assertOk()
+            ->assertJsonPath('is_new_user', false)
+            ->assertJsonPath('user.id', $user->id);
+
+        $this->assertSame(1, User::query()->where('email', 'existing@example.com')->count());
+        $this->assertDatabaseHas('social_accounts', [
+            'user_id' => $user->id,
+            'provider' => 'google',
+            'provider_user_id' => 'google-user-2',
+        ]);
+    }
+
+    public function test_user_can_login_with_existing_apple_social_account_without_email_claim(): void
+    {
+        $user = User::factory()->create([
+            'status' => 'active',
+        ]);
+
+        SocialAccount::query()->create([
+            'user_id' => $user->id,
+            'provider' => 'apple',
+            'provider_user_id' => 'apple-user-1',
+            'provider_email' => null,
+            'provider_data' => ['sub' => 'apple-user-1'],
+        ]);
+
+        $this->mock(SocialIdentityVerifier::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('verify')
+                ->once()
+                ->with('apple', 'apple-token')
+                ->andReturn([
+                    'provider_user_id' => 'apple-user-1',
+                    'email' => null,
+                    'email_verified' => false,
+                    'name' => null,
+                    'first_name' => null,
+                    'last_name' => null,
+                    'avatar' => null,
+                    'provider_data' => ['sub' => 'apple-user-1'],
+                ]);
+        });
+
+        $this->postJson('/api/v1/auth/social', [
+            'provider' => 'apple',
+            'id_token' => 'apple-token',
+        ])
+            ->assertOk()
+            ->assertJsonPath('provider', 'apple')
+            ->assertJsonPath('is_new_user', false)
+            ->assertJsonPath('user.id', $user->id);
+    }
+
+    public function test_suspended_user_cannot_login_with_social_provider(): void
+    {
+        $user = User::factory()->create([
+            'status' => 'suspended',
+        ]);
+
+        SocialAccount::query()->create([
+            'user_id' => $user->id,
+            'provider' => 'apple',
+            'provider_user_id' => 'apple-user-2',
+            'provider_email' => $user->email,
+            'provider_data' => ['sub' => 'apple-user-2'],
+        ]);
+
+        $this->mock(SocialIdentityVerifier::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('verify')
+                ->once()
+                ->with('apple', 'suspended-apple-token')
+                ->andReturn([
+                    'provider_user_id' => 'apple-user-2',
+                    'email' => 'suspended@example.com',
+                    'email_verified' => true,
+                    'name' => null,
+                    'first_name' => null,
+                    'last_name' => null,
+                    'avatar' => null,
+                    'provider_data' => ['sub' => 'apple-user-2'],
+                ]);
+        });
+
+        $this->postJson('/api/v1/auth/social', [
+            'provider' => 'apple',
+            'id_token' => 'suspended-apple-token',
+        ])->assertStatus(403);
     }
 }

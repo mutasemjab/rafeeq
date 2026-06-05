@@ -89,6 +89,16 @@ class User extends Authenticatable
         return $this->hasMany(Payment::class);
     }
 
+    public function socialAccounts()
+    {
+        return $this->hasMany(SocialAccount::class);
+    }
+
+    public function devices()
+    {
+        return $this->hasMany(UserDevice::class);
+    }
+
     public function appointments()
     {
         return $this->hasMany(Appointment::class);

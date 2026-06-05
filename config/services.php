@@ -38,5 +38,15 @@ return [
     'page_access_token' => env('FACEBOOK_PAGE_ACCESS_TOKEN'),
     ],
 
-];
+    'google' => [
+        'client_ids' => array_values(array_filter(array_map('trim', explode(',', (string) env('GOOGLE_CLIENT_IDS', env('GOOGLE_CLIENT_ID', '')))))),
+        'jwks_url' => env('GOOGLE_JWKS_URL', 'https://www.googleapis.com/oauth2/v3/certs'),
+    ],
 
+    'apple' => [
+        'client_ids' => array_values(array_filter(array_map('trim', explode(',', (string) env('APPLE_CLIENT_IDS', env('APPLE_CLIENT_ID', '')))))),
+        'jwks_url' => env('APPLE_JWKS_URL', 'https://appleid.apple.com/auth/keys'),
+        'issuer' => env('APPLE_ISSUER', 'https://appleid.apple.com'),
+    ],
+
+];

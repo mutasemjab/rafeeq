@@ -72,6 +72,12 @@
                 <span class="nav-text"><?php echo e($locale === 'ar' ? 'سجل النشاط' : 'Activity Log'); ?></span>
             </a>
         </li>
+        <li class="nav-item">
+            <a href="<?php echo e(route('admin.notifications.index')); ?>" class="nav-link <?php echo e(Str::startsWith($cur,'admin.notifications') ? 'active':''); ?>">
+                <i class="nav-icon fas fa-bell"></i>
+                <span class="nav-text"><?php echo e($locale === 'ar' ? 'الإشعارات' : 'Notifications'); ?></span>
+            </a>
+        </li>
 
     </ul>
 

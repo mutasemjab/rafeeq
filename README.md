@@ -90,6 +90,10 @@ OPENAI_API_KEY=sk-...
 GEMINI_API_KEY=
 ANTHROPIC_API_KEY=
 
+# Social Login
+GOOGLE_CLIENT_IDS=
+APPLE_CLIENT_IDS=
+
 # Optional: Web Search (Brave)
 WEB_SEARCH_ENABLED=false
 BRAVE_API_KEY=
@@ -137,9 +141,12 @@ BRAVE_API_KEY=
 |---|---|---|---|
 | POST | `/auth/register` | — | Register + auto-assign free plan |
 | POST | `/auth/login` | — | Login, returns token |
+| POST | `/auth/social` | — | Google / Apple login with ID token |
 | GET | `/auth/me` | ✓ | Current user + subscription |
 | PUT | `/auth/profile` | ✓ | Update profile |
 | POST | `/auth/logout` | ✓ | Revoke token |
+
+`POST /auth/social` accepts `provider` (`google` or `apple`), `id_token`, optional `first_name`, `last_name`, and optional `preferred_language`. The backend verifies the provider token, links an existing account when possible, or creates a new user with a free plan and stores the provider link in `social_accounts`.
 
 ### Children
 | Method | Endpoint | Description |

@@ -47,25 +47,29 @@
     </div>
 
     <div class="col-12 col-sm-6 col-xl-3">
-        <div class="stat-card">
+        <a href="<?php echo e(route('admin.notifications.index')); ?>" class="stat-card text-decoration-none h-100" style="display:block;">
             <div class="stat-icon-wrap bg-warning-soft">
-                <i class="fas fa-envelope"></i>
+                <i class="fas fa-bell"></i>
             </div>
             <div class="stat-info">
-                <div class="stat-number">0</div>
-                <div class="stat-label"><?php echo e(__('messages.messages')); ?></div>
+                <div class="stat-number"><?php echo e($notificationsCount ?? 0); ?></div>
+                <div class="stat-label"><?php echo e($locale === 'ar' ? 'الإشعارات' : 'Notifications'); ?></div>
+                <div style="font-size:0.75rem; color:#2563eb; margin-top:6px;">
+                    <?php echo e($locale === 'ar' ? 'إرسال إشعار' : 'Send Notification'); ?>
+
+                </div>
             </div>
-        </div>
+        </a>
     </div>
 
     <div class="col-12 col-sm-6 col-xl-3">
         <div class="stat-card">
             <div class="stat-icon-wrap bg-info-soft">
-                <i class="fas fa-book-open"></i>
+                <i class="fas fa-mobile-screen-button"></i>
             </div>
             <div class="stat-info">
-                <div class="stat-number">0</div>
-                <div class="stat-label"><?php echo e(__('messages.catalogs')); ?></div>
+                <div class="stat-number"><?php echo e($pushDevicesCount ?? 0); ?></div>
+                <div class="stat-label"><?php echo e($locale === 'ar' ? 'أجهزة Push' : 'Push Devices'); ?></div>
             </div>
         </div>
     </div>

@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\SpecialistsController;
 use App\Http\Controllers\Admin\PlansController;
 use App\Http\Controllers\Admin\AppointmentsController;
 use App\Http\Controllers\Admin\KnowledgeController;
+use App\Http\Controllers\Admin\NotificationsController;
 use App\Http\Controllers\Admin\SubscriptionsController;
 use App\Http\Controllers\Admin\ActivityLogController;
 use Mcamara\LaravelLocalization\Facades\LaravelLocalization;
@@ -70,6 +71,10 @@ Route::group([
 
         // Activity Log
         Route::get('activity', [ActivityLogController::class, 'index'])->name('activity.index');
+
+        // Notifications
+        Route::get('notifications', [NotificationsController::class, 'index'])->name('notifications.index');
+        Route::post('notifications', [NotificationsController::class, 'store'])->name('notifications.store');
     });
 
     Route::group([

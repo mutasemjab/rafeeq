@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\SpecialistController;
 use App\Http\Controllers\Api\SpecialistReviewController;
 use App\Http\Controllers\Api\SubscriptionController;
+use App\Http\Controllers\Api\UserDeviceController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -28,6 +29,7 @@ Route::prefix('v1')->group(function () {
     // ── Public ──────────────────────────────────────────────────────────
     Route::post('/auth/register', [AuthController::class, 'register']);
     Route::post('/auth/login',    [AuthController::class, 'login']);
+    Route::post('/auth/social',   [AuthController::class, 'socialLogin']);
 
     Route::get('/plans',                                  [PlanController::class, 'index']);
     Route::get('/specialists',                            [SpecialistController::class, 'index']);
@@ -90,6 +92,8 @@ Route::prefix('v1')->group(function () {
         Route::get( '/notifications',                      [NotificationController::class, 'index']);
         Route::post('/notifications/{notification}/read',  [NotificationController::class, 'markRead']);
         Route::post('/notifications/read-all',             [NotificationController::class, 'markAllRead']);
+        Route::post('/devices/push-token',                 [UserDeviceController::class, 'store']);
+        Route::delete('/devices/push-token',               [UserDeviceController::class, 'destroy']);
 
         // Knowledge (admin upload)
         Route::post(  '/knowledge',           [KnowledgeDocumentController::class, 'store']);

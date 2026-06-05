@@ -72,6 +72,12 @@
                 <span class="nav-text">{{ $locale === 'ar' ? 'سجل النشاط' : 'Activity Log' }}</span>
             </a>
         </li>
+        <li class="nav-item">
+            <a href="{{ route('admin.notifications.index') }}" class="nav-link {{ Str::startsWith($cur,'admin.notifications') ? 'active':'' }}">
+                <i class="nav-icon fas fa-bell"></i>
+                <span class="nav-text">{{ $locale === 'ar' ? 'الإشعارات' : 'Notifications' }}</span>
+            </a>
+        </li>
 
     </ul>
 
