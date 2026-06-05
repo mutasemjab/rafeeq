@@ -1,7 +1,9 @@
 <?php
 namespace App\Http\Controllers\Admin;
+
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class AppointmentsController extends Controller
@@ -19,14 +21,26 @@ class AppointmentsController extends Controller
 
     public function show(Appointment $appointment)
     {
-        $appointment->load('user', 'specialist', 'child', 'review');
+        $appointment->load('user', 'specialist', 'child', 'review', 'payment');
         return view('admin.appointments.show', compact('appointment'));
     }
 
     public function updateStatus(Request $request, Appointment $appointment)
     {
-        $data = $request->validate(['status' => 'required|in:pending_payment,confirmed,upcoming,completed,canceled,missed']);
-        $appointment->update(['status' => $data['status']]);
-        return back()->with('success', 'Status updated.');
+        $data = $request->validate([
+            'status' => 'required|in:pending_payment,confirmed,upcoming,completed,canceled,missed',
+            'join_url' => 'nullable|url|max:2048',
+            'join_available_at' => 'nullable|date',
+        ]);
+
+        $appointment->update([
+            'status' => $data['status'],
+            'join_url' => $data['join_url'] ?? null,
+            'join_available_at' => isset($data['join_available_at'])
+                ? Carbon::parse($data['join_available_at'])
+                : null,
+        ]);
+
+        return back()->with('success', 'Appointment updated.');
     }
 }
