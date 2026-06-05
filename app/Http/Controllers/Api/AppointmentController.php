@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\AppointmentResource;
 use App\Models\Appointment;
 use App\Models\Specialist;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -41,8 +42,16 @@ class AppointmentController extends Controller
             'child_id'         => 'nullable|exists:children,id',
             'appointment_type' => 'nullable|string|max:100',
             'scheduled_date'   => 'required|date|after_or_equal:today',
-            'start_time'       => 'required|date_format:H:i',
-            'end_time'         => 'required|date_format:H:i|after:start_time',
+            'start_time'       => ['required', 'string', function ($attribute, $value, $fail) {
+                if ($this->normalizeTime($value) === null) {
+                    $fail("The {$attribute} does not match the format HH:MM or HH:MM:SS.");
+                }
+            }],
+            'end_time'         => ['required', 'string', function ($attribute, $value, $fail) {
+                if ($this->normalizeTime($value) === null) {
+                    $fail("The {$attribute} does not match the format HH:MM or HH:MM:SS.");
+                }
+            }],
             'timezone'         => 'nullable|string|max:50',
             'notes'            => 'nullable|string',
             'payment_method'   => ['nullable', 'string', Rule::in($paymentMethods)],
@@ -50,6 +59,15 @@ class AppointmentController extends Controller
 
         if (isset($data['child_id'])) {
             $request->user()->children()->findOrFail($data['child_id']);
+        }
+
+        $data['start_time'] = $this->normalizeTime($data['start_time']);
+        $data['end_time'] = $this->normalizeTime($data['end_time']);
+
+        if ($data['end_time'] <= $data['start_time']) {
+            throw ValidationException::withMessages([
+                'end_time' => ['The end time must be after start time.'],
+            ]);
         }
 
         $paymentMethod = $data['payment_method'] ?? 'card';
@@ -124,5 +142,18 @@ class AppointmentController extends Controller
     private function payForLaterEnabled(): bool
     {
         return (bool) config('payments.pay_for_later_enabled', false);
+    }
+
+    private function normalizeTime(string $value): ?string
+    {
+        foreach (['H:i', 'H:i:s'] as $format) {
+            try {
+                return Carbon::createFromFormat($format, $value)->format('H:i:s');
+            } catch (\Throwable $exception) {
+                continue;
+            }
+        }
+
+        return null;
     }
 }

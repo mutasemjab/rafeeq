@@ -84,4 +84,35 @@ class AppointmentPaymentMethodTest extends TestCase
             $this->assertArrayHasKey('payment_method', $exception->errors());
         }
     }
+
+    public function test_appointment_accepts_times_with_seconds_from_availability_api(): void
+    {
+        config()->set('payments.pay_for_later_enabled', true);
+
+        $user = User::factory()->create();
+        $specialist = Specialist::factory()->create([
+            'is_active' => true,
+        ]);
+
+        $request = Request::create('/api/v1/appointments', 'POST', [
+            'specialist_id' => $specialist->id,
+            'scheduled_date' => now()->addDays(3)->toDateString(),
+            'start_time' => '10:00:00',
+            'end_time' => '10:30:00',
+            'payment_method' => 'pay_for_later',
+        ]);
+        $request->setUserResolver(fn() => $user);
+
+        $response = app(AppointmentController::class)->store($request);
+        $payload = $response->getData(true);
+
+        $this->assertSame(201, $response->getStatusCode());
+        $this->assertSame('10:00:00', $payload['start_time']);
+        $this->assertSame('10:30:00', $payload['end_time']);
+
+        $appointment = Appointment::query()->sole();
+
+        $this->assertSame('10:00:00', $appointment->start_time);
+        $this->assertSame('10:30:00', $appointment->end_time);
+    }
 }
