@@ -13,7 +13,7 @@ class ChildrenController extends Controller
         $children = Child::withTrashed()
             ->with('user')
             ->when($search, fn($q) => $q->where('name', 'like', "%{$search}%"))
-            ->latest()->paginate(PAGINATION_COUNT);
+            ->latest()->paginate($this->paginationCount());
         return view('admin.children.index', compact('children', 'search'));
     }
 

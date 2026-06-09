@@ -9,7 +9,7 @@ class PlansController extends Controller
 {
     public function index()
     {
-        $plans = Plan::orderBy('price')->paginate(PAGINATION_COUNT);
+        $plans = Plan::orderBy('price')->paginate($this->paginationCount());
         return view('admin.plans.index', compact('plans'));
     }
 

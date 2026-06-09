@@ -23,7 +23,7 @@ class SpecialistsController extends Controller
                     ->orWhere('specialty', 'like', "%{$search}%");
             });
         })
-            ->latest()->paginate(PAGINATION_COUNT);
+            ->latest()->paginate($this->paginationCount());
 
         return view('admin.specialists.index', compact('specialists', 'search'));
     }

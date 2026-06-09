@@ -12,7 +12,7 @@ class SubscriptionsController extends Controller
         $subscriptions = Subscription::with(['user', 'plan'])
             ->when($search, fn($q) => $q->whereHas('user', fn($u) => $u->where('name', 'like', "%{$search}%")
                 ->orWhere('email', 'like', "%{$search}%")))
-            ->latest()->paginate(PAGINATION_COUNT);
+            ->latest()->paginate($this->paginationCount());
         return view('admin.subscriptions.index', compact('subscriptions', 'search'));
     }
 

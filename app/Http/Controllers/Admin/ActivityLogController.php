@@ -12,7 +12,7 @@ class ActivityLogController extends Controller
             ->join('users', 'admin_activity_logs.admin_user_id', '=', 'users.id')
             ->select('admin_activity_logs.*', 'users.name as admin_name', 'users.email as admin_email')
             ->latest('admin_activity_logs.created_at')
-            ->paginate(PAGINATION_COUNT);
+            ->paginate($this->paginationCount());
         return view('admin.activity.index', compact('logs'));
     }
 }

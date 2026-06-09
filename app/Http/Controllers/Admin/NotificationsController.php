@@ -21,7 +21,7 @@ class NotificationsController extends Controller
         $recentNotifications = RafiqNotification::query()
             ->with('user')
             ->latest()
-            ->paginate(PAGINATION_COUNT);
+            ->paginate($this->paginationCount());
 
         $users = User::query()
             ->orderBy('name')

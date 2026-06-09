@@ -22,7 +22,7 @@ class KnowledgeController extends Controller
             ->when($search, fn($q) => $q->where('title', 'like', "%{$search}%"))
             ->when($status && $status !== 'all', fn($q) => $q->where('status', $status))
             ->latest()
-            ->paginate(PAGINATION_COUNT)
+            ->paginate($this->paginationCount())
             ->withQueryString();
 
         $stats = [

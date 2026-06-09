@@ -15,7 +15,7 @@ class AppointmentsController extends Controller
         $appointments = Appointment::with(['user', 'specialist'])
             ->when($search, fn($q) => $q->where('booking_reference', 'like', "%{$search}%"))
             ->when($status, fn($q) => $q->where('status', $status))
-            ->latest()->paginate(PAGINATION_COUNT);
+            ->latest()->paginate($this->paginationCount());
         return view('admin.appointments.index', compact('appointments', 'search', 'status'));
     }
 
