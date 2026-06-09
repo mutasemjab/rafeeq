@@ -4,7 +4,11 @@
 @section('page_title', __('messages.dashboard'))
 
 @section('content')
-@php $locale = app()->getLocale(); @endphp
+@php
+    $locale = app()->getLocale();
+    $admin = auth()->guard('admin')->user();
+    $adminName = $admin?->name ?? $admin?->username ?? 'Admin';
+@endphp
 
 <div class="page-header">
     <div class="page-header-left">
@@ -204,7 +208,7 @@
                             <i class="fas fa-user-shield me-2 text-warning"></i>
                             {{ $locale === 'ar' ? 'المدير' : 'Admin' }}
                         </span>
-                        <span class="fw-600">{{ auth()->user()->name ?? auth()->user()->username }}</span>
+                        <span class="fw-600">{{ $adminName }}</span>
                     </li>
                 </ul>
             </div>

@@ -30,7 +30,7 @@ class LoginController extends Controller
   }
 
   public function logout(){
-    auth()->logout();
+    auth()->guard('admin')->logout();
     return redirect()->route('admin.showlogin');
    }
 
@@ -51,7 +51,7 @@ class LoginController extends Controller
          $admin->password = Hash::make($request->password);
 
          if($admin->save()){
-            auth()->logout();
+            auth()->guard('admin')->logout();
              return redirect()->route('admin.showlogin');
 
          }else{

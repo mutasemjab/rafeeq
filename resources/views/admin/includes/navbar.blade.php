@@ -1,4 +1,9 @@
-@php $locale = app()->getLocale(); @endphp
+@php
+    $locale = app()->getLocale();
+    $admin = auth()->guard('admin')->user();
+    $adminName = $admin?->name ?? $admin?->username ?? 'Admin';
+    $adminInitial = strtoupper(substr($adminName, 0, 1));
+@endphp
 
 <header class="top-navbar">
 
@@ -38,21 +43,23 @@
         <div class="dropdown">
             <a href="#" class="user-dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                 <div class="user-avatar">
-                    {{ strtoupper(substr(auth()->user()->name ?? auth()->user()->username ?? 'A', 0, 1)) }}
+                    {{ $adminInitial }}
                 </div>
                 <div class="d-none d-md-block text-start">
-                    <div class="user-name">{{ auth()->user()->name ?? auth()->user()->username }}</div>
+                    <div class="user-name">{{ $adminName }}</div>
                     <div class="user-role">{{ $locale === 'ar' ? 'مدير النظام' : 'Administrator' }}</div>
                 </div>
                 <i class="fas fa-chevron-down" style="font-size:0.65rem; color:#94a3b8;"></i>
             </a>
             <ul class="dropdown-menu dropdown-menu-end">
-                <li>
-                    <a class="dropdown-item" href="{{ route('admin.login.edit', auth()->user()->id) }}">
-                        <i class="fas fa-user-gear"></i>
-                        {{ $locale === 'ar' ? 'إعدادات الحساب' : 'Account Settings' }}
-                    </a>
-                </li>
+                @if($admin)
+                    <li>
+                        <a class="dropdown-item" href="{{ route('admin.login.edit', $admin->id) }}">
+                            <i class="fas fa-user-gear"></i>
+                            {{ $locale === 'ar' ? 'إعدادات الحساب' : 'Account Settings' }}
+                        </a>
+                    </li>
+                @endif
                 <li><hr class="dropdown-divider"></li>
                 <li>
                     <a class="dropdown-item text-danger" href="#"
