@@ -21,20 +21,35 @@ class RedirectIfAuthenticated
     {
         $guards = empty($guards) ? [null] : $guards;
 
-   foreach ($guards as $guard) {
-      if(Auth::guard($guard)->check()){
-     //write code for redirect both for admin or front in case login alerady done   
-      if($request->is('admin')||$request->is('admin/*'))
-      {
-      //redirect Backend
-      return redirect(RouteServiceProvider::Admin);
-      }else
-      {
-      return redirect(RouteServiceProvider::HOME);
-      }
-      }   
-      }
+        foreach ($guards as $guard) {
+            if (Auth::guard($guard)->check()) {
+                if ($this->isAdminRequest($request)) {
+                    return redirect(RouteServiceProvider::Admin);
+                }
+
+                return redirect(RouteServiceProvider::HOME);
+            }
+        }
 
         return $next($request);
+    }
+
+    private function isAdminRequest(Request $request): bool
+    {
+        if ($request->routeIs('admin.*')) {
+            return true;
+        }
+
+        $segments = $request->segments();
+
+        if ($segments === []) {
+            return false;
+        }
+
+        if ($segments[0] === 'admin') {
+            return true;
+        }
+
+        return ($segments[1] ?? null) === 'admin';
     }
 }
