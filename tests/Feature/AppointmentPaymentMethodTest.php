@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\Api\AppointmentController;
 use App\Models\Appointment;
+use App\Models\AppSetting;
 use App\Models\Child;
 use App\Models\Payment;
 use App\Models\Specialist;
@@ -105,6 +106,34 @@ class AppointmentPaymentMethodTest extends TestCase
         try {
             app(AppointmentController::class)->store($request);
             $this->fail('Expected pay_for_later validation to fail when disabled.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('payment_method', $exception->errors());
+        }
+    }
+
+    public function test_card_payment_is_rejected_when_mobile_payments_are_disabled(): void
+    {
+        AppSetting::query()->create([
+            'key' => 'mobile_payments_enabled',
+            'value' => '0',
+        ]);
+
+        $user = User::factory()->create();
+        $specialist = Specialist::factory()->create([
+            'is_active' => true,
+        ]);
+
+        $request = Request::create('/api/v1/appointments', 'POST', [
+            'specialist_id' => $specialist->id,
+            'scheduled_date' => now()->addDays(3)->toDateString(),
+            'start_time' => '10:00',
+            'end_time' => '10:30',
+        ]);
+        $request->setUserResolver(fn() => $user);
+
+        try {
+            app(AppointmentController::class)->store($request);
+            $this->fail('Expected card payment validation to fail when mobile payments are disabled.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('payment_method', $exception->errors());
         }

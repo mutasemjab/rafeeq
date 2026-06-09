@@ -198,8 +198,11 @@ BRAVE_API_KEY=
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/plans` | Public plan list |
+| GET | `/settings` | Public mobile app settings |
 | GET | `/subscription` | Current subscription |
 | GET | `/subscription/history` | All subscriptions |
+
+`GET /settings` returns payment availability flags for the mobile app. The response includes `payments.mobile_enabled`, `payments.pay_for_later_enabled`, and `payments.available_methods`, so the app can hide or show payment UI based on dashboard-controlled settings.
 
 ### Notifications
 | Method | Endpoint | Description |

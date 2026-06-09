@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\AppointmentResource;
 use App\Models\Appointment;
 use App\Models\Specialist;
+use App\Services\Payments\PaymentSettingsService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,10 @@ use Illuminate\Validation\ValidationException;
 
 class AppointmentController extends Controller
 {
+    public function __construct(private PaymentSettingsService $paymentSettings)
+    {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $appointments = $request->user()
@@ -41,6 +46,12 @@ class AppointmentController extends Controller
 
         $paymentMethod = $data['payment_method'] ?? 'card';
         $specialist = Specialist::query()->findOrFail($data['specialist_id']);
+
+        if (! $this->paymentSettings->mobilePaymentsEnabled()) {
+            throw ValidationException::withMessages([
+                'payment_method' => ['Mobile payments are currently disabled.'],
+            ]);
+        }
 
         if ($paymentMethod === 'pay_for_later' && ! $this->payForLaterEnabled()) {
             throw ValidationException::withMessages([
@@ -141,16 +152,12 @@ class AppointmentController extends Controller
 
     private function payForLaterEnabled(): bool
     {
-        return (bool) config('payments.pay_for_later_enabled', false);
+        return $this->paymentSettings->payForLaterEnabled();
     }
 
     private function validateStorePayload(Request $request): array
     {
-        $paymentMethods = ['card'];
-
-        if ($this->payForLaterEnabled()) {
-            $paymentMethods[] = 'pay_for_later';
-        }
+        $paymentMethods = $this->paymentSettings->availableAppointmentMethods();
 
         return $request->validate([
             'specialist_id'    => 'required|exists:specialists,id',

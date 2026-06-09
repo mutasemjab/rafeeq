@@ -79,6 +79,42 @@
 {{-- Recent Users --}}
 <div class="row g-4">
     <div class="col-12 col-lg-8">
+        <div class="admin-card mb-4">
+            <div class="admin-card-header">
+                <h3 class="admin-card-title">
+                    <i class="fas fa-credit-card"></i>
+                    {{ $locale === 'ar' ? 'إعدادات الدفع للموبايل' : 'Mobile Payment Settings' }}
+                </h3>
+            </div>
+            <div class="admin-card-body">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div>
+                        <div class="fw-600 mb-2">
+                            {{ !empty($paymentSettingsData['mobile_enabled'])
+                                ? ($locale === 'ar' ? 'الدفع متاح الآن داخل التطبيق.' : 'Payments are currently available in the mobile app.')
+                                : ($locale === 'ar' ? 'الدفع مغلق الآن داخل التطبيق.' : 'Payments are currently disabled in the mobile app.') }}
+                        </div>
+                        <div class="text-muted small">
+                            {{ $locale === 'ar' ? 'طرق الدفع المتاحة:' : 'Available methods:' }}
+                            {{ !empty($paymentSettingsData['available_methods'])
+                                ? implode(', ', $paymentSettingsData['available_methods'])
+                                : ($locale === 'ar' ? 'لا توجد طرق دفع مفعلة' : 'No payment methods enabled') }}
+                        </div>
+                    </div>
+
+                    <form action="{{ route('admin.settings.payments.update') }}" method="POST" class="d-flex align-items-center gap-2">
+                        @csrf
+                        <input type="hidden" name="mobile_payments_enabled" value="{{ !empty($paymentSettingsData['mobile_enabled']) ? 0 : 1 }}">
+                        <button type="submit" class="btn {{ !empty($paymentSettingsData['mobile_enabled']) ? 'btn-danger' : 'btn-success' }}">
+                            {{ !empty($paymentSettingsData['mobile_enabled'])
+                                ? ($locale === 'ar' ? 'إغلاق الدفع' : 'Disable Payments')
+                                : ($locale === 'ar' ? 'فتح الدفع' : 'Enable Payments') }}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         <div class="admin-card">
             <div class="admin-card-header">
                 <h3 class="admin-card-title">

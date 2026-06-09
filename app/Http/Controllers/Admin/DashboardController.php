@@ -7,6 +7,7 @@ use App\Models\Appointment;
 use App\Models\RafiqNotification;
 use App\Models\User;
 use App\Models\UserDevice;
+use App\Services\Payments\PaymentSettingsService;
 
 class DashboardController extends Controller
 {
@@ -17,7 +18,15 @@ class DashboardController extends Controller
         $notificationsCount = RafiqNotification::count();
         $pushDevicesCount = UserDevice::whereNotNull('push_token')->count();
         $recentUsers = User::latest()->take(5)->get();
+        $paymentSettingsData = app(PaymentSettingsService::class)->snapshot();
 
-        return view('admin.dashboard', compact('usersCount', 'appointmentsCount', 'notificationsCount', 'pushDevicesCount', 'recentUsers'));
+        return view('admin.dashboard', compact(
+            'usersCount',
+            'appointmentsCount',
+            'notificationsCount',
+            'pushDevicesCount',
+            'recentUsers',
+            'paymentSettingsData'
+        ));
     }
 }

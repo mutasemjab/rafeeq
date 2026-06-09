@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\KnowledgeDocumentController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PlanController;
+use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SpecialistController;
 use App\Http\Controllers\Api\SpecialistReviewController;
 use App\Http\Controllers\Api\SubscriptionController;
@@ -32,6 +33,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/auth/social',   [AuthController::class, 'socialLogin']);
 
     Route::get('/plans',                                  [PlanController::class, 'index']);
+    Route::get('/settings',                               [SettingsController::class, 'index']);
     Route::get('/specialists',                            [SpecialistController::class, 'index']);
     Route::get('/specialists/{specialist}',               [SpecialistController::class, 'show']);
     Route::get('/specialists/{specialist}/availabilities',[SpecialistController::class, 'availabilities']);

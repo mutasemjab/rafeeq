@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\PlansController;
 use App\Http\Controllers\Admin\AppointmentsController;
 use App\Http\Controllers\Admin\KnowledgeController;
 use App\Http\Controllers\Admin\NotificationsController;
+use App\Http\Controllers\Admin\PaymentSettingsController;
 use App\Http\Controllers\Admin\SubscriptionsController;
 use App\Http\Controllers\Admin\ActivityLogController;
 use Mcamara\LaravelLocalization\Facades\LaravelLocalization;
@@ -28,6 +29,7 @@ Route::group([
     ], function () {
 
         Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+        Route::post('settings/payments', [PaymentSettingsController::class, 'update'])->name('settings.payments.update');
         Route::post('logout', [LoginController::class, 'logout'])->name('logout');
         Route::get('account/edit/{id}',   [LoginController::class, 'editlogin'])->name('login.edit');
         Route::put('account/update/{id}', [LoginController::class, 'updatelogin'])->name('login.update');

@@ -3,6 +3,17 @@
 return [
     /*
     |--------------------------------------------------------------------------
+    | Mobile Payments Toggle
+    |--------------------------------------------------------------------------
+    |
+    | This controls whether payment options should be available to the mobile
+    | app by default. The admin dashboard can override this value at runtime.
+    |
+    */
+    'mobile_enabled' => env('MOBILE_PAYMENTS_ENABLED', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Test Pay Later Toggle
     |--------------------------------------------------------------------------
     |
