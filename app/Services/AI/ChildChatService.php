@@ -32,7 +32,7 @@ class ChildChatService
             'user_id'         => $userId,
             'child_id'        => $childId,
             'language'        => $language,
-            'message'         => $userMessage,
+            'message_length'  => mb_strlen($userMessage),
         ]);
 
         // 1. Persist user message

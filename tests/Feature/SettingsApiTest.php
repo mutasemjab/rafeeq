@@ -23,6 +23,9 @@ class SettingsApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('payments.mobile_enabled', false)
             ->assertJsonPath('payments.pay_for_later_enabled', true)
-            ->assertJsonPath('payments.available_methods', []);
+            ->assertJsonPath('payments.available_methods', [])
+            ->assertJsonPath('privacy.ai_consent_required', true)
+            ->assertJsonPath('privacy.ai_consent_version', '1.0')
+            ->assertJsonPath('privacy.third_party_ai_provider', 'OpenAI');
     }
 }

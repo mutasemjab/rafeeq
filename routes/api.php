@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SpecialistController;
 use App\Http\Controllers\Api\SpecialistReviewController;
 use App\Http\Controllers\Api\SubscriptionController;
+use App\Http\Controllers\Api\UserPrivacyController;
 use App\Http\Controllers\Api\UserDeviceController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -47,6 +48,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/auth/me',             [AuthController::class, 'me']);
         Route::put('/auth/profile',        [AuthController::class, 'updateProfile']);
         Route::post('/auth/logout',        [AuthController::class, 'logout']);
+        Route::get('/user/ai-consent',     [UserPrivacyController::class, 'consent']);
+        Route::post('/user/ai-consent',    [UserPrivacyController::class, 'saveConsent']);
+        Route::delete('/user/account',     [UserPrivacyController::class, 'deleteAccount']);
 
         // Children
         Route::apiResource('children', ChildController::class);
@@ -69,11 +73,13 @@ Route::prefix('v1')->group(function () {
         Route::delete('/conversations/{conversation}',[ConversationController::class, 'destroy']);
 
         // Chat
-        Route::post('/conversations/{conversation}/chat', [ChildChatController::class, 'chat']);
+        Route::post('/conversations/{conversation}/chat', [ChildChatController::class, 'chat'])
+            ->middleware('ai.consent');
 
         // Chat attachments
         Route::get( '/conversations/{conversation}/attachments', [ChatAttachmentController::class, 'index']);
-        Route::post('/attachments',                              [ChatAttachmentController::class, 'store']);
+        Route::post('/attachments',                              [ChatAttachmentController::class, 'store'])
+            ->middleware('ai.consent');
         Route::delete('/attachments/{attachment}',               [ChatAttachmentController::class, 'destroy']);
 
         // Appointments

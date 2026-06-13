@@ -82,6 +82,9 @@ AI_PROVIDER=openai
 AI_EMBEDDING_PROVIDER=openai
 AI_CHAT_MODEL=gpt-4o
 AI_EMBEDDING_MODEL=text-embedding-ada-002
+AI_CONSENT_VERSION=1.0
+AI_PROVIDER_NAME=OpenAI
+PRIVACY_POLICY_URL=
 
 # OpenAI
 OPENAI_API_KEY=sk-...
@@ -151,8 +154,17 @@ on the server before testing Apple login.
 | GET | `/auth/me` | ✓ | Current user + subscription |
 | PUT | `/auth/profile` | ✓ | Update profile |
 | POST | `/auth/logout` | ✓ | Revoke token |
+| GET | `/user/ai-consent` | ✓ | Get AI consent status |
+| POST | `/user/ai-consent` | ✓ | Save or clear AI consent |
+| DELETE | `/user/account` | ✓ | Permanently delete the authenticated account |
 
 `POST /auth/social` accepts `provider` (`google` or `apple`), `id_token`, optional `first_name`, `last_name`, and optional `preferred_language`. The backend verifies the provider token, links an existing account when possible, or creates a new user with a free plan and stores the provider link in `social_accounts`.
+
+`GET /user/ai-consent` returns the current consent state as `{ success, data: { hasAiConsent, acceptedAt, version } }`.
+
+`POST /user/ai-consent` expects `{ "hasAiConsent": true|false, "version": "1.0" }`. When `hasAiConsent` is `true`, the API stores the acceptance timestamp and version. When it is `false`, the API clears previously stored consent.
+
+`DELETE /user/account` deletes the authenticated user's account and associated personal data inside a database transaction, removes stored user-uploaded files, deletes OAuth/device/session artifacts when present, and invalidates existing API tokens. Mobile clients should clear local storage and force re-login after a successful deletion response.
 
 ### Children
 | Method | Endpoint | Description |
@@ -209,6 +221,8 @@ on the server before testing Apple login.
 | GET | `/subscription/history` | All subscriptions |
 
 `GET /settings` returns payment availability flags for the mobile app. The response includes `payments.mobile_enabled`, `payments.pay_for_later_enabled`, and `payments.available_methods`, so the app can hide or show payment UI based on dashboard-controlled settings.
+
+The same settings response now includes `privacy`, which summarizes what data is collected, why it is used, which third-party AI provider is used, the current AI consent version, and that AI features stay blocked until consent is accepted.
 
 ### Notifications
 | Method | Endpoint | Description |

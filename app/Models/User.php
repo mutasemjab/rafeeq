@@ -32,6 +32,8 @@ class User extends Authenticatable
         'status',
         'phone_verified_at',
         'last_login_at',
+        'ai_consent_accepted_at',
+        'ai_consent_version',
     ];
 
     /**
@@ -53,6 +55,7 @@ class User extends Authenticatable
         'email_verified_at'  => 'datetime',
         'phone_verified_at'  => 'datetime',
         'last_login_at'      => 'datetime',
+        'ai_consent_accepted_at' => 'datetime',
     ];
 
     // -------------------------------------------------------------------------
@@ -119,6 +122,20 @@ class User extends Authenticatable
             ->where('status', 'active')
             ->latest()
             ->first();
+    }
+
+    public function hasAiConsent(): bool
+    {
+        return $this->ai_consent_accepted_at !== null;
+    }
+
+    public function aiConsentSnapshot(): array
+    {
+        return [
+            'hasAiConsent' => $this->hasAiConsent(),
+            'acceptedAt' => $this->ai_consent_accepted_at?->toISOString(),
+            'version' => $this->ai_consent_version,
+        ];
     }
 
     // -------------------------------------------------------------------------
