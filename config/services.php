@@ -1,5 +1,23 @@
 <?php
 
+$parseClientIds = static function (array $values): array {
+    $clientIds = [];
+
+    foreach ($values as $value) {
+        foreach (explode(',', (string) $value) as $clientId) {
+            $normalized = trim($clientId);
+
+            if ($normalized === '') {
+                continue;
+            }
+
+            $clientIds[$normalized] = true;
+        }
+    }
+
+    return array_keys($clientIds);
+};
+
 return [
 
     /*
@@ -39,12 +57,19 @@ return [
     ],
 
     'google' => [
-        'client_ids' => array_values(array_filter(array_map('trim', explode(',', (string) env('GOOGLE_CLIENT_IDS', env('GOOGLE_CLIENT_ID', '')))))),
+        'client_ids' => $parseClientIds([
+            env('GOOGLE_CLIENT_IDS'),
+            env('GOOGLE_CLIENT_ID'),
+        ]),
         'jwks_url' => env('GOOGLE_JWKS_URL', 'https://www.googleapis.com/oauth2/v3/certs'),
     ],
 
     'apple' => [
-        'client_ids' => array_values(array_filter(array_map('trim', explode(',', (string) env('APPLE_CLIENT_IDS', env('APPLE_CLIENT_ID', '')))))),
+        'client_ids' => $parseClientIds([
+            env('APPLE_CLIENT_IDS'),
+            env('APPLE_CLIENT_ID'),
+            env('APPLE_BUNDLE_ID'),
+        ]),
         'jwks_url' => env('APPLE_JWKS_URL', 'https://appleid.apple.com/auth/keys'),
         'issuer' => env('APPLE_ISSUER', 'https://appleid.apple.com'),
     ],

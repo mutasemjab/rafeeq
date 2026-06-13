@@ -93,11 +93,17 @@ ANTHROPIC_API_KEY=
 # Social Login
 GOOGLE_CLIENT_IDS=
 APPLE_CLIENT_IDS=
+APPLE_BUNDLE_ID=
 
 # Optional: Web Search (Brave)
 WEB_SEARCH_ENABLED=false
 BRAVE_API_KEY=
 ```
+
+For Apple Sign In on native iOS, the backend must accept the bundle identifier
+from the token `aud` claim. For this app that value is `com.rafiq.user`, so set
+either `APPLE_CLIENT_IDS=com.rafiq.user` or `APPLE_BUNDLE_ID=com.rafiq.user`
+on the server before testing Apple login.
 
 ---
 
