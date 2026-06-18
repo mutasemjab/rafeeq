@@ -1,4 +1,4 @@
-@php
+<?php
     $copy = trans('landing');
     $nav = $copy['navigation'];
     $hero = $copy['hero'];
@@ -8,18 +8,18 @@
     $privacy = $copy['privacy'];
     $cta = $copy['cta'];
     $footer = $copy['footer'];
-@endphp
+?>
 <!DOCTYPE html>
-<html lang="{{ app()->getLocale() }}" dir="{{ $isRtl ? 'rtl' : 'ltr' }}">
+<html lang="<?php echo e(app()->getLocale()); ?>" dir="<?php echo e($isRtl ? 'rtl' : 'ltr'); ?>">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $copy['meta']['title'] }}</title>
-    <meta name="description" content="{{ $copy['meta']['description'] }}">
-    <meta property="og:title" content="{{ $copy['meta']['title'] }}">
-    <meta property="og:description" content="{{ $copy['meta']['description'] }}">
+    <title><?php echo e($copy['meta']['title']); ?></title>
+    <meta name="description" content="<?php echo e($copy['meta']['description']); ?>">
+    <meta property="og:title" content="<?php echo e($copy['meta']['title']); ?>">
+    <meta property="og:description" content="<?php echo e($copy['meta']['description']); ?>">
     <meta property="og:type" content="website">
-    <meta property="og:image" content="{{ asset('assets/front/rafiq-logo.png') }}">
+    <meta property="og:image" content="<?php echo e(asset('assets/front/rafiq-logo.png')); ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -953,14 +953,14 @@
         }
     </style>
 </head>
-<body class="{{ $isRtl ? 'rtl' : 'ltr' }}">
+<body class="<?php echo e($isRtl ? 'rtl' : 'ltr'); ?>">
     <div class="page-shell">
         <header class="topbar" id="topbar">
-            <a class="brand-lockup" href="{{ $homeUrl }}">
-                <img class="brand-mark" src="{{ asset('assets/front/rafiq-logo.png') }}" alt="{{ $copy['brand']['name'] }}">
+            <a class="brand-lockup" href="<?php echo e($homeUrl); ?>">
+                <img class="brand-mark" src="<?php echo e(asset('assets/front/rafiq-logo.png')); ?>" alt="<?php echo e($copy['brand']['name']); ?>">
                 <div class="brand-copy">
-                    <p class="brand-name">{{ $copy['brand']['name'] }}</p>
-                    <p class="brand-tagline">{{ $copy['brand']['tagline'] }}</p>
+                    <p class="brand-name"><?php echo e($copy['brand']['name']); ?></p>
+                    <p class="brand-tagline"><?php echo e($copy['brand']['tagline']); ?></p>
                 </div>
             </a>
 
@@ -970,11 +970,11 @@
                 type="button"
                 aria-controls="site-navigation"
                 aria-expanded="false"
-                aria-label="{{ $copy['actions']['menu'] }}"
-                data-open-label="{{ $copy['actions']['menu'] }}"
-                data-close-label="{{ $copy['actions']['close_menu'] }}"
+                aria-label="<?php echo e($copy['actions']['menu']); ?>"
+                data-open-label="<?php echo e($copy['actions']['menu']); ?>"
+                data-close-label="<?php echo e($copy['actions']['close_menu']); ?>"
             >
-                <span class="menu-toggle-text">{{ $copy['actions']['menu'] }}</span>
+                <span class="menu-toggle-text"><?php echo e($copy['actions']['menu']); ?></span>
                 <span class="menu-toggle-icon" aria-hidden="true">
                     <span></span>
                     <span></span>
@@ -983,63 +983,64 @@
             </button>
 
             <div class="nav-cluster" id="site-navigation">
-                <nav class="nav-links" aria-label="{{ $copy['actions']['navigation_label'] }}">
-                    <a href="#services">{{ $nav['services'] }}</a>
-                    <a href="#platform">{{ $nav['platform'] }}</a>
-                    <a href="#admin">{{ $nav['admin'] }}</a>
-                    <a href="#privacy">{{ $nav['privacy'] }}</a>
+                <nav class="nav-links" aria-label="<?php echo e($copy['actions']['navigation_label']); ?>">
+                    <a href="#services"><?php echo e($nav['services']); ?></a>
+                    <a href="#platform"><?php echo e($nav['platform']); ?></a>
+                    <a href="#admin"><?php echo e($nav['admin']); ?></a>
+                    <a href="#privacy"><?php echo e($nav['privacy']); ?></a>
                 </nav>
 
                 <div class="topbar-actions">
-                    <div class="locale-switcher" aria-label="{{ $copy['actions']['switch_language'] }}">
-                        @foreach ($localeLinks as $localeLink)
+                    <div class="locale-switcher" aria-label="<?php echo e($copy['actions']['switch_language']); ?>">
+                        <?php $__currentLoopData = $localeLinks; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $localeLink): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <a
-                                href="{{ $localeLink['url'] }}"
-                                class="{{ app()->getLocale() === $localeLink['code'] ? 'active' : '' }}"
-                                lang="{{ $localeLink['code'] }}"
+                                href="<?php echo e($localeLink['url']); ?>"
+                                class="<?php echo e(app()->getLocale() === $localeLink['code'] ? 'active' : ''); ?>"
+                                lang="<?php echo e($localeLink['code']); ?>"
                             >
-                                <span>{{ $localeLink['label'] }}</span>
-                                <span>{{ $localeLink['native'] }}</span>
+                                <span><?php echo e($localeLink['label']); ?></span>
+                                <span><?php echo e($localeLink['native']); ?></span>
                             </a>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </div>
 
-                    <a class="button button-secondary" href="{{ $adminLoginUrl }}">{{ $copy['actions']['login'] }}</a>
+                    <a class="button button-secondary" href="<?php echo e($adminLoginUrl); ?>"><?php echo e($copy['actions']['login']); ?></a>
                 </div>
             </div>
         </header>
 
-        @if (session('status'))
-            <div class="status-banner reveal is-visible">{{ session('status') }}</div>
-        @endif
+        <?php if(session('status')): ?>
+            <div class="status-banner reveal is-visible"><?php echo e(session('status')); ?></div>
+        <?php endif; ?>
 
         <section class="hero reveal is-visible">
             <div class="hero-copy">
-                <span class="eyebrow">{{ $hero['eyebrow'] }}</span>
+                <span class="eyebrow"><?php echo e($hero['eyebrow']); ?></span>
                 <h1>
-                    {{ $hero['title_lead'] }}
-                    <span class="accent">{{ $hero['title_accent'] }}</span>
+                    <?php echo e($hero['title_lead']); ?>
+
+                    <span class="accent"><?php echo e($hero['title_accent']); ?></span>
                 </h1>
-                <p>{{ $hero['description'] }}</p>
+                <p><?php echo e($hero['description']); ?></p>
 
                 <div class="pill-row">
-                    @foreach ($hero['pills'] as $pill)
-                        <span class="pill">{{ $pill }}</span>
-                    @endforeach
+                    <?php $__currentLoopData = $hero['pills']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $pill): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <span class="pill"><?php echo e($pill); ?></span>
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </div>
 
                 <div class="cta-row">
-                    <a class="button button-primary" href="{{ $adminLoginUrl }}">{{ $hero['primary_cta'] }}</a>
-                    <a class="button button-secondary" href="#platform">{{ $hero['secondary_cta'] }}</a>
+                    <a class="button button-primary" href="<?php echo e($adminLoginUrl); ?>"><?php echo e($hero['primary_cta']); ?></a>
+                    <a class="button button-secondary" href="#platform"><?php echo e($hero['secondary_cta']); ?></a>
                 </div>
 
                 <div class="metric-strip">
-                    @foreach ($hero['metrics'] as $metric)
+                    <?php $__currentLoopData = $hero['metrics']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $metric): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                         <div class="metric-card">
-                            <strong>{{ $metric['value'] }}</strong>
-                            <span>{{ $metric['label'] }}</span>
+                            <strong><?php echo e($metric['value']); ?></strong>
+                            <span><?php echo e($metric['label']); ?></span>
                         </div>
-                    @endforeach
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </div>
             </div>
 
@@ -1048,22 +1049,22 @@
                     <div class="orbital-stage">
                         <div class="halo"></div>
                         <div class="logo-sphere">
-                            <img src="{{ asset('assets/front/rafiq-logo.png') }}" alt="{{ $copy['brand']['name'] }}">
+                            <img src="<?php echo e(asset('assets/front/rafiq-logo.png')); ?>" alt="<?php echo e($copy['brand']['name']); ?>">
                         </div>
                     </div>
 
                     <div class="signal-grid">
-                        @foreach ($hero['signals'] as $signal)
+                        <?php $__currentLoopData = $hero['signals']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $signal): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <article class="signal-card">
-                                <strong>{{ $signal['title'] }}</strong>
-                                <p>{{ $signal['text'] }}</p>
+                                <strong><?php echo e($signal['title']); ?></strong>
+                                <p><?php echo e($signal['text']); ?></p>
                             </article>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </div>
 
                     <div class="panel-summary">
-                        <strong>{{ $hero['summary']['title'] }}</strong>
-                        <p>{{ $hero['summary']['text'] }}</p>
+                        <strong><?php echo e($hero['summary']['title']); ?></strong>
+                        <p><?php echo e($hero['summary']['text']); ?></p>
                     </div>
                 </div>
             </div>
@@ -1071,51 +1072,51 @@
 
         <section class="section reveal" id="services">
             <div class="section-head">
-                <span class="eyebrow">{{ $services['eyebrow'] }}</span>
-                <h2>{{ $services['title'] }}</h2>
-                <p>{{ $services['description'] }}</p>
+                <span class="eyebrow"><?php echo e($services['eyebrow']); ?></span>
+                <h2><?php echo e($services['title']); ?></h2>
+                <p><?php echo e($services['description']); ?></p>
             </div>
 
             <div class="card-grid">
-                @foreach ($services['cards'] as $card)
+                <?php $__currentLoopData = $services['cards']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $card): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                     <article class="feature-card">
-                        <span class="kicker">{{ $card['kicker'] }}</span>
-                        <h3>{{ $card['title'] }}</h3>
-                        <p>{{ $card['text'] }}</p>
+                        <span class="kicker"><?php echo e($card['kicker']); ?></span>
+                        <h3><?php echo e($card['title']); ?></h3>
+                        <p><?php echo e($card['text']); ?></p>
                     </article>
-                @endforeach
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
             </div>
         </section>
 
         <section class="section reveal" id="platform">
             <div class="section-head">
-                <span class="eyebrow">{{ $platform['eyebrow'] }}</span>
-                <h2>{{ $platform['title'] }}</h2>
-                <p>{{ $platform['description'] }}</p>
+                <span class="eyebrow"><?php echo e($platform['eyebrow']); ?></span>
+                <h2><?php echo e($platform['title']); ?></h2>
+                <p><?php echo e($platform['description']); ?></p>
             </div>
 
             <div class="platform-layout">
                 <div class="journey-panel">
-                    <h3>{{ $platform['journey_title'] }}</h3>
+                    <h3><?php echo e($platform['journey_title']); ?></h3>
                     <div class="journey-list">
-                        @foreach ($platform['journey'] as $step)
+                        <?php $__currentLoopData = $platform['journey']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $step): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <article class="journey-step">
-                                <div class="step-badge">{{ $step['step'] }}</div>
+                                <div class="step-badge"><?php echo e($step['step']); ?></div>
                                 <div class="step-copy">
-                                    <h4>{{ $step['title'] }}</h4>
-                                    <p>{{ $step['text'] }}</p>
+                                    <h4><?php echo e($step['title']); ?></h4>
+                                    <p><?php echo e($step['text']); ?></p>
                                 </div>
                             </article>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </div>
                 </div>
 
                 <div class="stack-panel">
-                    <h3>{{ $platform['stack_title'] }}</h3>
+                    <h3><?php echo e($platform['stack_title']); ?></h3>
                     <ul class="stack-list">
-                        @foreach ($platform['stack'] as $item)
-                            <li>{{ $item }}</li>
-                        @endforeach
+                        <?php $__currentLoopData = $platform['stack']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <li><?php echo e($item); ?></li>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </ul>
                 </div>
             </div>
@@ -1123,64 +1124,64 @@
 
         <section class="section reveal" id="admin">
             <div class="section-head">
-                <span class="eyebrow">{{ $admin['eyebrow'] }}</span>
-                <h2>{{ $admin['title'] }}</h2>
-                <p>{{ $admin['description'] }}</p>
+                <span class="eyebrow"><?php echo e($admin['eyebrow']); ?></span>
+                <h2><?php echo e($admin['title']); ?></h2>
+                <p><?php echo e($admin['description']); ?></p>
             </div>
 
             <div class="card-grid">
-                @foreach ($admin['cards'] as $card)
+                <?php $__currentLoopData = $admin['cards']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $card): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                     <article class="admin-card">
-                        <span class="kicker">{{ $card['kicker'] }}</span>
-                        <h3>{{ $card['title'] }}</h3>
-                        <p>{{ $card['text'] }}</p>
+                        <span class="kicker"><?php echo e($card['kicker']); ?></span>
+                        <h3><?php echo e($card['title']); ?></h3>
+                        <p><?php echo e($card['text']); ?></p>
                     </article>
-                @endforeach
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
             </div>
         </section>
 
         <section class="section reveal" id="privacy">
             <div class="section-head">
-                <span class="eyebrow">{{ $privacy['eyebrow'] }}</span>
-                <h2>{{ $privacy['title'] }}</h2>
-                <p>{{ $privacy['description'] }}</p>
+                <span class="eyebrow"><?php echo e($privacy['eyebrow']); ?></span>
+                <h2><?php echo e($privacy['title']); ?></h2>
+                <p><?php echo e($privacy['description']); ?></p>
             </div>
 
             <div class="card-grid">
-                @foreach ($privacy['cards'] as $card)
+                <?php $__currentLoopData = $privacy['cards']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $card): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                     <article class="privacy-card">
-                        <span class="kicker">{{ $card['kicker'] }}</span>
-                        <h3>{{ $card['title'] }}</h3>
-                        <p>{{ $card['text'] }}</p>
+                        <span class="kicker"><?php echo e($card['kicker']); ?></span>
+                        <h3><?php echo e($card['title']); ?></h3>
+                        <p><?php echo e($card['text']); ?></p>
                     </article>
-                @endforeach
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
             </div>
         </section>
 
         <section class="section reveal" id="cta">
             <div class="cta-panel">
-                <span class="eyebrow">{{ $cta['eyebrow'] }}</span>
-                <h2>{{ $cta['title'] }}</h2>
-                <p>{{ $cta['description'] }}</p>
+                <span class="eyebrow"><?php echo e($cta['eyebrow']); ?></span>
+                <h2><?php echo e($cta['title']); ?></h2>
+                <p><?php echo e($cta['description']); ?></p>
 
                 <div class="cta-row">
-                    <a class="button button-primary" href="{{ $adminLoginUrl }}">{{ $cta['primary_cta'] }}</a>
-                    <a class="button button-secondary" href="#topbar">{{ $cta['secondary_cta'] }}</a>
+                    <a class="button button-primary" href="<?php echo e($adminLoginUrl); ?>"><?php echo e($cta['primary_cta']); ?></a>
+                    <a class="button button-secondary" href="#topbar"><?php echo e($cta['secondary_cta']); ?></a>
                 </div>
             </div>
         </section>
 
         <footer class="footer">
             <div class="footer-copy">
-                <strong>{{ $copy['brand']['name'] }}</strong>
-                <p>{{ $footer['note'] }}</p>
-                <p>{{ $footer['copyright'] }}</p>
+                <strong><?php echo e($copy['brand']['name']); ?></strong>
+                <p><?php echo e($footer['note']); ?></p>
+                <p><?php echo e($footer['copyright']); ?></p>
             </div>
 
             <div class="footer-mini">
-                <a href="#services">{{ $nav['services'] }}</a>
-                <a href="#platform">{{ $nav['platform'] }}</a>
-                <a href="{{ $adminLoginUrl }}">{{ $copy['actions']['login'] }}</a>
+                <a href="#services"><?php echo e($nav['services']); ?></a>
+                <a href="#platform"><?php echo e($nav['platform']); ?></a>
+                <a href="<?php echo e($adminLoginUrl); ?>"><?php echo e($copy['actions']['login']); ?></a>
             </div>
         </footer>
     </div>
@@ -1265,3 +1266,4 @@
     </script>
 </body>
 </html>
+<?php /**PATH /Users/tajawal/Downloads/rafeeq/resources/views/front/home.blade.php ENDPATH**/ ?>

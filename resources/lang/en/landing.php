@@ -19,7 +19,9 @@ return [
     ],
 
     'actions' => [
-        'login' => 'Admin Login',
+        'login' => 'Login',
+        'menu' => 'Menu',
+        'close_menu' => 'Close menu',
         'navigation_label' => 'Landing navigation',
         'switch_language' => 'Switch language',
     ],
@@ -29,7 +31,7 @@ return [
         'title_lead' => 'Rafiq AI turns complex caregiving moments into',
         'title_accent' => 'calm, guided next steps.',
         'description' => 'Built for caregivers of children with special needs, Rafiq AI combines bilingual conversations, child context, document-aware answers, specialist booking, and human follow-up in one connected experience.',
-        'primary_cta' => 'Open Admin Login',
+        'primary_cta' => 'Login',
         'secondary_cta' => 'See the Platform',
         'pills' => [
             'Arabic and English support',
@@ -176,7 +178,7 @@ return [
         'eyebrow' => 'Ready To Use',
         'title' => 'Show the Rafiq AI story clearly, then route your team into the dashboard.',
         'description' => 'This landing page gives caregivers and partners a confident first impression, while the login pathway keeps administrators one click away from action.',
-        'primary_cta' => 'Go to Admin Login',
+        'primary_cta' => 'Login',
         'secondary_cta' => 'Back to top',
     ],
 
