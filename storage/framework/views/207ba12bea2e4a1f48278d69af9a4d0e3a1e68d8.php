@@ -924,15 +924,18 @@
                 padding: 22px;
             }
 
-            .halo,
-            .logo-sphere {
-                position: static;
-                transform: none;
+            .orbital-stage {
+                min-height: 220px;
+                padding: 20px;
+            }
+
+            .halo {
+                display: none;
             }
 
             .logo-sphere {
-                aspect-ratio: 1;
-                max-width: 320px;
+                width: min(220px, 100%);
+                padding: 24px;
                 margin: 0 auto;
             }
 
