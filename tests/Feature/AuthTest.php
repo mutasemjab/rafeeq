@@ -7,6 +7,7 @@ use App\Models\SocialAccount;
 use App\Models\User;
 use App\Services\Auth\SocialIdentityVerifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Mockery\MockInterface;
 use Tests\TestCase;
 
@@ -57,6 +58,24 @@ class AuthTest extends TestCase
             'email'    => $user->email,
             'password' => 'secret123',
         ])->assertOk()->assertJsonStructure(['token', 'user']);
+    }
+
+    public function test_user_can_login_with_lowercase_email_when_legacy_record_uses_mixed_case(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'legacy.user@example.com',
+            'password' => bcrypt('secret123'),
+            'status' => 'active',
+        ]);
+
+        DB::table('users')
+            ->where('id', $user->id)
+            ->update(['email' => 'Legacy.User@Example.COM']);
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'legacy.user@example.com',
+            'password' => 'secret123',
+        ])->assertOk()->assertJsonPath('user.id', $user->id);
     }
 
     public function test_inactive_user_cannot_login(): void
@@ -135,6 +154,44 @@ class AuthTest extends TestCase
             'provider_email' => 'social@example.com',
         ]);
         $this->assertDatabaseHas('subscriptions', ['status' => 'active']);
+    }
+
+    public function test_social_login_links_existing_user_even_if_stored_email_case_differs(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'mixedcase@example.com',
+            'status' => 'active',
+        ]);
+
+        DB::table('users')
+            ->where('id', $user->id)
+            ->update(['email' => 'MixedCase@Example.COM']);
+
+        $this->mock(SocialIdentityVerifier::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('verify')
+                ->once()
+                ->with('google', 'mixed-case-google-token')
+                ->andReturn([
+                    'provider_user_id' => 'google-user-mixed-case',
+                    'email' => 'mixedcase@example.com',
+                    'email_verified' => true,
+                    'name' => 'Mixed Case',
+                    'first_name' => 'Mixed',
+                    'last_name' => 'Case',
+                    'avatar' => null,
+                    'provider_data' => ['sub' => 'google-user-mixed-case'],
+                ]);
+        });
+
+        $this->postJson('/api/v1/auth/social', [
+            'provider' => 'google',
+            'id_token' => 'mixed-case-google-token',
+        ])
+            ->assertOk()
+            ->assertJsonPath('is_new_user', false)
+            ->assertJsonPath('user.id', $user->id);
+
+        $this->assertSame(1, User::query()->whereRaw('LOWER(email) = ?', ['mixedcase@example.com'])->count());
     }
 
     public function test_social_login_links_existing_user_by_email(): void

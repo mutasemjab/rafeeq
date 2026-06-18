@@ -35,6 +35,10 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
+        $request->merge([
+            'email' => $this->normalizeEmail($request->input('email')),
+        ]);
+
         $request->validate([
             'name'     => 'required|string|max:255',
             'email'    => 'required|email|unique:users,email',
@@ -62,6 +66,10 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
+        $request->merge([
+            'email' => $this->normalizeEmail($request->input('email')),
+        ]);
+
         $request->validate([
             'name'     => 'required|string|max:255',
             'email'    => ['required', 'email', Rule::unique('users')->ignore($user->id)],
@@ -93,5 +101,14 @@ class UserController extends Controller
 
         return redirect()->route('admin.users.index')
             ->with('success', __('messages.deleted_successfully'));
+    }
+
+    private function normalizeEmail(?string $email): ?string
+    {
+        if (! is_string($email)) {
+            return null;
+        }
+
+        return mb_strtolower(trim($email));
     }
 }

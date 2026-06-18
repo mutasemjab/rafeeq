@@ -19,6 +19,10 @@ class AuthController extends Controller
 {
     public function register(Request $request): JsonResponse
     {
+        $request->merge([
+            'email' => $this->normalizeEmail($request->input('email')),
+        ]);
+
         $data = $request->validate([
             'first_name' => 'required|string|max:100',
             'last_name'  => 'required|string|max:100',
@@ -86,12 +90,16 @@ class AuthController extends Controller
 
     public function login(Request $request): JsonResponse
     {
+        $request->merge([
+            'email' => $this->normalizeEmail($request->input('email')),
+        ]);
+
         $data = $request->validate([
             'email'    => 'required|email',
             'password' => 'required|string',
         ]);
 
-        $user = User::where('email', $data['email'])->first();
+        $user = $this->findUserByEmail($data['email']);
 
         if (!$user || !Hash::check($data['password'], $user->password)) {
             throw ValidationException::withMessages(['email' => ['Invalid credentials.']]);
@@ -167,7 +175,7 @@ class AuthController extends Controller
         }
 
         if (! empty($identity['email'])) {
-            $user = User::query()->where('email', $identity['email'])->first();
+            $user = $this->findUserByEmail($identity['email']);
 
             if ($user) {
                 return [$user, false];
@@ -187,7 +195,7 @@ class AuthController extends Controller
             'name' => $displayName,
             'first_name' => $firstName,
             'last_name' => $lastName,
-            'email' => strtolower($email),
+            'email' => $this->normalizeEmail($email),
             'password' => Hash::make(Str::random(40)),
             'role' => 'user',
             'status' => 'active',
@@ -216,6 +224,28 @@ class AuthController extends Controller
                 'provider_data' => $identity['provider_data'] ?? [],
             ]
         );
+    }
+
+    private function findUserByEmail(?string $email): ?User
+    {
+        $normalizedEmail = $this->normalizeEmail($email);
+
+        if (! $normalizedEmail) {
+            return null;
+        }
+
+        return User::query()
+            ->whereRaw('LOWER(email) = ?', [$normalizedEmail])
+            ->first();
+    }
+
+    private function normalizeEmail(?string $email): ?string
+    {
+        if (! is_string($email)) {
+            return null;
+        }
+
+        return mb_strtolower(trim($email));
     }
 
     private function syncVerifiedEmail(User $user, array $identity): void
