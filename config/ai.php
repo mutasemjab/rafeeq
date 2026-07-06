@@ -47,6 +47,45 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Default Medical / Wellness References
+    |--------------------------------------------------------------------------
+    | Apple requires visible citations for health and medical information.
+    | These public references are always available to the chat flow, even when
+    | web search or the internal knowledge base returns no result.
+    */
+    'default_medical_sources' => [
+        [
+            'source_label' => 'MED_SOURCE_1',
+            'source_type'  => 'medical_reference',
+            'title'        => 'CDC - Child Development',
+            'url'          => 'https://www.cdc.gov/child-development/index.html',
+            'snippet'      => 'CDC guidance and resources about child development, positive parenting, safety, and developmental concerns.',
+        ],
+        [
+            'source_label' => 'MED_SOURCE_2',
+            'source_type'  => 'medical_reference',
+            'title'        => 'MedlinePlus - Child Development',
+            'url'          => 'https://medlineplus.gov/childdevelopment.html',
+            'snippet'      => 'MedlinePlus information about physical, intellectual, social, and emotional child development.',
+        ],
+        [
+            'source_label' => 'MED_SOURCE_3',
+            'source_type'  => 'medical_reference',
+            'title'        => 'CDC - Children\'s Mental Health',
+            'url'          => 'https://www.cdc.gov/children-mental-health/about/index.html',
+            'snippet'      => 'CDC overview and resources for children\'s mental health and support options.',
+        ],
+        [
+            'source_label' => 'MED_SOURCE_4',
+            'source_type'  => 'medical_reference',
+            'title'        => 'CDC - Treating Children\'s Mental Health with Therapy',
+            'url'          => 'https://www.cdc.gov/children-mental-health/treatment/index.html',
+            'snippet'      => 'CDC guidance encouraging caregivers to speak with primary care or mental health professionals for evaluation and therapy planning.',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | API Keys (resolved from env — never hardcoded)
     |--------------------------------------------------------------------------
     */
@@ -70,6 +109,7 @@ You may receive four types of context:
 2. CHILD_CONTEXT: The selected child's profile, memories, and previous conversation summary.
 3. KNOWLEDGE_BASE sources: Internal system knowledge documents. These provide general guidance.
 4. WEB sources: General web information, used only when enabled and when local sources are not enough.
+5. MED_SOURCE references: Public medical or wellness references with visible URLs.
 
 Core rules:
 1. Use chat attachments first when relevant.
@@ -88,6 +128,8 @@ Core rules:
 14. Cite sources using source labels like [CHAT_SOURCE_1], [KB_SOURCE_2], or [WEB_SOURCE_1].
 15. Do not create fake references.
 16. If unsure, say you are unsure.
+17. For medical, health, developmental, psychological, behavioral, therapy, or wellness guidance, cite at least one MED_SOURCE, WEB_SOURCE, CHAT_SOURCE, or KB_SOURCE label in the relevant sentence.
+18. Do not invent source titles, URLs, organizations, studies, or citations.
 PROMPT,
 
 ];

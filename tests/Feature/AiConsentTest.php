@@ -6,6 +6,9 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\AI\ChildChatService;
+use App\Services\Search\ChatAttachmentSearchService;
+use App\Services\Search\Contracts\WebSearchServiceInterface;
+use App\Services\Search\KnowledgeSearchService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery\MockInterface;
 use Tests\TestCase;
@@ -100,5 +103,55 @@ class AiConsentTest extends TestCase
             ->assertOk()
             ->assertJsonPath('role', 'assistant')
             ->assertJsonPath('content', 'Here is a helpful response.');
+    }
+
+    public function test_ai_endpoint_appends_visible_medical_resources_to_responses(): void
+    {
+        config([
+            'ai.provider' => 'fake',
+            'ai.web_search_enabled' => false,
+        ]);
+
+        $conversation = Conversation::factory()->create([
+            'user_id' => $this->user->id,
+        ]);
+
+        $this->user->forceFill([
+            'ai_consent_accepted_at' => now(),
+            'ai_consent_version' => '1.0',
+        ])->save();
+
+        $this->mock(ChatAttachmentSearchService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('search')->once()->andReturn([]);
+        });
+
+        $this->mock(KnowledgeSearchService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('search')->once()->andReturn([]);
+        });
+
+        $this->mock(WebSearchServiceInterface::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('search')->never();
+        });
+
+        $response = $this->actingAs($this->user, 'user-api')
+            ->postJson("/api/v1/conversations/{$conversation->id}/chat", [
+                'message' => 'Can you suggest developmental wellness steps?',
+            ])
+            ->assertOk()
+            ->assertJsonPath('role', 'assistant');
+
+        $content = $response->json('content');
+        $sources = $response->json('sources');
+
+        $this->assertStringContainsString('Resources:', $content);
+        $this->assertStringContainsString('https://www.cdc.gov/child-development/index.html', $content);
+        $this->assertStringContainsString('https://medlineplus.gov/childdevelopment.html', $content);
+        $this->assertContains('MED_SOURCE_1', array_column($sources, 'source_label'));
+        $this->assertContains('MED_SOURCE_2', array_column($sources, 'source_label'));
+
+        $this->assertDatabaseHas('messages', [
+            'conversation_id' => $conversation->id,
+            'role' => 'assistant',
+        ]);
     }
 }

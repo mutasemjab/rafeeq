@@ -8,6 +8,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Services\AI\Contracts\LlmProviderInterface;
 use App\Services\Search\ChatAttachmentSearchService;
+use App\Services\Search\Contracts\WebSearchServiceInterface;
 use App\Services\Search\KnowledgeSearchService;
 use Illuminate\Support\Facades\Log;
 
@@ -18,6 +19,7 @@ class ChildChatService
         private ChildContextService $childContext,
         private KnowledgeSearchService $knowledgeSearch,
         private ChatAttachmentSearchService $attachmentSearch,
+        private WebSearchServiceInterface $webSearch,
     ) {}
 
     public function ask(
@@ -94,18 +96,31 @@ class ChildChatService
             $knowledgeSources = [];
         }
 
-        // 5. Merge sources
-        $allSources = array_merge($attachmentSources, $knowledgeSources);
-        Log::info('[Chat] Step 5: Total sources merged', ['total' => count($allSources)]);
+        // 5. Search web fallback when enabled.
+        $webSources = $this->searchWebSources($userMessage);
 
-        // 6. Build context string
-        $sourceContext = '';
-        foreach ($allSources as $src) {
-            $label          = $src['source_label'] ?? $src['label'] ?? 'SOURCE';
-            $sourceContext .= "\n\n[{$label}]\n" . ($src['content'] ?? '');
-        }
+        // 6. Always include public medical/wellness references for App Review citation requirements.
+        $medicalSources = $this->defaultMedicalSources();
 
-        // 7. Fetch recent conversation history
+        // 7. Merge sources
+        $allSources = array_values(array_merge(
+            $attachmentSources,
+            $knowledgeSources,
+            $webSources,
+            $medicalSources
+        ));
+        Log::info('[Chat] Step 7: Total sources merged', [
+            'total'             => count($allSources),
+            'attachment_sources'=> count($attachmentSources),
+            'knowledge_sources' => count($knowledgeSources),
+            'web_sources'       => count($webSources),
+            'medical_sources'   => count($medicalSources),
+        ]);
+
+        // 8. Build context string
+        $sourceContext = $this->buildSourceContext($allSources);
+
+        // 9. Fetch recent conversation history
         $recentMessages = $conversation->messages()
             ->orderBy('id', 'desc')
             ->take(config('ai.recent_messages_limit', 12))
@@ -113,9 +128,9 @@ class ChildChatService
             ->reverse()
             ->values();
 
-        Log::info('[Chat] Step 7: History loaded', ['message_count' => $recentMessages->count()]);
+        Log::info('[Chat] Step 9: History loaded', ['message_count' => $recentMessages->count()]);
 
-        // 8. Build LLM messages array
+        // 10. Build LLM messages array
         $systemPrompt = config('ai.system_prompt', '');
 
         if (!empty($childCtx['profile'])) {
@@ -141,32 +156,34 @@ class ChildChatService
         }
         $messages[] = ['role' => 'user', 'content' => $userMessage];
 
-        Log::info('[Chat] Step 8: LLM payload ready', [
+        Log::info('[Chat] Step 10: LLM payload ready', [
             'total_messages'     => count($messages),
             'system_prompt_len'  => strlen($systemPrompt),
             'has_context'        => !empty($sourceContext),
         ]);
 
-        // 9. Call LLM
+        // 11. Call LLM
         try {
             $reply = $this->llm->chat($messages);
-            Log::info('[Chat] Step 9: LLM replied', ['reply_length' => strlen($reply)]);
+            Log::info('[Chat] Step 11: LLM replied', ['reply_length' => strlen($reply)]);
         } catch (\Throwable $e) {
-            Log::error('[Chat] Step 9 FAILED: LLM call', ['error' => $e->getMessage()]);
+            Log::error('[Chat] Step 11 FAILED: LLM call', ['error' => $e->getMessage()]);
             $reply = 'I\'m sorry, I encountered an error. Please try again.';
         }
 
-        // 10. Persist assistant message
+        $reply = $this->appendResourcesBlock($reply, $allSources);
+
+        // 12. Persist assistant message
         $assistantMsg = Message::create([
             'conversation_id' => $conversation->id,
             'role'            => 'assistant',
             'content'         => $reply,
-            'sources'         => !empty($allSources) ? $allSources : null,
+            'sources'         => $allSources,
         ]);
 
-        Log::info('[Chat] Step 10: Assistant message saved', ['message_id' => $assistantMsg->id]);
+        Log::info('[Chat] Step 12: Assistant message saved', ['message_id' => $assistantMsg->id]);
 
-        // 11. Increment count and dispatch background jobs
+        // 13. Increment count and dispatch background jobs
         $conversation->increment('message_count');
         $conversation->touch();
         $count = $conversation->fresh()->message_count ?? 0;
@@ -183,5 +200,171 @@ class ChildChatService
         Log::info('[Chat] ── END ── reply sent', ['conversation_id' => $conversation->id]);
 
         return $assistantMsg;
+    }
+
+    private function searchWebSources(string $userMessage): array
+    {
+        if (! config('ai.web_search_enabled', false)) {
+            return [];
+        }
+
+        try {
+            $results = $this->webSearch->search($userMessage, [
+                'count'      => 3,
+                'safesearch' => 'strict',
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('[Chat] Web search failed', ['error' => $e->getMessage()]);
+
+            return [];
+        }
+
+        return collect($results)
+            ->filter(fn ($source) => ! empty($source['url']))
+            ->take(3)
+            ->values()
+            ->map(function (array $source, int $index): array {
+                return [
+                    'source_label' => 'WEB_SOURCE_' . ($index + 1),
+                    'source_type'  => 'web',
+                    'title'        => $source['title'] ?? 'Web source',
+                    'url'          => $source['url'] ?? '',
+                    'snippet'      => $source['snippet'] ?? '',
+                    'content'      => $source['snippet'] ?? '',
+                ];
+            })
+            ->all();
+    }
+
+    private function defaultMedicalSources(): array
+    {
+        $configuredSources = config('ai.default_medical_sources', []);
+
+        if (! is_array($configuredSources)) {
+            return [];
+        }
+
+        $sources = [];
+
+        foreach ($configuredSources as $index => $source) {
+            if (! is_array($source)) {
+                continue;
+            }
+
+            $label   = $source['source_label'] ?? 'MED_SOURCE_' . ($index + 1);
+            $title   = $source['title'] ?? 'Medical reference';
+            $url     = $source['url'] ?? '';
+            $snippet = $source['snippet'] ?? '';
+
+            $sources[] = [
+                'source_label' => $label,
+                'source_type'  => $source['source_type'] ?? 'medical_reference',
+                'title'        => $title,
+                'url'          => $url,
+                'snippet'      => $snippet,
+                'content'      => trim($snippet . ($url ? "\nURL: {$url}" : '')),
+            ];
+        }
+
+        return $sources;
+    }
+
+    private function buildSourceContext(array $sources): string
+    {
+        $sourceContext = '';
+
+        foreach ($sources as $source) {
+            $label = $source['source_label'] ?? $source['label'] ?? 'SOURCE';
+            $lines = [];
+
+            foreach (['title' => 'Title', 'url' => 'URL', 'snippet' => 'Summary'] as $key => $labelText) {
+                if (! empty($source[$key])) {
+                    $lines[] = $labelText . ': ' . $source[$key];
+                }
+            }
+
+            if (! empty($source['content']) && ! in_array($source['content'], $lines, true)) {
+                $lines[] = 'Content: ' . $source['content'];
+            }
+
+            if (empty($lines)) {
+                continue;
+            }
+
+            $sourceContext .= "\n\n[{$label}]\n" . implode("\n", $lines);
+        }
+
+        return $sourceContext;
+    }
+
+    private function appendResourcesBlock(string $reply, array $sources): string
+    {
+        $items = $this->resourceListItems($sources);
+
+        if (empty($items)) {
+            return trim($reply);
+        }
+
+        return rtrim($reply) . "\n\nResources:\n- " . implode("\n- ", $items);
+    }
+
+    private function resourceListItems(array $sources): array
+    {
+        $urlItems = [];
+        $localItems = [];
+        $seen = [];
+
+        foreach ($sources as $source) {
+            $label = $source['source_label'] ?? $source['label'] ?? null;
+            $title = $this->sourceTitle($source);
+            $url = trim((string) ($source['url'] ?? ''));
+
+            if ($label === null || $title === '') {
+                continue;
+            }
+
+            $key = $url !== '' ? $url : $label . '|' . $title . '|' . ($source['page_number'] ?? '');
+
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+
+            $item = "[{$label}] {$title}";
+
+            if (! empty($source['page_number'])) {
+                $item .= ' (page ' . $source['page_number'] . ')';
+            }
+
+            if ($url !== '') {
+                $urlItems[] = $item . ': ' . $url;
+                continue;
+            }
+
+            $localItems[] = $item . ' (' . $this->sourceTypeName($source) . ')';
+        }
+
+        return array_merge($urlItems, array_slice($localItems, 0, 4));
+    }
+
+    private function sourceTitle(array $source): string
+    {
+        return trim((string) (
+            $source['title']
+            ?? $source['document_name']
+            ?? $source['original_name']
+            ?? $source['source_label']
+            ?? ''
+        ));
+    }
+
+    private function sourceTypeName(array $source): string
+    {
+        return match ($source['source_type'] ?? null) {
+            'chat_attachment' => 'uploaded document',
+            'knowledge_base' => 'knowledge base',
+            default => 'source',
+        };
     }
 }

@@ -28,7 +28,7 @@ class BraveSearchProvider implements WebSearchServiceInterface
             return [];
         }
 
-        $apiKey = config('ai.brave_search_api_key');
+        $apiKey = config('ai.brave_api_key');
 
         if (empty($apiKey)) {
             return [];
