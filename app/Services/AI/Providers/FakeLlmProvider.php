@@ -29,6 +29,15 @@ class FakeLlmProvider implements LlmProviderInterface
      */
     public function chatJson(array $messages, array $schema = [], array $options = []): array
     {
+        if (isset($schema['allowed']) || $this->messagesHintDomainGuard($messages)) {
+            return [
+                'allowed' => true,
+                'confidence' => 1.0,
+                'category' => 'test',
+                'reason' => 'Allowed by the fake test provider.',
+            ];
+        }
+
         // If the schema or messages hint at a memories structure, return the appropriate shape.
         if (isset($schema['memories']) || $this->messagesHintMemories($messages)) {
             return ['memories' => []];
@@ -51,6 +60,11 @@ class FakeLlmProvider implements LlmProviderInterface
         return array_fill(0, $dimensions, 0.01);
     }
 
+    public function embeddingMany(array $texts): array
+    {
+        return array_map(fn($text): array => $this->embedding((string) $text), $texts);
+    }
+
     // -------------------------------------------------------------------------
     // Internals
     // -------------------------------------------------------------------------
@@ -66,6 +80,17 @@ class FakeLlmProvider implements LlmProviderInterface
         foreach ($messages as $message) {
             $content = $message['content'] ?? '';
             if (stripos($content, 'memor') !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function messagesHintDomainGuard(array $messages): bool
+    {
+        foreach ($messages as $message) {
+            if (stripos((string) ($message['content'] ?? ''), 'subject classifier') !== false) {
                 return true;
             }
         }

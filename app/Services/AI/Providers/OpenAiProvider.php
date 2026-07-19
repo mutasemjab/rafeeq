@@ -4,12 +4,18 @@ namespace App\Services\AI\Providers;
 
 use App\Services\AI\OpenAiConfigResolver;
 use App\Services\AI\Contracts\LlmProviderInterface;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use OpenAI\Laravel\Facades\OpenAI;
 use RuntimeException;
 use Throwable;
 
 class OpenAiProvider implements LlmProviderInterface
 {
+    private string $apiKey;
+
+    private ?string $organization;
+
     public function __construct(private OpenAiConfigResolver $configResolver)
     {
         $apiKey = $this->configResolver->apiKey();
@@ -20,7 +26,9 @@ class OpenAiProvider implements LlmProviderInterface
             );
         }
 
+        $this->apiKey = $apiKey;
         $this->configResolver->syncIntoRuntimeConfig();
+        $this->organization = config('openai.organization');
     }
 
     /**
@@ -105,31 +113,100 @@ class OpenAiProvider implements LlmProviderInterface
      */
     public function embedding(string $text): array
     {
+        return $this->embeddingMany([$text])[0] ?? [];
+    }
+
+    public function embeddingMany(array $texts): array
+    {
+        $inputs = array_values(array_map(
+            fn($text): string => trim((string) $text),
+            $texts
+        ));
+
+        if ($inputs === [] || in_array('', $inputs, true)) {
+            throw new RuntimeException('Embedding inputs must contain non-empty text.');
+        }
+
+        $model = (string) config('ai.embedding_model', 'text-embedding-3-large');
+        $expectedDimensions = (int) config('ai.embedding_dimensions', 1536);
+        $payload = [
+            'model' => $model,
+            'input' => $inputs,
+            'encoding_format' => 'float',
+        ];
+
+        if (str_starts_with($model, 'text-embedding-3') && $expectedDimensions > 0) {
+            $payload['dimensions'] = $expectedDimensions;
+        }
+
+        $startedAt = microtime(true);
+
         try {
-            $response = OpenAI::embeddings()->create([
-                'model' => config('ai.embedding_model'),
-                'input' => $text,
-            ]);
+            $request = Http::withToken($this->apiKey)
+                ->acceptJson()
+                ->connectTimeout(max(1, (int) config('ai.embedding_connect_timeout', 15)))
+                ->timeout(max(5, (int) config('ai.embedding_request_timeout', 90)))
+                ->retry(2, 750);
 
-            $embedding = $response->embeddings[0]->embedding ?? null;
-
-            if (!is_array($embedding)) {
-                throw new RuntimeException('OpenAI embedding response did not contain a valid vector.');
+            if (is_string($this->organization) && trim($this->organization) !== '') {
+                $request = $request->withHeaders([
+                    'OpenAI-Organization' => trim($this->organization),
+                ]);
             }
 
-            $expectedDimensions = (int) config('ai.embedding_dimensions');
+            Log::info('ai.embedding.request_started', [
+                'model' => $model,
+                'inputs_count' => count($inputs),
+                'characters_total' => array_sum(array_map('mb_strlen', $inputs)),
+            ]);
 
-            if ($expectedDimensions > 0 && count($embedding) !== $expectedDimensions) {
-                throw new RuntimeException(
-                    sprintf(
+            $response = $request->post('https://api.openai.com/v1/embeddings', $payload);
+
+            if ($response->failed()) {
+                throw new RuntimeException(sprintf(
+                    'OpenAI embedding request failed with HTTP %d: %s',
+                    $response->status(),
+                    mb_substr((string) $response->body(), 0, 800)
+                ));
+            }
+
+            $data = $response->json('data');
+
+            if (!is_array($data) || count($data) !== count($inputs)) {
+                throw new RuntimeException('OpenAI embedding response returned an unexpected number of vectors.');
+            }
+
+            usort($data, fn(array $left, array $right): int =>
+                ((int) ($left['index'] ?? 0)) <=> ((int) ($right['index'] ?? 0))
+            );
+
+            $embeddings = [];
+
+            foreach ($data as $item) {
+                $embedding = $item['embedding'] ?? null;
+
+                if (!is_array($embedding) || $embedding === []) {
+                    throw new RuntimeException('OpenAI embedding response contained an empty vector.');
+                }
+
+                if ($expectedDimensions > 0 && count($embedding) !== $expectedDimensions) {
+                    throw new RuntimeException(sprintf(
                         'Embedding dimension mismatch: expected %d, got %d.',
                         $expectedDimensions,
                         count($embedding)
-                    )
-                );
+                    ));
+                }
+
+                $embeddings[] = array_map('floatval', $embedding);
             }
 
-            return $embedding;
+            Log::info('ai.embedding.request_completed', [
+                'model' => $model,
+                'inputs_count' => count($inputs),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            ]);
+
+            return $embeddings;
         } catch (RuntimeException $e) {
             throw $e;
         } catch (Throwable $e) {

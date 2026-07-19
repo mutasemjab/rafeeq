@@ -11,7 +11,34 @@ class KnowledgeDocument extends Model
     use HasFactory, SoftDeletes;
 
     public const IN_PROGRESS_STATUSES = ['uploaded', 'processing'];
-    public const SUPPORTED_UPLOAD_EXTENSIONS = ['pdf', 'docx', 'doc', 'pptx', 'txt'];
+    public const SUPPORTED_UPLOAD_EXTENSIONS = [
+        'pdf',
+        'docx',
+        'doc',
+        'pptx',
+        'ppt',
+        'xlsx',
+        'xls',
+        'txt',
+        'csv',
+        'md',
+        'html',
+        'htm',
+        'jpg',
+        'jpeg',
+        'png',
+        'webp',
+        'tif',
+        'tiff',
+        'mp3',
+        'm4a',
+        'wav',
+        'mp4',
+        'mov',
+        'm4v',
+        'avi',
+        'flv',
+    ];
 
     protected $fillable = [
         'title',
@@ -24,10 +51,16 @@ class KnowledgeDocument extends Model
         'uploaded_by',
         'processing_error',
         'processed_at',
+        'content_hash',
+        'source_path',
+        'ingestion_metadata',
+        'index_only',
     ];
 
     protected $casts = [
         'processed_at' => 'datetime',
+        'ingestion_metadata' => 'array',
+        'index_only' => 'boolean',
     ];
 
     public function chunks()
@@ -63,11 +96,6 @@ class KnowledgeDocument extends Model
                     $file?->getClientOriginalName() ?? '',
                     PATHINFO_EXTENSION
                 ));
-
-                if ($extension === 'ppt') {
-                    $fail('Legacy PowerPoint .ppt files are not supported. Please save the file as .pptx and upload it again.');
-                    return;
-                }
 
                 if (!in_array($extension, self::supportedUploadExtensions(), true)) {
                     $fail('The file must be a file of type: ' . implode(', ', self::supportedUploadExtensions()) . '.');

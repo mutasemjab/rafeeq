@@ -3,6 +3,10 @@
 namespace App\Console;
 
 use App\Console\Commands\IngestKnowledgeCommand;
+use App\Console\Commands\ExportKnowledgeIndexCommand;
+use App\Console\Commands\ImportKnowledgeIndexCommand;
+use App\Console\Commands\KnowledgeStatusCommand;
+use App\Console\Commands\ReembedChatAttachmentsCommand;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -15,6 +19,10 @@ class Kernel extends ConsoleKernel
      */
     protected $commands = [
         IngestKnowledgeCommand::class,
+        ExportKnowledgeIndexCommand::class,
+        ImportKnowledgeIndexCommand::class,
+        KnowledgeStatusCommand::class,
+        ReembedChatAttachmentsCommand::class,
     ];
 
     /**

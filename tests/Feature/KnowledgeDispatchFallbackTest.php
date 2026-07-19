@@ -58,9 +58,13 @@ class KnowledgeDispatchFallbackTest extends TestCase
 
         $this->app->bind(TextChunker::class, fn () => new class
         {
-            public function chunk(string $text): array
+            public function chunk(string|array $text, array $options = []): array
             {
-                return [['content' => $text]];
+                $content = is_array($text)
+                    ? implode(' ', array_column($text, 'text'))
+                    : $text;
+
+                return [['content' => $content]];
             }
         });
 
@@ -80,6 +84,11 @@ class KnowledgeDispatchFallbackTest extends TestCase
             {
                 return [0.1, 0.2];
             }
+
+            public function embeddingMany(array $texts): array
+            {
+                return array_map(fn(): array => [0.1, 0.2], $texts);
+            }
         });
 
         $dispatcher = Mockery::mock(Dispatcher::class);
@@ -93,7 +102,7 @@ class KnowledgeDispatchFallbackTest extends TestCase
             ->once()
             ->with(Mockery::type(ProcessKnowledgeDocumentJob::class))
             ->andReturnUsing(function (ProcessKnowledgeDocumentJob $job) {
-                $job->handle();
+                app()->call([$job, 'handle']);
 
                 return null;
             });

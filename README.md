@@ -12,8 +12,8 @@ A Laravel 9 backend for **Rafiq**, an AI-powered application supporting caregive
 | Database | MySQL 8 |
 | Auth (API) | Laravel Passport (`user-api` guard) |
 | Auth (Admin) | Laravel custom `admin` guard |
-| AI / LLM | OpenAI GPT-4 via `openai-php/laravel` |
-| Embeddings | OpenAI `text-embedding-ada-002` (1536 dims) |
+| AI / LLM | OpenAI `gpt-5.6-sol` with a strict `gpt-5.6-luna` Rafiq-domain gate |
+| Embeddings | OpenAI `text-embedding-3-large` shortened to 1536 dims |
 | Vector Search | PHP cosine similarity over MySQL `LONGTEXT` |
 | PDF Parsing | `smalot/pdfparser` |
 | DOCX Parsing | `phpoffice/phpword` |
@@ -80,8 +80,12 @@ DB_PASSWORD=
 # AI Provider
 AI_PROVIDER=openai
 AI_EMBEDDING_PROVIDER=openai
-AI_CHAT_MODEL=gpt-4o
-AI_EMBEDDING_MODEL=text-embedding-ada-002
+AI_CHAT_MODEL=gpt-5.6-sol
+AI_EMBEDDING_MODEL=text-embedding-3-large
+AI_EMBEDDING_DIMENSIONS=1536
+AI_DOMAIN_GUARD_ENABLED=true
+AI_DOMAIN_GUARD_MODEL=gpt-5.6-luna
+AI_DOMAIN_GUARD_CONFIDENCE=0.85
 AI_CONSENT_VERSION=1.0
 AI_PROVIDER_NAME=OpenAI
 PRIVACY_POLICY_URL=

@@ -13,6 +13,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 use Throwable;
 
 class ProcessChatAttachmentJob implements ShouldQueue
@@ -48,26 +50,48 @@ class ProcessChatAttachmentJob implements ShouldQueue
             // Chunk the full text.
             $chunks = $chunker->chunk($fullText);
 
-            // Delete any previous chunks for this attachment.
-            ChatAttachmentChunk::where('chat_attachment_id', $att->id)->delete();
-
-            // Persist new chunks with embeddings.
-            foreach ($chunks as $i => $chunk) {
-                ChatAttachmentChunk::create([
-                    'chat_attachment_id'   => $att->id,
-                    'conversation_id'      => $att->conversation_id,
-                    'user_id'              => $att->user_id,
-                    'child_id'             => $att->child_id,
-                    'chunk_index'          => $i,
-                    'content'              => $chunk['content'],
-                    'token_count'          => str_word_count($chunk['content']),
-                    'embedding'            => json_encode($llm->embedding($chunk['content'])),
-                    'embedding_dimensions' => (int) config('ai.embedding_dimensions'),
-                    'metadata'             => [
-                        'original_name' => $att->original_name,
-                    ],
-                ]);
+            if ($chunks === []) {
+                throw new RuntimeException('No readable text could be extracted from this attachment.');
             }
+
+            $dimensions = (int) config('ai.embedding_dimensions', 1536);
+            $batchSize = max(1, min(128, (int) config('ai.embedding_batch_size', 16)));
+            $embeddings = [];
+
+            foreach (array_chunk($chunks, $batchSize) as $batch) {
+                $vectors = $llm->embeddingMany(array_column($batch, 'content'));
+                if (count($vectors) !== count($batch)) {
+                    throw new RuntimeException('The embedding provider returned an unexpected number of vectors.');
+                }
+                foreach ($vectors as $vector) {
+                    if (! is_array($vector) || count($vector) !== $dimensions) {
+                        throw new RuntimeException('The embedding provider returned an invalid vector.');
+                    }
+                    $embeddings[] = $vector;
+                }
+            }
+
+            DB::transaction(function () use ($att, $chunks, $embeddings, $dimensions): void {
+                ChatAttachmentChunk::where('chat_attachment_id', $att->id)->delete();
+
+                foreach ($chunks as $i => $chunk) {
+                    ChatAttachmentChunk::create([
+                        'chat_attachment_id'   => $att->id,
+                        'conversation_id'      => $att->conversation_id,
+                        'user_id'              => $att->user_id,
+                        'child_id'             => $att->child_id,
+                        'chunk_index'          => $i,
+                        'content'              => $chunk['content'],
+                        'token_count'          => str_word_count($chunk['content']),
+                        'embedding'            => json_encode($embeddings[$i], JSON_PRESERVE_ZERO_FRACTION),
+                        'embedding_dimensions' => $dimensions,
+                        'metadata'             => [
+                            'original_name' => $att->original_name,
+                            'embedding_model' => config('ai.embedding_model'),
+                        ],
+                    ]);
+                }
+            });
 
             $att->update([
                 'status'       => 'processed',

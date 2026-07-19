@@ -32,25 +32,30 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
                 'c.chunk_index   as chunk_index',
                 'c.content       as content',
                 'c.embedding     as embedding',
+                'c.embedding_dimensions as embedding_dimensions',
+                'c.metadata      as metadata',
             ])
-            ->get();
-
-        Log::info('[VectorSearch] Knowledge: rows fetched from DB', [
-            'total_rows' => $rows->count(),
-            'threshold'  => $threshold,
-            'limit'      => $limit,
-        ]);
+            ->orderBy('c.id')
+            ->cursor();
 
         $results      = [];
         $nullCount    = 0;
         $belowThresh  = 0;
+        $incompatible = 0;
         $topSimilarity = 0.0;
+        $totalRows = 0;
 
         foreach ($rows as $row) {
+            $totalRows++;
             $embedding = $this->decodeEmbedding($row->embedding);
 
             if ($embedding === null) {
                 $nullCount++;
+                continue;
+            }
+
+            if (! $this->isCompatibleEmbedding($row, $embedding, $queryEmbedding)) {
+                $incompatible++;
                 continue;
             }
 
@@ -73,11 +78,19 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
                 'content'                => $row->content,
                 'similarity'             => $similarity,
             ];
+
+            // Retain only the strongest candidates so a large knowledge base
+            // never accumulates every passing row in PHP memory.
+            usort($results, fn($a, $b) => $b['similarity'] <=> $a['similarity']);
+            if (count($results) > $limit) {
+                array_pop($results);
+            }
         }
 
         Log::info('[VectorSearch] Knowledge: scoring complete', [
-            'total_rows'     => $rows->count(),
+            'total_rows'     => $totalRows,
             'null_embeddings'=> $nullCount,
+            'incompatible_embeddings' => $incompatible,
             'below_threshold'=> $belowThresh,
             'passed'         => count($results),
             'top_similarity' => round($topSimilarity, 4),
@@ -90,7 +103,15 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
             ]);
         }
 
-        if (count($results) === 0 && $rows->count() > 0) {
+        if ($incompatible > 0) {
+            Log::warning('[VectorSearch] Knowledge: skipped embeddings from a different model or dimension', [
+                'incompatible_count' => $incompatible,
+                'expected_model' => config('ai.embedding_model'),
+                'expected_dimensions' => count($queryEmbedding),
+            ]);
+        }
+
+        if (count($results) === 0 && $totalRows > 0) {
             Log::warning('[VectorSearch] Knowledge: all chunks below threshold', [
                 'top_similarity' => round($topSimilarity, 4),
                 'threshold'      => $threshold,
@@ -100,9 +121,7 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
             ]);
         }
 
-        usort($results, fn($a, $b) => $b['similarity'] <=> $a['similarity']);
-
-        return array_slice($results, 0, $limit);
+        return $results;
     }
 
     /**
@@ -135,6 +154,8 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
                 'c.chunk_index      as chunk_index',
                 'c.content          as content',
                 'c.embedding        as embedding',
+                'c.embedding_dimensions as embedding_dimensions',
+                'c.metadata         as metadata',
             ])
             ->get();
 
@@ -144,6 +165,10 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
             $embedding = $this->decodeEmbedding($row->embedding);
 
             if ($embedding === null) {
+                continue;
+            }
+
+            if (! $this->isCompatibleEmbedding($row, $embedding, $queryEmbedding)) {
                 continue;
             }
 
@@ -182,10 +207,14 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
      */
     private function cosine(array $a, array $b): float
     {
+        if ($a === [] || count($a) !== count($b)) {
+            return 0.0;
+        }
+
         $dot   = 0.0;
         $magA  = 0.0;
         $magB  = 0.0;
-        $count = min(count($a), count($b));
+        $count = count($a);
 
         for ($i = 0; $i < $count; $i++) {
             $dot  += $a[$i] * $b[$i];
@@ -230,5 +259,23 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
         }
 
         return array_map('floatval', $decoded);
+    }
+
+    private function isCompatibleEmbedding(object $row, array $embedding, array $queryEmbedding): bool
+    {
+        if (
+            count($embedding) !== count($queryEmbedding)
+            || (int) ($row->embedding_dimensions ?? 0) !== count($queryEmbedding)
+        ) {
+            return false;
+        }
+
+        $metadata = $row->metadata ?? null;
+        if (is_string($metadata)) {
+            $metadata = json_decode($metadata, true);
+        }
+
+        return is_array($metadata)
+            && ($metadata['embedding_model'] ?? null) === (string) config('ai.embedding_model');
     }
 }

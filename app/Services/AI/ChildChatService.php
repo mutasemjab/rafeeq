@@ -20,6 +20,7 @@ class ChildChatService
         private KnowledgeSearchService $knowledgeSearch,
         private ChatAttachmentSearchService $attachmentSearch,
         private WebSearchServiceInterface $webSearch,
+        private DomainGuardService $domainGuard,
     ) {}
 
     public function ask(
@@ -45,42 +46,74 @@ class ChildChatService
         ]);
         Log::info('[Chat] Step 1: User message saved', ['message_id' => $userMsg->id]);
 
-        // 2. Build child context
+        // 2. Enforce Rafiq's subject boundary before retrieval or answer generation.
+        $recentMessages = $conversation->messages()
+            ->orderBy('id', 'desc')
+            ->take(config('ai.recent_messages_limit', 12))
+            ->get()
+            ->reverse()
+            ->values();
+        $guardHistory = $recentMessages
+            ->reject(fn (Message $message): bool => $message->id === $userMsg->id)
+            ->map(fn (Message $message): array => [
+                'role' => $message->role,
+                'content' => $message->content,
+            ])
+            ->all();
+        $domainDecision = $this->domainGuard->evaluate($userMessage, $guardHistory);
+
+        Log::info('[Chat] Step 2: Domain guard evaluated', [
+            'allowed' => $domainDecision['allowed'],
+            'confidence' => $domainDecision['confidence'],
+            'category' => $domainDecision['category'],
+            'model' => $domainDecision['model'],
+        ]);
+
+        if (! $domainDecision['allowed']) {
+            return $this->persistDomainRefusal(
+                $conversation,
+                $userMessage,
+                $language,
+                $domainDecision
+            );
+        }
+
+        // 3. Build child context
         try {
             $childCtx = $this->childContext->build($childId, $userId);
-            Log::info('[Chat] Step 2: Child context built', [
+            Log::info('[Chat] Step 3: Child context built', [
                 'has_profile'  => !empty($childCtx['profile']),
                 'memory_count' => count($childCtx['memories'] ?? []),
             ]);
         } catch (\Throwable $e) {
-            Log::error('[Chat] Step 2 FAILED: child context', ['error' => $e->getMessage()]);
+            Log::error('[Chat] Step 3 FAILED: child context', ['error' => $e->getMessage()]);
             $childCtx = ['profile' => null, 'memories' => [], 'summary' => null];
         }
 
-        // 3. Search chat attachments (user + conversation scoped)
+        // 4. Search chat attachments (user + conversation scoped)
         try {
             $attachmentSources = $this->attachmentSearch->search(
                 $userId,
                 (int) $conversation->id,
                 $userMessage
             );
-            Log::info('[Chat] Step 3: Chat attachment search', [
+            Log::info('[Chat] Step 4: Chat attachment search', [
                 'chunks_found' => count($attachmentSources),
             ]);
         } catch (\Throwable $e) {
-            Log::error('[Chat] Step 3 FAILED: attachment search', ['error' => $e->getMessage()]);
+            Log::error('[Chat] Step 4 FAILED: attachment search', ['error' => $e->getMessage()]);
             $attachmentSources = [];
         }
 
-        // 4. Search knowledge base
+        // 5. Search knowledge base
         try {
             $knowledgeSources = $this->knowledgeSearch->search($userMessage);
-            Log::info('[Chat] Step 4: Knowledge base search', [
+            Log::info('[Chat] Step 5: Knowledge base search', [
                 'chunks_found' => count($knowledgeSources),
             ]);
 
             foreach ($knowledgeSources as $i => $chunk) {
-                Log::info('[Chat] Step 4: KB chunk #' . ($i + 1), [
+                Log::info('[Chat] Step 5: KB chunk #' . ($i + 1), [
                     'source_label'    => $chunk['source_label'] ?? null,
                     'document_id'     => $chunk['knowledge_document_id'] ?? null,
                     'similarity'      => round($chunk['similarity'] ?? 0, 4),
@@ -89,27 +122,27 @@ class ChildChatService
             }
 
             if (empty($knowledgeSources)) {
-                Log::warning('[Chat] Step 4: No knowledge chunks found — AI will answer without KB context');
+                Log::warning('[Chat] Step 5: No knowledge chunks found — AI will answer without KB context');
             }
         } catch (\Throwable $e) {
-            Log::error('[Chat] Step 4 FAILED: knowledge search', ['error' => $e->getMessage()]);
+            Log::error('[Chat] Step 5 FAILED: knowledge search', ['error' => $e->getMessage()]);
             $knowledgeSources = [];
         }
 
-        // 5. Search web fallback when enabled.
+        // 6. Search web fallback when enabled.
         $webSources = $this->searchWebSources($userMessage);
 
-        // 6. Always include public medical/wellness references for App Review citation requirements.
+        // 7. Always include public medical/wellness references for App Review citation requirements.
         $medicalSources = $this->defaultMedicalSources();
 
-        // 7. Merge sources
+        // 8. Merge sources
         $allSources = array_values(array_merge(
             $attachmentSources,
             $knowledgeSources,
             $webSources,
             $medicalSources
         ));
-        Log::info('[Chat] Step 7: Total sources merged', [
+        Log::info('[Chat] Step 8: Total sources merged', [
             'total'             => count($allSources),
             'attachment_sources'=> count($attachmentSources),
             'knowledge_sources' => count($knowledgeSources),
@@ -117,16 +150,8 @@ class ChildChatService
             'medical_sources'   => count($medicalSources),
         ]);
 
-        // 8. Build context string
+        // 9. Build context string
         $sourceContext = $this->buildSourceContext($allSources);
-
-        // 9. Fetch recent conversation history
-        $recentMessages = $conversation->messages()
-            ->orderBy('id', 'desc')
-            ->take(config('ai.recent_messages_limit', 12))
-            ->get()
-            ->reverse()
-            ->values();
 
         Log::info('[Chat] Step 9: History loaded', ['message_count' => $recentMessages->count()]);
 
@@ -179,6 +204,8 @@ class ChildChatService
             'role'            => 'assistant',
             'content'         => $reply,
             'sources'         => $allSources,
+            'metadata'        => ['domain_guard' => $domainDecision],
+            'model_name'      => config('ai.chat_model'),
         ]);
 
         Log::info('[Chat] Step 12: Assistant message saved', ['message_id' => $assistantMsg->id]);
@@ -198,6 +225,33 @@ class ChildChatService
         }
 
         Log::info('[Chat] ── END ── reply sent', ['conversation_id' => $conversation->id]);
+
+        return $assistantMsg;
+    }
+
+    private function persistDomainRefusal(
+        Conversation $conversation,
+        string $userMessage,
+        ?string $language,
+        array $domainDecision
+    ): Message {
+        $assistantMsg = Message::create([
+            'conversation_id' => $conversation->id,
+            'role' => 'assistant',
+            'content' => $this->domainGuard->refusal($language, $userMessage),
+            'sources' => [],
+            'metadata' => ['domain_guard' => $domainDecision],
+            'safety_flags' => ['out_of_scope'],
+        ]);
+
+        $conversation->increment('message_count');
+        $conversation->touch();
+
+        Log::info('[Chat] ── END ── unrelated question refused', [
+            'conversation_id' => $conversation->id,
+            'assistant_message_id' => $assistantMsg->id,
+            'category' => $domainDecision['category'] ?? 'uncertain',
+        ]);
 
         return $assistantMsg;
     }
