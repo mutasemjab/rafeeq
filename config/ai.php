@@ -9,7 +9,7 @@ return [
     | Supported: "openai"
     | Designed for later extension: gemini, anthropic, local
     */
-    'provider'           => env('AI_PROVIDER', 'openai'),
+    'provider' => env('AI_PROVIDER', 'openai'),
     'embedding_provider' => env('AI_EMBEDDING_PROVIDER', 'openai'),
 
     /*
@@ -17,8 +17,8 @@ return [
     | Models
     |--------------------------------------------------------------------------
     */
-    'chat_model'       => env('AI_CHAT_MODEL', 'gpt-5.6-sol'),
-    'embedding_model'  => env('AI_EMBEDDING_MODEL', 'text-embedding-3-large'),
+    'chat_model' => env('AI_CHAT_MODEL', 'gpt-5.6-sol'),
+    'embedding_model' => env('AI_EMBEDDING_MODEL', 'text-embedding-3-large'),
     'embedding_dimensions' => (int) env('AI_EMBEDDING_DIMENSIONS', 1536),
     'embedding_batch_size' => (int) env('AI_EMBEDDING_BATCH_SIZE', 64),
     'embedding_connect_timeout' => (int) env('AI_EMBEDDING_CONNECT_TIMEOUT', 15),
@@ -49,11 +49,11 @@ return [
     'document_similarity_threshold' => (float) env('AI_DOCUMENT_SIMILARITY_THRESHOLD', 0.50),
 
     'max_chat_attachment_chunks' => (int) env('AI_MAX_CHAT_ATTACHMENT_CHUNKS', 6),
-    'max_knowledge_chunks'       => (int) env('AI_MAX_KNOWLEDGE_CHUNKS', 8),
-    'max_context_chunks'         => (int) env('AI_MAX_CONTEXT_CHUNKS', 12),
+    'max_knowledge_chunks' => (int) env('AI_MAX_KNOWLEDGE_CHUNKS', 8),
+    'max_context_chunks' => (int) env('AI_MAX_CONTEXT_CHUNKS', 12),
 
     'recent_messages_limit' => (int) env('AI_RECENT_MESSAGES_LIMIT', 12),
-    'max_child_memories'    => (int) env('AI_MAX_CHILD_MEMORIES', 20),
+    'max_child_memories' => (int) env('AI_MAX_CHILD_MEMORIES', 20),
 
     'domain_guard_enabled' => (bool) env('AI_DOMAIN_GUARD_ENABLED', true),
     'domain_guard_model' => env('AI_DOMAIN_GUARD_MODEL', 'gpt-5.6-luna'),
@@ -74,7 +74,7 @@ return [
     | Web Search Fallback
     |--------------------------------------------------------------------------
     */
-    'web_search_enabled'  => (bool) env('AI_WEB_SEARCH_ENABLED', false),
+    'web_search_enabled' => (bool) env('AI_WEB_SEARCH_ENABLED', false),
     'web_search_provider' => env('AI_WEB_SEARCH_PROVIDER', 'brave'),
 
     /*
@@ -88,31 +88,31 @@ return [
     'default_medical_sources' => [
         [
             'source_label' => 'MED_SOURCE_1',
-            'source_type'  => 'medical_reference',
-            'title'        => 'CDC - Child Development',
-            'url'          => 'https://www.cdc.gov/child-development/index.html',
-            'snippet'      => 'CDC guidance and resources about child development, positive parenting, safety, and developmental concerns.',
+            'source_type' => 'medical_reference',
+            'title' => 'CDC - Child Development',
+            'url' => 'https://www.cdc.gov/child-development/index.html',
+            'snippet' => 'CDC guidance and resources about child development, positive parenting, safety, and developmental concerns.',
         ],
         [
             'source_label' => 'MED_SOURCE_2',
-            'source_type'  => 'medical_reference',
-            'title'        => 'MedlinePlus - Child Development',
-            'url'          => 'https://medlineplus.gov/childdevelopment.html',
-            'snippet'      => 'MedlinePlus information about physical, intellectual, social, and emotional child development.',
+            'source_type' => 'medical_reference',
+            'title' => 'MedlinePlus - Child Development',
+            'url' => 'https://medlineplus.gov/childdevelopment.html',
+            'snippet' => 'MedlinePlus information about physical, intellectual, social, and emotional child development.',
         ],
         [
             'source_label' => 'MED_SOURCE_3',
-            'source_type'  => 'medical_reference',
-            'title'        => 'CDC - Children\'s Mental Health',
-            'url'          => 'https://www.cdc.gov/children-mental-health/about/index.html',
-            'snippet'      => 'CDC overview and resources for children\'s mental health and support options.',
+            'source_type' => 'medical_reference',
+            'title' => 'CDC - Children\'s Mental Health',
+            'url' => 'https://www.cdc.gov/children-mental-health/about/index.html',
+            'snippet' => 'CDC overview and resources for children\'s mental health and support options.',
         ],
         [
             'source_label' => 'MED_SOURCE_4',
-            'source_type'  => 'medical_reference',
-            'title'        => 'CDC - Treating Children\'s Mental Health with Therapy',
-            'url'          => 'https://www.cdc.gov/children-mental-health/treatment/index.html',
-            'snippet'      => 'CDC guidance encouraging caregivers to speak with primary care or mental health professionals for evaluation and therapy planning.',
+            'source_type' => 'medical_reference',
+            'title' => 'CDC - Treating Children\'s Mental Health with Therapy',
+            'url' => 'https://www.cdc.gov/children-mental-health/treatment/index.html',
+            'snippet' => 'CDC guidance encouraging caregivers to speak with primary care or mental health professionals for evaluation and therapy planning.',
         ],
     ],
 
@@ -121,11 +121,11 @@ return [
     | API Keys (resolved from env — never hardcoded)
     |--------------------------------------------------------------------------
     */
-    'openai_api_key'    => env('OPENAI_API_KEY', env('AI_OPENAI_API_KEY')),
-    'gemini_api_key'    => env('GEMINI_API_KEY'),
+    'openai_api_key' => env('OPENAI_API_KEY', env('AI_OPENAI_API_KEY')),
+    'gemini_api_key' => env('GEMINI_API_KEY'),
     'anthropic_api_key' => env('ANTHROPIC_API_KEY'),
-    'brave_api_key'     => env('BRAVE_SEARCH_API_KEY'),
-    'serpapi_api_key'   => env('SERPAPI_API_KEY'),
+    'brave_api_key' => env('BRAVE_SEARCH_API_KEY'),
+    'serpapi_api_key' => env('SERPAPI_API_KEY'),
 
     /*
     |--------------------------------------------------------------------------
@@ -165,6 +165,7 @@ Core rules:
 19. If unsure, say you are unsure.
 20. For medical, health, developmental, psychological, behavioral, therapy, or wellness guidance, cite at least one MED_SOURCE, WEB_SOURCE, CHAT_SOURCE, or KB_SOURCE label in the relevant sentence.
 21. Do not invent source titles, URLs, organizations, studies, or citations.
+22. Do not add a Resources, Sources, References, المصادر, or المراجع section to the answer. The API returns source details separately in the structured sources array, and the client renders that array.
 PROMPT,
 
 ];

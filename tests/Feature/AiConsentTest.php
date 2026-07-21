@@ -105,7 +105,7 @@ class AiConsentTest extends TestCase
             ->assertJsonPath('content', 'Here is a helpful response.');
     }
 
-    public function test_ai_endpoint_appends_visible_medical_resources_to_responses(): void
+    public function test_ai_endpoint_returns_medical_resources_as_structured_data_only(): void
     {
         config([
             'ai.provider' => 'fake',
@@ -143,9 +143,9 @@ class AiConsentTest extends TestCase
         $content = $response->json('content');
         $sources = $response->json('sources');
 
-        $this->assertStringContainsString('Resources:', $content);
-        $this->assertStringContainsString('https://www.cdc.gov/child-development/index.html', $content);
-        $this->assertStringContainsString('https://medlineplus.gov/childdevelopment.html', $content);
+        $this->assertStringNotContainsString('Resources:', $content);
+        $this->assertStringNotContainsString('https://www.cdc.gov/child-development/index.html', $content);
+        $this->assertStringNotContainsString('https://medlineplus.gov/childdevelopment.html', $content);
         $this->assertContains('MED_SOURCE_1', array_column($sources, 'source_label'));
         $this->assertContains('MED_SOURCE_2', array_column($sources, 'source_label'));
 
