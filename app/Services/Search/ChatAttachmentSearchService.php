@@ -34,7 +34,7 @@ class ChatAttachmentSearchService
         foreach ($results as $i => &$result) {
             $result['source_label'] = 'CHAT_SOURCE_' . ($i + 1);
             $result['source_type']  = 'chat_attachment';
-            $result['snippet']      = substr($result['content'] ?? '', 0, 200);
+            $result['snippet']      = mb_substr($result['content'] ?? '', 0, 200);
         }
         unset($result);
 

@@ -33,7 +33,7 @@ class KnowledgeSearchService
         foreach ($results as $i => &$result) {
             $result['source_label'] = 'KB_SOURCE_' . ($i + 1);
             $result['source_type']  = 'knowledge_base';
-            $result['snippet']      = substr($result['content'] ?? '', 0, 200);
+            $result['snippet']      = mb_substr($result['content'] ?? '', 0, 200);
         }
         unset($result);
 
