@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\ChatServiceUnavailableException;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
@@ -11,7 +12,6 @@ use App\Services\Search\Contracts\WebSearchServiceInterface;
 use App\Services\Search\KnowledgeSearchService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery\MockInterface;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class AiConsentTest extends TestCase
@@ -120,8 +120,8 @@ class AiConsentTest extends TestCase
         $this->mock(ChildChatService::class, function (MockInterface $mock): void {
             $mock->shouldReceive('ask')
                 ->once()
-                ->andThrow(new HttpException(
-                    503,
+                ->andThrow(new ChatServiceUnavailableException(
+                    'answer_generation',
                     'The answer could not be completed. No incomplete response was saved; please try again.',
                 ));
         });
@@ -135,7 +135,10 @@ class AiConsentTest extends TestCase
             ->assertJsonPath(
                 'message',
                 'The answer could not be completed. No incomplete response was saved; please try again.',
-            );
+            )
+            ->assertJsonPath('error_code', 'AI_ANSWER_UNAVAILABLE')
+            ->assertJsonPath('stage', 'answer_generation')
+            ->assertJsonPath('retryable', true);
 
         $this->assertDatabaseMissing('messages', [
             'conversation_id' => $conversation->id,

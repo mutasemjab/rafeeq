@@ -53,6 +53,7 @@ return [
     'max_chat_attachment_chunks' => (int) env('AI_MAX_CHAT_ATTACHMENT_CHUNKS', 6),
     'max_knowledge_chunks' => (int) env('AI_MAX_KNOWLEDGE_CHUNKS', 8),
     'max_context_chunks' => (int) env('AI_MAX_CONTEXT_CHUNKS', 12),
+    'max_source_context_chars' => (int) env('AI_MAX_SOURCE_CONTEXT_CHARS', 1800),
     'max_questions_per_message' => (int) env('AI_MAX_QUESTIONS_PER_MESSAGE', 4),
 
     'recent_messages_limit' => (int) env('AI_RECENT_MESSAGES_LIMIT', 12),

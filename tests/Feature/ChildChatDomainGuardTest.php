@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\ChatServiceUnavailableException;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Services\AI\ChildChatService;
@@ -262,12 +263,89 @@ class ChildChatDomainGuardTest extends TestCase
                 'en'
             );
             $this->fail('Expected a service-unavailable exception.');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $exception) {
+        } catch (ChatServiceUnavailableException $exception) {
             $this->assertSame(503, $exception->getStatusCode());
             $this->assertStringContainsString('could not be completed', $exception->getMessage());
+            $this->assertSame('answer_generation', $exception->stage());
+            $this->assertSame('AI_ANSWER_UNAVAILABLE', $exception->errorCode());
         }
 
         $this->assertDatabaseCount('messages', 0);
         $this->assertSame(0, $conversation->fresh()->message_count);
+    }
+
+    public function test_arabic_is_detected_and_invalid_source_text_is_bounded_and_normalized(): void
+    {
+        Config::set('ai.default_medical_sources', []);
+        Config::set('ai.web_search_enabled', false);
+        Config::set('ai.max_source_context_chars', 200);
+        $user = User::factory()->create();
+        $conversation = Conversation::factory()->create(['user_id' => $user->id]);
+        $decision = [
+            'allowed' => true,
+            'confidence' => 0.99,
+            'category' => 'speech_language',
+            'reason' => 'Within Rafiq scope.',
+            'search_queries' => ['preschool receptive and expressive language assessment'],
+            'model' => 'guard-model',
+        ];
+        $invalidContent = 'مصدر '.str_repeat('x', 500)."\xC3\x28";
+        $capturedMessages = [];
+
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('embeddingMany')
+            ->once()
+            ->with($decision['search_queries'])
+            ->andReturn([[1.0, 0.0]]);
+        $llm->shouldReceive('chat')
+            ->once()
+            ->andReturnUsing(function (array $messages) use (&$capturedMessages): string {
+                $capturedMessages = $messages;
+
+                return 'إجابة عربية.';
+            });
+        $childContext = Mockery::mock(ChildContextService::class);
+        $childContext->shouldReceive('build')->once()->andReturn([
+            'profile' => null,
+            'memories' => [],
+            'summary' => null,
+        ]);
+        $knowledgeSearch = Mockery::mock(KnowledgeSearchService::class);
+        $knowledgeSearch->shouldReceive('searchWithEmbeddings')->once()->andReturn([[
+            'source_label' => 'KB_SOURCE_1',
+            'source_type' => 'knowledge_base',
+            'title' => 'Language assessment',
+            'content' => $invalidContent,
+            'snippet' => 'Assessment source.',
+        ]]);
+        $attachmentSearch = Mockery::mock(ChatAttachmentSearchService::class);
+        $attachmentSearch->shouldReceive('searchWithEmbeddings')->once()->andReturn([]);
+        $webSearch = Mockery::mock(WebSearchServiceInterface::class);
+        $webSearch->shouldReceive('search')->never();
+        $guard = Mockery::mock(DomainGuardService::class);
+        $guard->shouldReceive('evaluate')->once()->andReturn($decision);
+
+        $service = new ChildChatService(
+            $llm,
+            $childContext,
+            $knowledgeSearch,
+            $attachmentSearch,
+            $webSearch,
+            $guard
+        );
+        $reply = $service->ask(
+            $conversation,
+            'كيف أقيّم اللغة الاستقبالية والتعبيرية؟',
+            $user->id,
+            null,
+            'en'
+        );
+
+        $systemPrompt = $capturedMessages[0]['content'];
+        $this->assertStringContainsString('Respond in Arabic.', $systemPrompt);
+        $this->assertStringNotContainsString(str_repeat('x', 250), $systemPrompt);
+        $this->assertTrue(mb_check_encoding($systemPrompt, 'UTF-8'));
+        $this->assertSame('إجابة عربية.', $reply->content);
+        $this->assertNotFalse(json_encode($reply->sources));
     }
 }

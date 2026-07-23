@@ -5,6 +5,11 @@
 
     RewriteEngine On
 
+    # This deployment serves the Laravel project root. Prevent direct access
+    # to application internals and private runtime data.
+    RewriteRule ^(?:app|bootstrap|config|database|resources|routes|tests|vendor)(?:/|$) - [F,L,NC]
+    RewriteRule ^storage/(?:logs|framework)(?:/|$) - [F,L,NC]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
@@ -31,4 +36,12 @@ Options -Indexes
     Order allow,deny
     Deny from all
 </Files>
-
+<FilesMatch "\.(?:log|sqlite|sqlite3|sql|ini|ya?ml)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>

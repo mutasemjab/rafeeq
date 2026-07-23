@@ -2,6 +2,7 @@
 
 namespace App\Services\AI;
 
+use App\Exceptions\ChatServiceUnavailableException;
 use App\Jobs\SummarizeConversationJob;
 use App\Jobs\UpdateChildMemoryJob;
 use App\Models\Conversation;
@@ -11,7 +12,6 @@ use App\Services\Search\ChatAttachmentSearchService;
 use App\Services\Search\Contracts\WebSearchServiceInterface;
 use App\Services\Search\KnowledgeSearchService;
 use Illuminate\Support\Facades\Log;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ChildChatService
 {
@@ -32,6 +32,8 @@ class ChildChatService
         ?int $childId = null,
         ?string $language = 'en',
     ): Message {
+        $language = $this->responseLanguage($language, $userMessage);
+
         Log::info('[Chat] ── START ──────────────────────────────', [
             'conversation_id' => $conversation->id,
             'user_id' => $userId,
@@ -166,12 +168,12 @@ class ChildChatService
         $medicalSources = $this->defaultMedicalSources();
 
         // 8. Merge sources
-        $allSources = array_values(array_merge(
+        $allSources = $this->normalizeUtf8Value(array_values(array_merge(
             $attachmentSources,
             $knowledgeSources,
             $webSources,
             $medicalSources
-        ));
+        )));
         Log::info('[Chat] Step 8: Total sources merged', [
             'total' => count($allSources),
             'attachment_sources' => count($attachmentSources),
@@ -324,7 +326,7 @@ class ChildChatService
         ?string $language,
         string $stage,
         \Throwable $previous
-    ): HttpException {
+    ): ChatServiceUnavailableException {
         $userMessage->delete();
 
         $isArabic = $language === 'ar'
@@ -338,7 +340,16 @@ class ChildChatService
             'conversation_id' => $userMessage->conversation_id,
         ]);
 
-        return new HttpException(503, $message, $previous);
+        return new ChatServiceUnavailableException($stage, $message, $previous);
+    }
+
+    private function responseLanguage(?string $language, string $message): string
+    {
+        if (preg_match('/\p{Arabic}/u', $message) === 1) {
+            return 'ar';
+        }
+
+        return strtolower(trim((string) $language)) === 'ar' ? 'ar' : 'en';
     }
 
     private function searchWebSources(string $userMessage): array
@@ -411,19 +422,26 @@ class ChildChatService
     private function buildSourceContext(array $sources): string
     {
         $sourceContext = '';
+        $maxSourceCharacters = max(200, (int) config('ai.max_source_context_chars', 1800));
 
         foreach ($sources as $source) {
             $label = $source['source_label'] ?? $source['label'] ?? 'SOURCE';
             $lines = [];
 
-            foreach (['title' => 'Title', 'url' => 'URL', 'snippet' => 'Summary'] as $key => $labelText) {
+            foreach (['title' => 'Title', 'url' => 'URL'] as $key => $labelText) {
                 if (! empty($source[$key])) {
                     $lines[] = $labelText.': '.$source[$key];
                 }
             }
 
-            if (! empty($source['content']) && ! in_array($source['content'], $lines, true)) {
-                $lines[] = 'Content: '.$source['content'];
+            $sourceType = (string) ($source['source_type'] ?? '');
+            $body = in_array($sourceType, ['knowledge_base', 'chat_attachment'], true)
+                ? ($source['content'] ?? $source['snippet'] ?? '')
+                : ($source['snippet'] ?? $source['content'] ?? '');
+            $body = trim((string) $body);
+
+            if ($body !== '') {
+                $lines[] = 'Content: '.mb_substr($body, 0, $maxSourceCharacters);
             }
 
             if (empty($lines)) {
@@ -434,5 +452,28 @@ class ChildChatService
         }
 
         return $sourceContext;
+    }
+
+    private function normalizeUtf8Value(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            if (mb_check_encoding($value, 'UTF-8')) {
+                return $value;
+            }
+
+            $normalized = @iconv('UTF-8', 'UTF-8//IGNORE', $value);
+
+            return $normalized !== false ? $normalized : mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+        }
+
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        foreach ($value as $key => $item) {
+            $value[$key] = $this->normalizeUtf8Value($item);
+        }
+
+        return $value;
     }
 }

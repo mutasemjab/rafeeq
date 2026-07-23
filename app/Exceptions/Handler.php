@@ -49,7 +49,7 @@ class Handler extends ExceptionHandler
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $e->errors(),
+                'errors' => $e->errors(),
             ], 422);
         }
 
@@ -64,6 +64,7 @@ class Handler extends ExceptionHandler
         // Model not found — 404
         if ($e instanceof ModelNotFoundException) {
             $model = class_basename($e->getModel());
+
             return response()->json([
                 'success' => false,
                 'message' => "{$model} not found.",
@@ -95,6 +96,16 @@ class Handler extends ExceptionHandler
         }
 
         // Generic HTTP exceptions (abort(), abort_unless(), etc.) — use their status code
+        if ($e instanceof ChatServiceUnavailableException) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'error_code' => $e->errorCode(),
+                'stage' => $e->stage(),
+                'retryable' => true,
+            ], $e->getStatusCode());
+        }
+
         if ($e instanceof HttpException) {
             return response()->json([
                 'success' => false,
@@ -104,11 +115,12 @@ class Handler extends ExceptionHandler
 
         // Unexpected server error — 500
         $debug = config('app.debug');
+
         return response()->json([
             'success' => false,
             'message' => $debug ? $e->getMessage() : 'An unexpected error occurred. Please try again.',
             'exception' => $debug ? get_class($e) : null,
-            'trace'   => $debug ? collect($e->getTrace())->take(5)->toArray() : null,
+            'trace' => $debug ? collect($e->getTrace())->take(5)->toArray() : null,
         ], 500);
     }
 }
