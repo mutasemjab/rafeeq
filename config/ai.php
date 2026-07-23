@@ -17,7 +17,9 @@ return [
     | Models
     |--------------------------------------------------------------------------
     */
-    'chat_model' => env('AI_CHAT_MODEL', 'gpt-5.6-sol'),
+    'chat_model' => env('AI_CHAT_MODEL', 'gpt-5.6-luna'),
+    'chat_reasoning_effort' => env('AI_CHAT_REASONING_EFFORT', 'none'),
+    'chat_max_completion_tokens' => (int) env('AI_CHAT_MAX_COMPLETION_TOKENS', 900),
     'embedding_model' => env('AI_EMBEDDING_MODEL', 'text-embedding-3-large'),
     'embedding_dimensions' => (int) env('AI_EMBEDDING_DIMENSIONS', 1536),
     'embedding_batch_size' => (int) env('AI_EMBEDDING_BATCH_SIZE', 64),
@@ -51,12 +53,15 @@ return [
     'max_chat_attachment_chunks' => (int) env('AI_MAX_CHAT_ATTACHMENT_CHUNKS', 6),
     'max_knowledge_chunks' => (int) env('AI_MAX_KNOWLEDGE_CHUNKS', 8),
     'max_context_chunks' => (int) env('AI_MAX_CONTEXT_CHUNKS', 12),
+    'max_questions_per_message' => (int) env('AI_MAX_QUESTIONS_PER_MESSAGE', 4),
 
     'recent_messages_limit' => (int) env('AI_RECENT_MESSAGES_LIMIT', 12),
     'max_child_memories' => (int) env('AI_MAX_CHILD_MEMORIES', 20),
 
     'domain_guard_enabled' => (bool) env('AI_DOMAIN_GUARD_ENABLED', true),
     'domain_guard_model' => env('AI_DOMAIN_GUARD_MODEL', 'gpt-5.6-luna'),
+    'domain_guard_reasoning_effort' => env('AI_DOMAIN_GUARD_REASONING_EFFORT', 'none'),
+    'domain_guard_max_completion_tokens' => (int) env('AI_DOMAIN_GUARD_MAX_COMPLETION_TOKENS', 320),
     'domain_guard_confidence' => (float) env('AI_DOMAIN_GUARD_CONFIDENCE', 0.85),
     'domain_guard_refusal_en' => env(
         'AI_DOMAIN_GUARD_REFUSAL_EN',

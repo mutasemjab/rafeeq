@@ -93,6 +93,10 @@ class ChildChatDomainGuardTest extends TestCase
 
         $llm = Mockery::mock(LlmProviderInterface::class);
         $llm->shouldReceive('chat')->once()->andReturn('Use a short daily articulation activity.');
+        $llm->shouldReceive('embeddingMany')
+            ->once()
+            ->with(['How can my child practice the R sound?'])
+            ->andReturn([[1.0, 0.0]]);
         $childContext = Mockery::mock(ChildContextService::class);
         $childContext->shouldReceive('build')->once()->andReturn([
             'profile' => null,
@@ -100,9 +104,15 @@ class ChildChatDomainGuardTest extends TestCase
             'summary' => null,
         ]);
         $knowledgeSearch = Mockery::mock(KnowledgeSearchService::class);
-        $knowledgeSearch->shouldReceive('search')->once()->andReturn([]);
+        $knowledgeSearch->shouldReceive('searchWithEmbeddings')
+            ->once()
+            ->with([[1.0, 0.0]])
+            ->andReturn([]);
         $attachmentSearch = Mockery::mock(ChatAttachmentSearchService::class);
-        $attachmentSearch->shouldReceive('search')->once()->andReturn([]);
+        $attachmentSearch->shouldReceive('searchWithEmbeddings')
+            ->once()
+            ->with($user->id, $conversation->id, [[1.0, 0.0]])
+            ->andReturn([]);
         $webSearch = Mockery::mock(WebSearchServiceInterface::class);
         $webSearch->shouldReceive('search')->never();
         $guard = Mockery::mock(DomainGuardService::class);
@@ -125,5 +135,139 @@ class ChildChatDomainGuardTest extends TestCase
         $this->assertSame('Use a short daily articulation activity.', $reply->content);
         $this->assertSame('smart-answer-model', $reply->model_name);
         $this->assertSame($decision, $reply->metadata['domain_guard']);
+        $this->assertSame('answer', $reply->metadata['response_type']);
+    }
+
+    public function test_multiple_questions_are_embedded_in_one_batch_and_retrieved_separately(): void
+    {
+        Config::set('ai.default_medical_sources', []);
+        Config::set('ai.web_search_enabled', false);
+        $user = User::factory()->create();
+        $conversation = Conversation::factory()->create(['user_id' => $user->id]);
+        $decision = [
+            'allowed' => true,
+            'confidence' => 0.99,
+            'category' => 'speech_language',
+            'reason' => 'Within Rafiq scope.',
+            'model' => 'guard-model',
+        ];
+        $questions = [
+            'ما مراحل البلع؟',
+            'ما مؤشرات تأخر اللغة؟',
+        ];
+        $embeddings = [
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ];
+
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('embeddingMany')
+            ->once()
+            ->with($questions)
+            ->andReturn($embeddings);
+        $llm->shouldReceive('chat')->once()->andReturn('إجابة للسؤالين.');
+        $childContext = Mockery::mock(ChildContextService::class);
+        $childContext->shouldReceive('build')->once()->andReturn([
+            'profile' => null,
+            'memories' => [],
+            'summary' => null,
+        ]);
+        $knowledgeSearch = Mockery::mock(KnowledgeSearchService::class);
+        $knowledgeSearch->shouldReceive('searchWithEmbeddings')
+            ->once()
+            ->with($embeddings)
+            ->andReturn([]);
+        $attachmentSearch = Mockery::mock(ChatAttachmentSearchService::class);
+        $attachmentSearch->shouldReceive('searchWithEmbeddings')
+            ->once()
+            ->with($user->id, $conversation->id, $embeddings)
+            ->andReturn([]);
+        $webSearch = Mockery::mock(WebSearchServiceInterface::class);
+        $webSearch->shouldReceive('search')->never();
+        $guard = Mockery::mock(DomainGuardService::class);
+        $guard->shouldReceive('evaluate')->once()->andReturn($decision);
+
+        $service = new ChildChatService(
+            $llm,
+            $childContext,
+            $knowledgeSearch,
+            $attachmentSearch,
+            $webSearch,
+            $guard
+        );
+        $reply = $service->ask(
+            $conversation,
+            implode('', $questions),
+            $user->id,
+            null,
+            'ar'
+        );
+
+        $this->assertSame('إجابة للسؤالين.', $reply->content);
+        $this->assertSame(2, $reply->metadata['retrieval_query_count']);
+    }
+
+    public function test_answer_provider_failure_returns_service_unavailable_without_fake_message(): void
+    {
+        Config::set('ai.default_medical_sources', []);
+        Config::set('ai.web_search_enabled', false);
+        $user = User::factory()->create();
+        $conversation = Conversation::factory()->create([
+            'user_id' => $user->id,
+            'message_count' => 0,
+        ]);
+        $decision = [
+            'allowed' => true,
+            'confidence' => 0.99,
+            'category' => 'speech_language',
+            'reason' => 'Within Rafiq scope.',
+            'model' => 'guard-model',
+        ];
+
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('embeddingMany')->once()->andReturn([[1.0, 0.0]]);
+        $llm->shouldReceive('chat')
+            ->once()
+            ->andThrow(new \RuntimeException('Provider timeout.'));
+        $childContext = Mockery::mock(ChildContextService::class);
+        $childContext->shouldReceive('build')->once()->andReturn([
+            'profile' => null,
+            'memories' => [],
+            'summary' => null,
+        ]);
+        $knowledgeSearch = Mockery::mock(KnowledgeSearchService::class);
+        $knowledgeSearch->shouldReceive('searchWithEmbeddings')->once()->andReturn([]);
+        $attachmentSearch = Mockery::mock(ChatAttachmentSearchService::class);
+        $attachmentSearch->shouldReceive('searchWithEmbeddings')->once()->andReturn([]);
+        $webSearch = Mockery::mock(WebSearchServiceInterface::class);
+        $webSearch->shouldReceive('search')->never();
+        $guard = Mockery::mock(DomainGuardService::class);
+        $guard->shouldReceive('evaluate')->once()->andReturn($decision);
+
+        $service = new ChildChatService(
+            $llm,
+            $childContext,
+            $knowledgeSearch,
+            $attachmentSearch,
+            $webSearch,
+            $guard
+        );
+
+        try {
+            $service->ask(
+                $conversation,
+                'How can I support language development?',
+                $user->id,
+                null,
+                'en'
+            );
+            $this->fail('Expected a service-unavailable exception.');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $exception) {
+            $this->assertSame(503, $exception->getStatusCode());
+            $this->assertStringContainsString('could not be completed', $exception->getMessage());
+        }
+
+        $this->assertDatabaseCount('messages', 0);
+        $this->assertSame(0, $conversation->fresh()->message_count);
     }
 }

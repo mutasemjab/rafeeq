@@ -2,8 +2,8 @@
 
 namespace App\Services\AI\Providers;
 
-use App\Services\AI\OpenAiConfigResolver;
 use App\Services\AI\Contracts\LlmProviderInterface;
+use App\Services\AI\OpenAiConfigResolver;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use OpenAI\Laravel\Facades\OpenAI;
@@ -36,24 +36,40 @@ class OpenAiProvider implements LlmProviderInterface
      *
      * @param  array  $messages  Array of ['role' => ..., 'content' => ...] messages.
      * @param  array  $options   Additional options merged into the request payload.
-     * @return string
      *
      * @throws RuntimeException
      */
     public function chat(array $messages, array $options = []): string
     {
         try {
-            $payload = array_merge([
-                'model'    => config('ai.chat_model'),
+            $defaults = [
+                'model' => config('ai.chat_model'),
                 'messages' => $messages,
-            ], $options);
+            ];
+
+            $reasoningEffort = trim((string) config('ai.chat_reasoning_effort', ''));
+            if ($reasoningEffort !== '') {
+                $defaults['reasoning_effort'] = $reasoningEffort;
+            }
+
+            $maxCompletionTokens = (int) config('ai.chat_max_completion_tokens', 0);
+            if ($maxCompletionTokens > 0) {
+                $defaults['max_completion_tokens'] = $maxCompletionTokens;
+            }
+
+            $payload = array_merge($defaults, $options);
 
             $response = OpenAI::chat()->create($payload);
 
-            return $response->choices[0]->message->content ?? '';
+            $content = trim((string) ($response->choices[0]->message->content ?? ''));
+            if ($content === '') {
+                throw new RuntimeException('OpenAI chat returned an empty response.');
+            }
+
+            return $content;
         } catch (Throwable $e) {
             throw new RuntimeException(
-                'OpenAI chat request failed: ' . $e->getMessage(),
+                'OpenAI chat request failed: '.$e->getMessage(),
                 (int) $e->getCode(),
                 $e
             );
@@ -66,7 +82,6 @@ class OpenAiProvider implements LlmProviderInterface
      * @param  array  $messages  Array of ['role' => ..., 'content' => ...] messages.
      * @param  array  $schema    Optional schema hint (for documentation purposes).
      * @param  array  $options   Additional options merged into the request payload.
-     * @return array
      *
      * @throws RuntimeException
      */
@@ -74,8 +89,8 @@ class OpenAiProvider implements LlmProviderInterface
     {
         try {
             $payload = array_merge([
-                'model'           => config('ai.chat_model'),
-                'messages'        => $messages,
+                'model' => config('ai.chat_model'),
+                'messages' => $messages,
                 'response_format' => ['type' => 'json_object'],
             ], $options);
 
@@ -85,9 +100,9 @@ class OpenAiProvider implements LlmProviderInterface
 
             $decoded = json_decode($content, true);
 
-            if (!is_array($decoded)) {
+            if (! is_array($decoded)) {
                 throw new RuntimeException(
-                    'OpenAI chatJson returned non-array JSON: ' . $content
+                    'OpenAI chatJson returned non-array JSON: '.$content
                 );
             }
 
@@ -96,7 +111,7 @@ class OpenAiProvider implements LlmProviderInterface
             throw $e;
         } catch (Throwable $e) {
             throw new RuntimeException(
-                'OpenAI chatJson request failed: ' . $e->getMessage(),
+                'OpenAI chatJson request failed: '.$e->getMessage(),
                 (int) $e->getCode(),
                 $e
             );
@@ -106,7 +121,6 @@ class OpenAiProvider implements LlmProviderInterface
     /**
      * Generate an embedding vector for the given text.
      *
-     * @param  string  $text
      * @return array  Float array of the embedding vector.
      *
      * @throws RuntimeException
@@ -119,7 +133,7 @@ class OpenAiProvider implements LlmProviderInterface
     public function embeddingMany(array $texts): array
     {
         $inputs = array_values(array_map(
-            fn($text): string => trim((string) $text),
+            fn ($text): string => trim((string) $text),
             $texts
         ));
 
@@ -172,12 +186,11 @@ class OpenAiProvider implements LlmProviderInterface
 
             $data = $response->json('data');
 
-            if (!is_array($data) || count($data) !== count($inputs)) {
+            if (! is_array($data) || count($data) !== count($inputs)) {
                 throw new RuntimeException('OpenAI embedding response returned an unexpected number of vectors.');
             }
 
-            usort($data, fn(array $left, array $right): int =>
-                ((int) ($left['index'] ?? 0)) <=> ((int) ($right['index'] ?? 0))
+            usort($data, fn (array $left, array $right): int => ((int) ($left['index'] ?? 0)) <=> ((int) ($right['index'] ?? 0))
             );
 
             $embeddings = [];
@@ -185,7 +198,7 @@ class OpenAiProvider implements LlmProviderInterface
             foreach ($data as $item) {
                 $embedding = $item['embedding'] ?? null;
 
-                if (!is_array($embedding) || $embedding === []) {
+                if (! is_array($embedding) || $embedding === []) {
                     throw new RuntimeException('OpenAI embedding response contained an empty vector.');
                 }
 
@@ -211,7 +224,7 @@ class OpenAiProvider implements LlmProviderInterface
             throw $e;
         } catch (Throwable $e) {
             throw new RuntimeException(
-                'OpenAI embedding request failed: ' . $e->getMessage(),
+                'OpenAI embedding request failed: '.$e->getMessage(),
                 (int) $e->getCode(),
                 $e
             );

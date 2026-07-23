@@ -71,4 +71,36 @@ class MysqlVectorSearchRepositoryTest extends TestCase
 
         $this->assertSame([], $results);
     }
+
+    public function test_multi_question_search_keeps_results_for_each_question(): void
+    {
+        Config::set('ai.embedding_model', 'test-embedding-model');
+        $document = KnowledgeDocument::create([
+            'title' => 'Multi-topic Guide',
+            'original_name' => 'multi-topic.txt',
+            'file_path' => 'knowledge/multi-topic.txt',
+            'status' => 'processed',
+            'processed_at' => now(),
+        ]);
+
+        foreach ([[1.0, 0.0], [0.0, 1.0]] as $index => $embedding) {
+            KnowledgeDocumentChunk::create([
+                'knowledge_document_id' => $document->id,
+                'chunk_index' => $index,
+                'content' => 'Topic '.$index,
+                'embedding' => json_encode($embedding),
+                'embedding_dimensions' => 2,
+                'metadata' => ['embedding_model' => 'test-embedding-model'],
+            ]);
+        }
+
+        $results = (new MysqlVectorSearchRepository())->searchKnowledgeMany(
+            [[1.0, 0.0], [0.0, 1.0]],
+            2,
+            0.8
+        );
+
+        $this->assertCount(2, $results);
+        $this->assertEqualsCanonicalizing([0, 1], array_column($results, 'chunk_index'));
+    }
 }

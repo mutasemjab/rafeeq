@@ -45,6 +45,30 @@ class DomainGuardServiceTest extends TestCase
         $this->assertFalse($result['allowed']);
     }
 
+    public function test_it_returns_bounded_english_search_queries_for_allowed_arabic_questions(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn([
+            'allowed' => true,
+            'confidence' => 0.99,
+            'category' => 'feeding_and_language',
+            'reason' => 'Both questions are within Rafiq scope.',
+            'search_queries' => [
+                'five stages of normal swallowing',
+                'indicators that distinguish late talkers from late bloomers',
+            ],
+        ]);
+
+        $result = (new DomainGuardService($llm))->evaluate(
+            'ما مراحل البلع؟ وما الفرق بين متأخر الكلام والمتفتح لغويًا متأخرًا؟'
+        );
+
+        $this->assertSame([
+            'five stages of normal swallowing',
+            'indicators that distinguish late talkers from late bloomers',
+        ], $result['search_queries']);
+    }
+
     public function test_it_fails_closed_when_the_classifier_is_unavailable(): void
     {
         $llm = Mockery::mock(LlmProviderInterface::class);

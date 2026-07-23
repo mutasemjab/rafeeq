@@ -11,6 +11,7 @@ use App\Services\Search\ChatAttachmentSearchService;
 use App\Services\Search\Contracts\WebSearchServiceInterface;
 use App\Services\Search\KnowledgeSearchService;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ChildChatService
 {
@@ -70,6 +71,15 @@ class ChildChatService
             'model' => $domainDecision['model'],
         ]);
 
+        if (($domainDecision['category'] ?? null) === 'guard_error') {
+            throw $this->serviceUnavailableException(
+                $userMsg,
+                $language,
+                'domain_guard',
+                new \RuntimeException((string) ($domainDecision['reason'] ?? 'Domain guard failed.'))
+            );
+        }
+
         if (! $domainDecision['allowed']) {
             return $this->persistDomainRefusal(
                 $conversation,
@@ -91,24 +101,43 @@ class ChildChatService
             $childCtx = ['profile' => null, 'memories' => [], 'summary' => null];
         }
 
+        try {
+            $retrievalQueries = $this->retrievalQueries(
+                $userMessage,
+                $domainDecision['search_queries'] ?? []
+            );
+            $queryEmbeddings = $this->llm->embeddingMany($retrievalQueries);
+
+            if (count($queryEmbeddings) !== count($retrievalQueries)) {
+                throw new \RuntimeException('The embedding provider returned an unexpected number of vectors.');
+            }
+
+            Log::info('[Chat] Retrieval queries embedded', [
+                'query_count' => count($retrievalQueries),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[Chat] Retrieval embedding FAILED', ['error' => $e->getMessage()]);
+            throw $this->serviceUnavailableException($userMsg, $language, 'embedding', $e);
+        }
+
         // 4. Search chat attachments (user + conversation scoped)
         try {
-            $attachmentSources = $this->attachmentSearch->search(
+            $attachmentSources = $this->attachmentSearch->searchWithEmbeddings(
                 $userId,
                 (int) $conversation->id,
-                $userMessage
+                $queryEmbeddings
             );
             Log::info('[Chat] Step 4: Chat attachment search', [
                 'chunks_found' => count($attachmentSources),
             ]);
         } catch (\Throwable $e) {
             Log::error('[Chat] Step 4 FAILED: attachment search', ['error' => $e->getMessage()]);
-            $attachmentSources = [];
+            throw $this->serviceUnavailableException($userMsg, $language, 'attachment_search', $e);
         }
 
         // 5. Search knowledge base
         try {
-            $knowledgeSources = $this->knowledgeSearch->search($userMessage);
+            $knowledgeSources = $this->knowledgeSearch->searchWithEmbeddings($queryEmbeddings);
             Log::info('[Chat] Step 5: Knowledge base search', [
                 'chunks_found' => count($knowledgeSources),
             ]);
@@ -127,7 +156,7 @@ class ChildChatService
             }
         } catch (\Throwable $e) {
             Log::error('[Chat] Step 5 FAILED: knowledge search', ['error' => $e->getMessage()]);
-            $knowledgeSources = [];
+            throw $this->serviceUnavailableException($userMsg, $language, 'knowledge_search', $e);
         }
 
         // 6. Search web fallback when enabled.
@@ -196,7 +225,7 @@ class ChildChatService
             Log::info('[Chat] Step 11: LLM replied', ['reply_length' => strlen($reply)]);
         } catch (\Throwable $e) {
             Log::error('[Chat] Step 11 FAILED: LLM call', ['error' => $e->getMessage()]);
-            $reply = 'I\'m sorry, I encountered an error. Please try again.';
+            throw $this->serviceUnavailableException($userMsg, $language, 'answer_generation', $e);
         }
 
         // 12. Persist assistant message
@@ -205,7 +234,13 @@ class ChildChatService
             'role' => 'assistant',
             'content' => $reply,
             'sources' => $allSources,
-            'metadata' => ['domain_guard' => $domainDecision],
+            'metadata' => [
+                'response_type' => 'answer',
+                'domain_guard' => $domainDecision,
+                'retrieval_query_count' => count($retrievalQueries),
+                'knowledge_source_count' => count($knowledgeSources),
+                'attachment_source_count' => count($attachmentSources),
+            ],
             'model_name' => config('ai.chat_model'),
         ]);
 
@@ -241,7 +276,10 @@ class ChildChatService
             'role' => 'assistant',
             'content' => $this->domainGuard->refusal($language, $userMessage),
             'sources' => [],
-            'metadata' => ['domain_guard' => $domainDecision],
+            'metadata' => [
+                'response_type' => 'domain_refusal',
+                'domain_guard' => $domainDecision,
+            ],
             'safety_flags' => ['out_of_scope'],
         ]);
 
@@ -255,6 +293,52 @@ class ChildChatService
         ]);
 
         return $assistantMsg;
+    }
+
+    private function retrievalQueries(string $message, array $suggestedQueries = []): array
+    {
+        $maxQuestions = max(1, (int) config('ai.max_questions_per_message', 4));
+        $suggestedQueries = array_values(array_filter(
+            array_map(
+                fn ($query): string => is_string($query) ? trim($query) : '',
+                $suggestedQueries
+            ),
+            fn (string $query): bool => $query !== ''
+        ));
+        if ($suggestedQueries !== []) {
+            return array_slice($suggestedQueries, 0, $maxQuestions);
+        }
+
+        $normalized = preg_replace('/([?؟])(?=\p{L})/u', '$1 ', trim($message)) ?? trim($message);
+        $parts = preg_split('/(?<=[?؟])\s+/u', $normalized, $maxQuestions) ?: [];
+        $parts = array_values(array_filter(
+            array_map('trim', $parts),
+            fn (string $part): bool => $part !== ''
+        ));
+
+        return $parts !== [] ? $parts : [trim($message)];
+    }
+
+    private function serviceUnavailableException(
+        Message $userMessage,
+        ?string $language,
+        string $stage,
+        \Throwable $previous
+    ): HttpException {
+        $userMessage->delete();
+
+        $isArabic = $language === 'ar'
+            || preg_match('/\p{Arabic}/u', (string) $userMessage->content) === 1;
+        $message = $isArabic
+            ? 'تعذّر إكمال الإجابة الآن. لم يتم حفظ رد غير مكتمل؛ يرجى المحاولة مرة أخرى.'
+            : 'The answer could not be completed. No incomplete response was saved; please try again.';
+
+        Log::warning('[Chat] Request failed explicitly', [
+            'stage' => $stage,
+            'conversation_id' => $userMessage->conversation_id,
+        ]);
+
+        return new HttpException(503, $message, $previous);
     }
 
     private function searchWebSources(string $userMessage): array

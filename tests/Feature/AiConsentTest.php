@@ -11,6 +11,7 @@ use App\Services\Search\Contracts\WebSearchServiceInterface;
 use App\Services\Search\KnowledgeSearchService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery\MockInterface;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class AiConsentTest extends TestCase
@@ -105,6 +106,43 @@ class AiConsentTest extends TestCase
             ->assertJsonPath('content', 'Here is a helpful response.');
     }
 
+    public function test_ai_endpoint_returns_503_instead_of_a_fake_successful_reply_when_generation_fails(): void
+    {
+        $conversation = Conversation::factory()->create([
+            'user_id' => $this->user->id,
+        ]);
+
+        $this->user->forceFill([
+            'ai_consent_accepted_at' => now(),
+            'ai_consent_version' => '1.0',
+        ])->save();
+
+        $this->mock(ChildChatService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('ask')
+                ->once()
+                ->andThrow(new HttpException(
+                    503,
+                    'The answer could not be completed. No incomplete response was saved; please try again.',
+                ));
+        });
+
+        $this->actingAs($this->user, 'user-api')
+            ->postJson("/api/v1/conversations/{$conversation->id}/chat", [
+                'message' => 'Help me understand my child progress.',
+            ])
+            ->assertStatus(503)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath(
+                'message',
+                'The answer could not be completed. No incomplete response was saved; please try again.',
+            );
+
+        $this->assertDatabaseMissing('messages', [
+            'conversation_id' => $conversation->id,
+            'role' => 'assistant',
+        ]);
+    }
+
     public function test_ai_endpoint_returns_medical_resources_as_structured_data_only(): void
     {
         config([
@@ -122,11 +160,11 @@ class AiConsentTest extends TestCase
         ])->save();
 
         $this->mock(ChatAttachmentSearchService::class, function (MockInterface $mock): void {
-            $mock->shouldReceive('search')->once()->andReturn([]);
+            $mock->shouldReceive('searchWithEmbeddings')->once()->andReturn([]);
         });
 
         $this->mock(KnowledgeSearchService::class, function (MockInterface $mock): void {
-            $mock->shouldReceive('search')->once()->andReturn([]);
+            $mock->shouldReceive('searchWithEmbeddings')->once()->andReturn([]);
         });
 
         $this->mock(WebSearchServiceInterface::class, function (MockInterface $mock): void {
