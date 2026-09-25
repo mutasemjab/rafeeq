@@ -11,10 +11,13 @@ use Illuminate\Http\JsonResponse;
 
 class ChildChatController extends Controller
 {
-    public function __construct(private ChildChatService $chatService) {}
+    public function __construct(private ChildChatService $chatService)
+    {
+    }
 
     public function chat(ChatRequest $request, Conversation $conversation): JsonResponse
     {
+        $this->extendExecutionTimeForAiChat();
         $this->authorize('view', $conversation);
 
         if ($conversation->status !== 'active') {
@@ -23,7 +26,7 @@ class ChildChatController extends Controller
 
         // Daily message limit check (free plan)
         $user = $request->user();
-        $sub  = $user->activeSubscription();
+        $sub = $user->activeSubscription();
         $plan = $sub?->plan;
 
         if ($plan && $plan->ai_messages_per_day !== null) {
@@ -33,7 +36,7 @@ class ChildChatController extends Controller
                 ->count();
 
             // Count across all conversations
-            $todayCount = \App\Models\Message::whereHas('conversation', fn($q) => $q->where('user_id', $user->id))
+            $todayCount = \App\Models\Message::whereHas('conversation', fn ($q) => $q->where('user_id', $user->id))
                 ->where('role', 'user')
                 ->whereDate('created_at', today())
                 ->count();
@@ -55,5 +58,19 @@ class ChildChatController extends Controller
         );
 
         return response()->json(new MessageResource($message));
+    }
+
+    private function extendExecutionTimeForAiChat(): void
+    {
+        $seconds = max(181, (int) config('ai.chat_request_timeout', 420));
+
+        if (function_exists('set_time_limit')) {
+            set_time_limit($seconds);
+        }
+
+        if (function_exists('ini_set')) {
+            ini_set('max_execution_time', (string) $seconds);
+            ini_set('default_socket_timeout', (string) min($seconds, 300));
+        }
     }
 }

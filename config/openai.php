@@ -22,5 +22,5 @@ return [
     |--------------------------------------------------------------------------
     */
 
-    'request_timeout' => env('OPENAI_REQUEST_TIMEOUT', 45),
+    'request_timeout' => env('OPENAI_REQUEST_TIMEOUT', 300),
 ];

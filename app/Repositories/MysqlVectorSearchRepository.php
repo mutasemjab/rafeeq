@@ -25,7 +25,7 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
 
         $queryMagnitudes = array_map(fn (array $embedding): float => $this->magnitude($embedding), $queryEmbeddings);
         $perQueryLimit = max(1, (int) ceil($limit / count($queryEmbeddings)));
-        $rows = DB::table('knowledge_document_chunks as c')
+        $query = DB::table('knowledge_document_chunks as c')
             ->join('knowledge_documents as d', 'd.id', '=', 'c.knowledge_document_id')
             ->where('d.status', 'processed')
             ->whereNull('d.deleted_at')
@@ -64,9 +64,7 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
                 'c.embedding     as embedding',
                 'c.embedding_dimensions as embedding_dimensions',
                 'c.metadata      as metadata',
-            ])
-            ->orderBy('c.id')
-            ->cursor();
+            ]);
 
         $resultsByQuery = array_fill(0, count($queryEmbeddings), []);
         $nullCount = 0;
@@ -75,71 +73,89 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
         $topSimilarity = 0.0;
         $totalRows = 0;
 
-        foreach ($rows as $row) {
-            $totalRows++;
-            $embedding = $this->decodeEmbedding($row->embedding);
+        $query->chunkById(
+            max(25, (int) config('ai.vector_search_chunk_size', 200)),
+            function ($rows) use (
+                $queryEmbeddings,
+                $queryMagnitudes,
+                $threshold,
+                $perQueryLimit,
+                &$resultsByQuery,
+                &$nullCount,
+                &$belowThresh,
+                &$incompatible,
+                &$topSimilarity,
+                &$totalRows
+            ): void {
+                foreach ($rows as $row) {
+                    $totalRows++;
+                    $embedding = $this->decodeEmbedding($row->embedding);
 
-            if ($embedding === null) {
-                $nullCount++;
+                    if ($embedding === null) {
+                        $nullCount++;
 
-                continue;
-            }
+                        continue;
+                    }
 
-            if (! $this->isCompatibleEmbedding($row, $embedding, $queryEmbeddings[0])) {
-                $incompatible++;
+                    if (! $this->isCompatibleEmbedding($row, $embedding, $queryEmbeddings[0])) {
+                        $incompatible++;
 
-                continue;
-            }
+                        continue;
+                    }
 
-            $embeddingMagnitude = $this->magnitude($embedding);
+                    $embeddingMagnitude = $this->magnitude($embedding);
 
-            foreach ($queryEmbeddings as $queryIndex => $queryEmbedding) {
-                $similarity = $this->cosine(
-                    $queryEmbedding,
-                    $embedding,
-                    $queryMagnitudes[$queryIndex],
-                    $embeddingMagnitude
-                );
-                $topSimilarity = max($topSimilarity, $similarity);
+                    foreach ($queryEmbeddings as $queryIndex => $queryEmbedding) {
+                        $similarity = $this->cosine(
+                            $queryEmbedding,
+                            $embedding,
+                            $queryMagnitudes[$queryIndex],
+                            $embeddingMagnitude
+                        );
+                        $topSimilarity = max($topSimilarity, $similarity);
 
-                if ($similarity < $threshold) {
-                    $belowThresh++;
+                        if ($similarity < $threshold) {
+                            $belowThresh++;
 
-                    continue;
+                            continue;
+                        }
+
+                        $resultsByQuery[$queryIndex][] = [
+                            'chunk_id' => $row->chunk_id,
+                            'knowledge_document_id' => $row->document_id,
+                            'document_name' => $row->document_name,
+                            'title' => $row->title,
+                            'category' => $row->category,
+                            'topics' => $this->decodeStringList($row->topics),
+                            'problem_types' => $this->decodeStringList($row->problem_types),
+                            'age_min_months' => $row->age_min_months !== null ? (int) $row->age_min_months : null,
+                            'age_max_months' => $row->age_max_months !== null ? (int) $row->age_max_months : null,
+                            'audience' => $row->audience,
+                            'language' => $row->language,
+                            'evidence_level' => $row->evidence_level,
+                            'publisher' => $row->publisher,
+                            'url' => $row->source_url,
+                            'published_at' => $row->published_at,
+                            'reviewed_at' => $row->reviewed_at,
+                            'page_number' => $row->page_number,
+                            'chunk_index' => $row->chunk_index,
+                            'content' => $row->content,
+                            'similarity' => $similarity,
+                        ];
+
+                        usort(
+                            $resultsByQuery[$queryIndex],
+                            fn ($left, $right) => $right['similarity'] <=> $left['similarity']
+                        );
+                        if (count($resultsByQuery[$queryIndex]) > $perQueryLimit) {
+                            array_pop($resultsByQuery[$queryIndex]);
+                        }
+                    }
                 }
-
-                $resultsByQuery[$queryIndex][] = [
-                    'chunk_id' => $row->chunk_id,
-                    'knowledge_document_id' => $row->document_id,
-                    'document_name' => $row->document_name,
-                    'title' => $row->title,
-                    'category' => $row->category,
-                    'topics' => $this->decodeStringList($row->topics),
-                    'problem_types' => $this->decodeStringList($row->problem_types),
-                    'age_min_months' => $row->age_min_months !== null ? (int) $row->age_min_months : null,
-                    'age_max_months' => $row->age_max_months !== null ? (int) $row->age_max_months : null,
-                    'audience' => $row->audience,
-                    'language' => $row->language,
-                    'evidence_level' => $row->evidence_level,
-                    'publisher' => $row->publisher,
-                    'url' => $row->source_url,
-                    'published_at' => $row->published_at,
-                    'reviewed_at' => $row->reviewed_at,
-                    'page_number' => $row->page_number,
-                    'chunk_index' => $row->chunk_index,
-                    'content' => $row->content,
-                    'similarity' => $similarity,
-                ];
-
-                usort(
-                    $resultsByQuery[$queryIndex],
-                    fn ($left, $right) => $right['similarity'] <=> $left['similarity']
-                );
-                if (count($resultsByQuery[$queryIndex]) > $perQueryLimit) {
-                    array_pop($resultsByQuery[$queryIndex]);
-                }
-            }
-        }
+            },
+            'c.id',
+            'chunk_id'
+        );
 
         $results = $this->mergeRankedResults($resultsByQuery, $limit);
 

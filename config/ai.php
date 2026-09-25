@@ -26,7 +26,9 @@ return [
     'embedding_dimensions' => (int) env('AI_EMBEDDING_DIMENSIONS', 1536),
     'embedding_batch_size' => (int) env('AI_EMBEDDING_BATCH_SIZE', 64),
     'embedding_connect_timeout' => (int) env('AI_EMBEDDING_CONNECT_TIMEOUT', 15),
-    'embedding_request_timeout' => (int) env('AI_EMBEDDING_REQUEST_TIMEOUT', 180),
+    'embedding_request_timeout' => (int) env('AI_EMBEDDING_REQUEST_TIMEOUT', 300),
+    'chat_request_timeout' => (int) env('AI_CHAT_REQUEST_TIMEOUT', 420),
+    'vector_search_chunk_size' => (int) env('AI_VECTOR_SEARCH_CHUNK_SIZE', 200),
 
     'document_chunk_words' => (int) env('AI_DOCUMENT_CHUNK_WORDS', 420),
     'document_chunk_overlap_words' => (int) env('AI_DOCUMENT_CHUNK_OVERLAP_WORDS', 60),
@@ -135,7 +137,7 @@ return [
     ),
     'openai_web_search_context_size' => env('AI_OPENAI_WEB_SEARCH_CONTEXT_SIZE', 'medium'),
     'web_search_connect_timeout' => (int) env('AI_WEB_SEARCH_CONNECT_TIMEOUT', 15),
-    'web_search_request_timeout' => (int) env('AI_WEB_SEARCH_REQUEST_TIMEOUT', 120),
+    'web_search_request_timeout' => (int) env('AI_WEB_SEARCH_REQUEST_TIMEOUT', 300),
     'openai_web_search_allowed_domains' => array_values(array_filter(array_map(
         'trim',
         explode(',', (string) env(
