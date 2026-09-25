@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use App\Exceptions\ChatServiceUnavailableException;
 use App\Models\Conversation;
 use App\Models\User;
+use App\Services\AI\ChatTurnPlannerService;
 use App\Services\AI\ChildChatService;
 use App\Services\AI\ChildContextService;
 use App\Services\AI\Contracts\LlmProviderInterface;
 use App\Services\AI\DomainGuardService;
+use App\Services\AI\SafetyTriageService;
 use App\Services\Search\ChatAttachmentSearchService;
 use App\Services\Search\Contracts\WebSearchServiceInterface;
 use App\Services\Search\KnowledgeSearchService;
@@ -20,6 +22,14 @@ use Tests\TestCase;
 class ChildChatDomainGuardTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Config::set('ai.require_retrieved_evidence', false);
+        Config::set('ai.openai_web_search_enabled', false);
+    }
 
     public function test_unrelated_questions_never_reach_retrieval_or_answer_generation(): void
     {
@@ -39,6 +49,7 @@ class ChildChatDomainGuardTest extends TestCase
 
         $llm = Mockery::mock(LlmProviderInterface::class);
         $llm->shouldReceive('chat')->never();
+        $llm->shouldReceive('answer')->never();
         $llm->shouldReceive('embedding')->never();
         $llm->shouldReceive('embeddingMany')->never();
         $childContext = Mockery::mock(ChildContextService::class);
@@ -59,7 +70,9 @@ class ChildChatDomainGuardTest extends TestCase
             $knowledgeSearch,
             $attachmentSearch,
             $webSearch,
-            $guard
+            $guard,
+            $this->routineSafety(),
+            $this->plannerNever()
         );
         $reply = $service->ask(
             $conversation,
@@ -93,7 +106,10 @@ class ChildChatDomainGuardTest extends TestCase
         ];
 
         $llm = Mockery::mock(LlmProviderInterface::class);
-        $llm->shouldReceive('chat')->once()->andReturn('Use a short daily articulation activity.');
+        $llm->shouldReceive('answer')->once()->andReturn($this->answerResult(
+            'Use a short daily articulation activity.',
+            'smart-answer-model'
+        ));
         $llm->shouldReceive('embeddingMany')
             ->once()
             ->with(['How can my child practice the R sound?'])
@@ -105,9 +121,8 @@ class ChildChatDomainGuardTest extends TestCase
             'summary' => null,
         ]);
         $knowledgeSearch = Mockery::mock(KnowledgeSearchService::class);
-        $knowledgeSearch->shouldReceive('searchWithEmbeddings')
+        $knowledgeSearch->shouldReceive('searchForCase')
             ->once()
-            ->with([[1.0, 0.0]])
             ->andReturn([]);
         $attachmentSearch = Mockery::mock(ChatAttachmentSearchService::class);
         $attachmentSearch->shouldReceive('searchWithEmbeddings')
@@ -125,7 +140,9 @@ class ChildChatDomainGuardTest extends TestCase
             $knowledgeSearch,
             $attachmentSearch,
             $webSearch,
-            $guard
+            $guard,
+            $this->routineSafety(),
+            $this->answerPlanner()
         );
         $reply = $service->ask(
             $conversation,
@@ -166,7 +183,7 @@ class ChildChatDomainGuardTest extends TestCase
             ->once()
             ->with($questions)
             ->andReturn($embeddings);
-        $llm->shouldReceive('chat')->once()->andReturn('إجابة للسؤالين.');
+        $llm->shouldReceive('answer')->once()->andReturn($this->answerResult('إجابة للسؤالين.'));
         $childContext = Mockery::mock(ChildContextService::class);
         $childContext->shouldReceive('build')->once()->andReturn([
             'profile' => null,
@@ -174,9 +191,8 @@ class ChildChatDomainGuardTest extends TestCase
             'summary' => null,
         ]);
         $knowledgeSearch = Mockery::mock(KnowledgeSearchService::class);
-        $knowledgeSearch->shouldReceive('searchWithEmbeddings')
+        $knowledgeSearch->shouldReceive('searchForCase')
             ->once()
-            ->with($embeddings)
             ->andReturn([]);
         $attachmentSearch = Mockery::mock(ChatAttachmentSearchService::class);
         $attachmentSearch->shouldReceive('searchWithEmbeddings')
@@ -194,7 +210,9 @@ class ChildChatDomainGuardTest extends TestCase
             $knowledgeSearch,
             $attachmentSearch,
             $webSearch,
-            $guard
+            $guard,
+            $this->routineSafety(),
+            $this->answerPlanner()
         );
         $reply = $service->ask(
             $conversation,
@@ -227,7 +245,7 @@ class ChildChatDomainGuardTest extends TestCase
 
         $llm = Mockery::mock(LlmProviderInterface::class);
         $llm->shouldReceive('embeddingMany')->once()->andReturn([[1.0, 0.0]]);
-        $llm->shouldReceive('chat')
+        $llm->shouldReceive('answer')
             ->once()
             ->andThrow(new \RuntimeException('Provider timeout.'));
         $childContext = Mockery::mock(ChildContextService::class);
@@ -237,7 +255,7 @@ class ChildChatDomainGuardTest extends TestCase
             'summary' => null,
         ]);
         $knowledgeSearch = Mockery::mock(KnowledgeSearchService::class);
-        $knowledgeSearch->shouldReceive('searchWithEmbeddings')->once()->andReturn([]);
+        $knowledgeSearch->shouldReceive('searchForCase')->once()->andReturn([]);
         $attachmentSearch = Mockery::mock(ChatAttachmentSearchService::class);
         $attachmentSearch->shouldReceive('searchWithEmbeddings')->once()->andReturn([]);
         $webSearch = Mockery::mock(WebSearchServiceInterface::class);
@@ -251,7 +269,9 @@ class ChildChatDomainGuardTest extends TestCase
             $knowledgeSearch,
             $attachmentSearch,
             $webSearch,
-            $guard
+            $guard,
+            $this->routineSafety(),
+            $this->answerPlanner()
         );
 
         try {
@@ -297,12 +317,12 @@ class ChildChatDomainGuardTest extends TestCase
             ->once()
             ->with($decision['search_queries'])
             ->andReturn([[1.0, 0.0]]);
-        $llm->shouldReceive('chat')
+        $llm->shouldReceive('answer')
             ->once()
-            ->andReturnUsing(function (array $messages) use (&$capturedMessages): string {
+            ->andReturnUsing(function (array $messages) use (&$capturedMessages): array {
                 $capturedMessages = $messages;
 
-                return 'إجابة عربية.';
+                return $this->answerResult('إجابة عربية.');
             });
         $childContext = Mockery::mock(ChildContextService::class);
         $childContext->shouldReceive('build')->once()->andReturn([
@@ -311,7 +331,7 @@ class ChildChatDomainGuardTest extends TestCase
             'summary' => null,
         ]);
         $knowledgeSearch = Mockery::mock(KnowledgeSearchService::class);
-        $knowledgeSearch->shouldReceive('searchWithEmbeddings')->once()->andReturn([[
+        $knowledgeSearch->shouldReceive('searchForCase')->once()->andReturn([[
             'source_label' => 'KB_SOURCE_1',
             'source_type' => 'knowledge_base',
             'title' => 'Language assessment',
@@ -331,7 +351,9 @@ class ChildChatDomainGuardTest extends TestCase
             $knowledgeSearch,
             $attachmentSearch,
             $webSearch,
-            $guard
+            $guard,
+            $this->routineSafety(),
+            $this->answerPlanner()
         );
         $reply = $service->ask(
             $conversation,
@@ -342,10 +364,70 @@ class ChildChatDomainGuardTest extends TestCase
         );
 
         $systemPrompt = $capturedMessages[0]['content'];
+        $referenceData = $capturedMessages[1]['content'];
         $this->assertStringContainsString('Respond in Arabic.', $systemPrompt);
+        $this->assertStringContainsString('UNTRUSTED_REFERENCE_DATA', $referenceData);
+        $this->assertStringContainsString('Language assessment', $referenceData);
         $this->assertStringNotContainsString(str_repeat('x', 250), $systemPrompt);
+        $this->assertStringNotContainsString(str_repeat('x', 250), $referenceData);
         $this->assertTrue(mb_check_encoding($systemPrompt, 'UTF-8'));
+        $this->assertTrue(mb_check_encoding($referenceData, 'UTF-8'));
         $this->assertSame('إجابة عربية.', $reply->content);
         $this->assertNotFalse(json_encode($reply->sources));
+    }
+
+    private function routineSafety(): SafetyTriageService
+    {
+        $service = Mockery::mock(SafetyTriageService::class);
+        $service->shouldReceive('evaluate')->once()->andReturn([
+            'level' => 'routine',
+            'reason_code' => 'no_safety_cue',
+            'reason' => 'No safety cue detected.',
+            'confidence' => 1.0,
+            'flags' => [],
+            'source' => 'deterministic_rule',
+            'model' => null,
+        ]);
+
+        return $service;
+    }
+
+    private function answerPlanner(): ChatTurnPlannerService
+    {
+        $service = Mockery::mock(ChatTurnPlannerService::class);
+        $service->shouldReceive('plan')->once()->andReturn([
+            'action' => 'answer',
+            'domain' => 'speech_language',
+            'case_specific' => false,
+            'information_sufficient' => true,
+            'reason' => 'Enough information.',
+            'question' => null,
+            'missing_fields' => [],
+            'search_queries' => [],
+            'follow_up_needed' => false,
+            'confidence' => 1.0,
+            'model' => 'planner-model',
+        ]);
+
+        return $service;
+    }
+
+    private function plannerNever(): ChatTurnPlannerService
+    {
+        $service = Mockery::mock(ChatTurnPlannerService::class);
+        $service->shouldReceive('plan')->never();
+
+        return $service;
+    }
+
+    private function answerResult(string $content, string $model = 'fake-answer-model'): array
+    {
+        return [
+            'content' => $content,
+            'sources' => [],
+            'model' => $model,
+            'used_web_search' => false,
+            'usage' => [],
+        ];
     }
 }

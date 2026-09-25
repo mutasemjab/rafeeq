@@ -151,6 +151,9 @@ class AiConsentTest extends TestCase
         config([
             'ai.provider' => 'fake',
             'ai.web_search_enabled' => false,
+            // This test covers response serialization of configured references;
+            // evidence-gate behavior is covered by ChildChatOrchestrationTest.
+            'ai.require_retrieved_evidence' => false,
         ]);
 
         $conversation = Conversation::factory()->create([
@@ -167,7 +170,7 @@ class AiConsentTest extends TestCase
         });
 
         $this->mock(KnowledgeSearchService::class, function (MockInterface $mock): void {
-            $mock->shouldReceive('searchWithEmbeddings')->once()->andReturn([]);
+            $mock->shouldReceive('searchForCase')->once()->andReturn([]);
         });
 
         $this->mock(WebSearchServiceInterface::class, function (MockInterface $mock): void {

@@ -461,7 +461,10 @@ class IngestKnowledgeCommand extends Command
             ];
         }
 
-        if ($has('tesseract')) {
+        if (
+            $has('tesseract')
+            && array_intersect($extensions, ['jpg', 'jpeg', 'png', 'webp', 'tif', 'tiff']) !== []
+        ) {
             try {
                 $process = new Process([$finder->find('tesseract'), '--list-langs']);
                 $process->setTimeout(30);
@@ -478,7 +481,10 @@ class IngestKnowledgeCommand extends Command
             }
         }
 
-        if (!extension_loaded('zip')) {
+        if (
+            array_intersect($extensions, ['docx', 'pptx', 'xlsx']) !== []
+            && !extension_loaded('zip')
+        ) {
             $checks[] = ['status' => 'FAIL', 'message' => 'PHP zip extension is required for DOCX/PPTX/XLSX.'];
             $ready = false;
         }

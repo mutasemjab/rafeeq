@@ -11,9 +11,13 @@ class ChildMemoryResource extends JsonResource
         return [
             'id'         => $this->id,
             'child_id'   => $this->child_id,
-            'key'        => $this->key,
+            'key'        => $this->memory_key,
+            'type'       => $this->type,
+            'title'      => $this->title,
             'content'    => $this->content,
             'confidence' => $this->confidence,
+            'status'     => $this->status,
+            'last_confirmed_at' => $this->last_confirmed_at?->toISOString(),
             'created_at' => $this->created_at?->toISOString(),
         ];
     }

@@ -4,6 +4,7 @@ namespace App\Services\AI;
 
 use App\Models\Child;
 use App\Models\ChildMemory;
+use App\Models\Conversation;
 
 class ChildContextService
 {
@@ -29,14 +30,36 @@ class ChildContextService
             ->firstOrFail();
 
         $memories = ChildMemory::where('child_id', $childId)
-            ->latest()
+            ->where('user_id', $userId)
+            ->where('status', 'active')
+            ->orderByDesc('last_confirmed_at')
+            ->latest('id')
             ->take((int) config('ai.max_child_memories'))
             ->get();
 
+        $profile = $child->toArray();
+        if ($child->birth_date !== null) {
+            $profile['age_months'] = $child->birth_date->diffInMonths(now());
+            $profile['age_years'] = round($profile['age_months'] / 12, 1);
+        } elseif ($child->age !== null) {
+            $profile['age_months'] = ((int) $child->age) * 12;
+            $profile['age_years'] = (int) $child->age;
+        }
+
+        $longitudinalSummary = Conversation::query()
+            ->where('child_id', $childId)
+            ->where('user_id', $userId)
+            ->whereNotNull('summary')
+            ->latest('updated_at')
+            ->take(3)
+            ->pluck('summary')
+            ->filter()
+            ->implode("\n");
+
         return [
-            'profile'  => $child->toArray(),
+            'profile'  => $profile,
             'memories' => $memories->toArray(),
-            'summary'  => null,
+            'summary'  => $longitudinalSummary !== '' ? $longitudinalSummary : null,
         ];
     }
 }

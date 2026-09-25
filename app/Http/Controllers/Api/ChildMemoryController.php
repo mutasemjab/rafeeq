@@ -27,9 +27,15 @@ class ChildMemoryController extends Controller
 
         $memory = ChildMemory::create([
             'child_id'   => $child->id,
-            'key'        => $data['key'],
+            'user_id'    => $request->user()->id,
+            'memory_key' => $data['key'],
+            'type'       => $data['type'] ?? 'general',
+            'title'      => $data['title'] ?? $data['key'],
             'content'    => $data['content'],
             'confidence' => 1.0,
+            'status'     => 'active',
+            'source'     => 'caregiver_manual',
+            'last_confirmed_at' => now(),
         ]);
 
         return response()->json(new ChildMemoryResource($memory), 201);
@@ -38,7 +44,13 @@ class ChildMemoryController extends Controller
     public function update(UpdateChildMemoryRequest $request, ChildMemory $memory): JsonResponse
     {
         $this->authorize('update', $memory);
-        $memory->update($request->validated());
+        $data = $request->validated();
+        if (array_key_exists('key', $data)) {
+            $data['memory_key'] = $data['key'];
+            unset($data['key']);
+        }
+        $data['last_confirmed_at'] = now();
+        $memory->update($data);
         return response()->json(new ChildMemoryResource($memory->fresh()));
     }
 

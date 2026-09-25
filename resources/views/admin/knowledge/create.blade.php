@@ -581,6 +581,43 @@
                             </div>
                         </div>
 
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label for="batchTopics" class="form-label fw-500">{{ $locale === 'ar' ? 'الموضوعات' : 'Topics' }}</label>
+                                <input type="text" id="batchTopics" class="form-control" placeholder="speech, behavior, social skills">
+                                <div class="form-text">{{ $locale === 'ar' ? 'افصل بين الموضوعات بفاصلة.' : 'Separate topics with commas.' }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="batchProblemTypes" class="form-label fw-500">{{ $locale === 'ar' ? 'أنواع المشكلات' : 'Problem types' }}</label>
+                                <input type="text" id="batchProblemTypes" class="form-control" placeholder="language delay, tantrums">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="batchAgeMin" class="form-label fw-500">{{ $locale === 'ar' ? 'أقل عمر بالأشهر' : 'Minimum age (months)' }}</label>
+                                <input type="number" min="0" max="300" id="batchAgeMin" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="batchAgeMax" class="form-label fw-500">{{ $locale === 'ar' ? 'أقصى عمر بالأشهر' : 'Maximum age (months)' }}</label>
+                                <input type="number" min="0" max="300" id="batchAgeMax" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="batchEvidenceLevel" class="form-label fw-500">{{ $locale === 'ar' ? 'مستوى الدليل' : 'Evidence level' }}</label>
+                                <select id="batchEvidenceLevel" class="form-control">
+                                    <option value="">{{ $locale === 'ar' ? 'غير محدد' : 'Not specified' }}</option>
+                                    <option value="guideline">Guideline</option>
+                                    <option value="systematic_review">Systematic review</option>
+                                    <option value="research">Research</option>
+                                    <option value="expert_consensus">Expert consensus</option>
+                                    <option value="educational">Educational</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="batchApproved" checked>
+                                    <label class="form-check-label" for="batchApproved">{{ $locale === 'ar' ? 'مصدر معتمد' : 'Approved source' }}</label>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="dropzone" id="dropzone" role="button" tabindex="0">
                             <div class="dropzone-icon">
                                 <i class="fas fa-cloud-arrow-up"></i>
@@ -743,6 +780,12 @@
     const batchNotice = document.getElementById('batchNotice');
     const queueMetaText = document.getElementById('queueMetaText');
     const categoryInput = document.getElementById('batchCategory');
+    const topicsInput = document.getElementById('batchTopics');
+    const problemTypesInput = document.getElementById('batchProblemTypes');
+    const ageMinInput = document.getElementById('batchAgeMin');
+    const ageMaxInput = document.getElementById('batchAgeMax');
+    const evidenceLevelInput = document.getElementById('batchEvidenceLevel');
+    const approvedInput = document.getElementById('batchApproved');
 
     const selectedCount = document.getElementById('selectedCount');
     const liveCount = document.getElementById('liveCount');
@@ -1079,6 +1122,22 @@
         if (categoryInput.value.trim() !== '') {
             data.append('category', categoryInput.value.trim());
         }
+        if (topicsInput.value.trim() !== '') {
+            data.append('topics', topicsInput.value.trim());
+        }
+        if (problemTypesInput.value.trim() !== '') {
+            data.append('problem_types', problemTypesInput.value.trim());
+        }
+        if (ageMinInput.value !== '') {
+            data.append('age_min_months', ageMinInput.value);
+        }
+        if (ageMaxInput.value !== '') {
+            data.append('age_max_months', ageMaxInput.value);
+        }
+        if (evidenceLevelInput.value !== '') {
+            data.append('evidence_level', evidenceLevelInput.value);
+        }
+        data.append('is_approved', approvedInput.checked ? '1' : '0');
 
         xhr.send(data);
     }

@@ -14,6 +14,8 @@ class StoreChildMemoryRequest extends FormRequest
             'key'     => 'required|string|max:100',
             'content' => 'required|string',
             'child_id' => 'required|exists:children,id',
+            'type' => 'nullable|string|max:80',
+            'title' => 'nullable|string|max:160',
         ];
     }
 }

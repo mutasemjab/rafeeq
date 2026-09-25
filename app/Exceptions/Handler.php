@@ -3,6 +3,7 @@
 namespace App\Exceptions;
 
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Http\JsonResponse;
@@ -88,7 +89,7 @@ class Handler extends ExceptionHandler
         }
 
         // Authorization / policy failure — 403
-        if ($e instanceof AccessDeniedHttpException) {
+        if ($e instanceof AccessDeniedHttpException || $e instanceof AuthorizationException) {
             return response()->json([
                 'success' => false,
                 'message' => 'You are not authorized to perform this action.',

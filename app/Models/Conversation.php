@@ -23,6 +23,10 @@ class Conversation extends Model
         'child_id',
         'title',
         'summary',
+        'active_domain',
+        'case_state',
+        'next_question',
+        'last_planned_at',
         'source',
         'status',
         'message_count',
@@ -31,6 +35,8 @@ class Conversation extends Model
 
     protected $casts = [
         'last_message_at' => 'datetime',
+        'last_planned_at' => 'datetime',
+        'case_state' => 'array',
     ];
 
     public static function acceptedInputSources(): array

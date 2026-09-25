@@ -14,8 +14,11 @@ class ChildMemory extends Model
         'child_id',
         'user_id',
         'type',
+        'memory_key',
         'title',
         'content',
+        'status',
+        'last_confirmed_at',
         'confidence',
         'source',
         'source_message_id',
@@ -25,6 +28,7 @@ class ChildMemory extends Model
     protected $casts = [
         'confidence' => 'float',
         'metadata'   => 'array',
+        'last_confirmed_at' => 'datetime',
     ];
 
     public function child()

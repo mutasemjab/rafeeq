@@ -16,7 +16,6 @@ class KnowledgeDocument extends Model
         'docx',
         'doc',
         'pptx',
-        'ppt',
         'xlsx',
         'xls',
         'txt',
@@ -47,6 +46,18 @@ class KnowledgeDocument extends Model
         'mime_type',
         'file_size',
         'category',
+        'topics',
+        'problem_types',
+        'age_min_months',
+        'age_max_months',
+        'audience',
+        'language',
+        'evidence_level',
+        'publisher',
+        'source_url',
+        'published_at',
+        'reviewed_at',
+        'is_approved',
         'status',
         'uploaded_by',
         'processing_error',
@@ -61,6 +72,11 @@ class KnowledgeDocument extends Model
         'processed_at' => 'datetime',
         'ingestion_metadata' => 'array',
         'index_only' => 'boolean',
+        'topics' => 'array',
+        'problem_types' => 'array',
+        'published_at' => 'date',
+        'reviewed_at' => 'date',
+        'is_approved' => 'boolean',
     ];
 
     public function chunks()
@@ -98,6 +114,12 @@ class KnowledgeDocument extends Model
                 ));
 
                 if (!in_array($extension, self::supportedUploadExtensions(), true)) {
+                    if ($extension === 'ppt') {
+                        $fail('Legacy PowerPoint .ppt files are not supported. Please save the file as .pptx and upload it again.');
+
+                        return;
+                    }
+
                     $fail('The file must be a file of type: ' . implode(', ', self::supportedUploadExtensions()) . '.');
                 }
             },

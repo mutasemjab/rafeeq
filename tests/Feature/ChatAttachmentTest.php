@@ -20,7 +20,11 @@ class ChatAttachmentTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user = User::factory()->create();
+        $this->setUpPassport();
+        $this->user = User::factory()->create([
+            'ai_consent_accepted_at' => now(),
+            'ai_consent_version' => config('privacy.ai_consent_version', '1.0'),
+        ]);
         Storage::fake('public');
         Queue::fake();
     }

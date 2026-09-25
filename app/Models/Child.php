@@ -13,6 +13,7 @@ class Child extends Model
     protected $fillable = [
         'user_id',
         'name',
+        'avatar',
         'birth_date',
         'age',
         'gender',

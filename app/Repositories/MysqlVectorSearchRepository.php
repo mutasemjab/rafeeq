@@ -11,12 +11,12 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
     /**
      * Search the system knowledge base using cosine similarity.
      */
-    public function searchKnowledge(array $queryEmbedding, int $limit, float $threshold): array
+    public function searchKnowledge(array $queryEmbedding, int $limit, float $threshold, array $filters = []): array
     {
-        return $this->searchKnowledgeMany([$queryEmbedding], $limit, $threshold);
+        return $this->searchKnowledgeMany([$queryEmbedding], $limit, $threshold, $filters);
     }
 
-    public function searchKnowledgeMany(array $queryEmbeddings, int $limit, float $threshold): array
+    public function searchKnowledgeMany(array $queryEmbeddings, int $limit, float $threshold, array $filters = []): array
     {
         $queryEmbeddings = $this->compatibleQueryEmbeddings($queryEmbeddings);
         if ($queryEmbeddings === []) {
@@ -29,12 +29,35 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
             ->join('knowledge_documents as d', 'd.id', '=', 'c.knowledge_document_id')
             ->where('d.status', 'processed')
             ->whereNull('d.deleted_at')
+            ->when(($filters['approved_only'] ?? true) === true, fn ($query) => $query->where('d.is_approved', true))
+            ->when(isset($filters['age_months']), function ($query) use ($filters) {
+                $ageMonths = max(0, (int) $filters['age_months']);
+
+                return $query
+                    ->where(function ($ageQuery) use ($ageMonths) {
+                        $ageQuery->whereNull('d.age_min_months')->orWhere('d.age_min_months', '<=', $ageMonths);
+                    })
+                    ->where(function ($ageQuery) use ($ageMonths) {
+                        $ageQuery->whereNull('d.age_max_months')->orWhere('d.age_max_months', '>=', $ageMonths);
+                    });
+            })
             ->select([
                 'c.id            as chunk_id',
                 'd.id            as document_id',
                 'd.original_name as document_name',
                 'd.title         as title',
                 'd.category      as category',
+                'd.topics        as topics',
+                'd.problem_types as problem_types',
+                'd.age_min_months as age_min_months',
+                'd.age_max_months as age_max_months',
+                'd.audience      as audience',
+                'd.language      as language',
+                'd.evidence_level as evidence_level',
+                'd.publisher     as publisher',
+                'd.source_url    as source_url',
+                'd.published_at  as published_at',
+                'd.reviewed_at   as reviewed_at',
                 'c.page_number   as page_number',
                 'c.chunk_index   as chunk_index',
                 'c.content       as content',
@@ -91,6 +114,17 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
                     'document_name' => $row->document_name,
                     'title' => $row->title,
                     'category' => $row->category,
+                    'topics' => $this->decodeStringList($row->topics),
+                    'problem_types' => $this->decodeStringList($row->problem_types),
+                    'age_min_months' => $row->age_min_months !== null ? (int) $row->age_min_months : null,
+                    'age_max_months' => $row->age_max_months !== null ? (int) $row->age_max_months : null,
+                    'audience' => $row->audience,
+                    'language' => $row->language,
+                    'evidence_level' => $row->evidence_level,
+                    'publisher' => $row->publisher,
+                    'url' => $row->source_url,
+                    'published_at' => $row->published_at,
+                    'reviewed_at' => $row->reviewed_at,
                     'page_number' => $row->page_number,
                     'chunk_index' => $row->chunk_index,
                     'content' => $row->content,
@@ -362,6 +396,17 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
         }
 
         return array_map('floatval', $decoded);
+    }
+
+    private function decodeStringList(mixed $value): array
+    {
+        $decoded = is_string($value) ? json_decode($value, true) : $value;
+
+        return collect(is_array($decoded) ? $decoded : [])
+            ->filter(fn ($item): bool => is_string($item) && trim($item) !== '')
+            ->map(fn (string $item): string => trim($item))
+            ->values()
+            ->all();
     }
 
     private function isCompatibleEmbedding(object $row, array $embedding, array $queryEmbedding): bool

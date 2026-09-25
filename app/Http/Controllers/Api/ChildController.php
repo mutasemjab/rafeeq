@@ -22,6 +22,7 @@ class ChildController extends Controller
     public function store(StoreChildRequest $request): JsonResponse
     {
         $data = $request->validated();
+        $data = $this->normalizeChildFields($data);
 
         if ($request->hasFile('avatar')) {
             $data['avatar'] = $request->file('avatar')->store('children/avatars', 'public');
@@ -43,6 +44,7 @@ class ChildController extends Controller
     {
         $this->authorize('update', $child);
         $data = $request->validated();
+        $data = $this->normalizeChildFields($data);
 
         if ($request->hasFile('avatar')) {
             if ($child->avatar) Storage::disk('public')->delete($child->avatar);
@@ -58,5 +60,23 @@ class ChildController extends Controller
         $this->authorize('delete', $child);
         $child->delete();
         return response()->json(['message' => 'Child deleted.']);
+    }
+
+    private function normalizeChildFields(array $data): array
+    {
+        if (array_key_exists('date_of_birth', $data)) {
+            $data['birth_date'] = $data['date_of_birth'];
+            unset($data['date_of_birth']);
+        }
+        if (array_key_exists('diagnosis_details', $data)) {
+            $data['condition_notes'] = $data['diagnosis_details'];
+            unset($data['diagnosis_details']);
+        }
+        if (array_key_exists('notes', $data)) {
+            $data['general_notes'] = $data['notes'];
+            unset($data['notes']);
+        }
+
+        return $data;
     }
 }

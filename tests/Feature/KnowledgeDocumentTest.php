@@ -10,6 +10,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Mcamara\LaravelLocalization\Middleware\LaravelLocalizationRedirectFilter;
+use Mcamara\LaravelLocalization\Middleware\LocaleSessionRedirect;
 use Tests\TestCase;
 
 class KnowledgeDocumentTest extends TestCase
@@ -20,6 +22,11 @@ class KnowledgeDocumentTest extends TestCase
     {
         parent::setUp();
 
+        $this->setUpPassport();
+        $this->withoutMiddleware([
+            LocaleSessionRedirect::class,
+            LaravelLocalizationRedirectFilter::class,
+        ]);
         Storage::fake('public');
         Queue::fake();
     }
@@ -33,7 +40,7 @@ class KnowledgeDocumentTest extends TestCase
             'password' => bcrypt('secret'),
         ]);
 
-        $response = $this->actingAs($admin, 'admin')->post('/en/admin/knowledge', [
+        $response = $this->actingAs($admin, 'admin')->post(route('admin.knowledge.store'), [
             'category' => 'Language and Children with Intellectual Disabilities',
             'file'     => UploadedFile::fake()->create('Language_and_Children_with_Intellectual_Disabilities.pdf', 100, 'application/pdf'),
         ]);
@@ -58,7 +65,7 @@ class KnowledgeDocumentTest extends TestCase
             'password' => bcrypt('secret'),
         ]);
 
-        $response = $this->actingAs($admin, 'admin')->post('/en/admin/knowledge', [
+        $response = $this->actingAs($admin, 'admin')->post(route('admin.knowledge.store'), [
             'file'     => UploadedFile::fake()->create('Quarterly_Knowledge_Deck.pptx', 100, 'application/vnd.openxmlformats-officedocument.presentationml.presentation'),
             'category' => 'Training',
         ], [
@@ -121,7 +128,7 @@ class KnowledgeDocumentTest extends TestCase
         ]);
 
         $response = $this->actingAs($admin, 'admin')
-            ->post("/en/admin/knowledge/{$document->id}/reprocess");
+            ->post(route('admin.knowledge.reprocess', $document));
 
         $response->assertStatus(302)->assertSessionHas('success');
 
@@ -164,8 +171,11 @@ class KnowledgeDocumentTest extends TestCase
             'status'        => 'processed',
         ]);
 
-        $response = $this->actingAs($admin, 'admin')->get('/en/admin/knowledge/statuses?ids=' . $uploaded->id . ',' . $processed->id, [
+        $response = $this->actingAs($admin, 'admin')->get(route('admin.knowledge.statuses', [
+            'ids' => $uploaded->id . ',' . $processed->id,
+        ]), [
             'Accept' => 'application/json',
+            'X-Requested-With' => 'XMLHttpRequest',
         ]);
 
         $response

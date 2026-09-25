@@ -75,6 +75,17 @@ class KnowledgeDispatchFallbackTest extends TestCase
                 return 'ok';
             }
 
+            public function answer(array $messages, array $options = []): array
+            {
+                return [
+                    'content' => $this->chat($messages, $options),
+                    'sources' => [],
+                    'model' => 'test',
+                    'used_web_search' => false,
+                    'usage' => [],
+                ];
+            }
+
             public function chatJson(array $messages, array $schema = [], array $options = []): array
             {
                 return [];

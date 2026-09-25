@@ -83,6 +83,18 @@ class KnowledgeController extends Controller
             'file'     => KnowledgeDocument::uploadRules(),
             'title'    => 'nullable|string|max:255',
             'category' => 'nullable|string|max:100',
+            'topics' => 'nullable|string|max:1000',
+            'problem_types' => 'nullable|string|max:1000',
+            'age_min_months' => 'nullable|integer|min:0|max:300',
+            'age_max_months' => 'nullable|integer|min:0|max:300|gte:age_min_months',
+            'audience' => 'nullable|string|max:100',
+            'language' => 'nullable|string|max:12',
+            'evidence_level' => 'nullable|string|max:50',
+            'publisher' => 'nullable|string|max:255',
+            'source_url' => 'nullable|url|max:2000',
+            'published_at' => 'nullable|date',
+            'reviewed_at' => 'nullable|date',
+            'is_approved' => 'nullable|boolean',
         ]);
 
         $file = $request->file('file');
@@ -93,6 +105,18 @@ class KnowledgeController extends Controller
                 ? $request->input('title')
                 : KnowledgeDocument::titleFromFilename($file->getClientOriginalName()),
             'category'      => $request->input('category'),
+            'topics' => $this->commaSeparatedValues($request->input('topics')),
+            'problem_types' => $this->commaSeparatedValues($request->input('problem_types')),
+            'age_min_months' => $request->input('age_min_months'),
+            'age_max_months' => $request->input('age_max_months'),
+            'audience' => $request->input('audience'),
+            'language' => $request->input('language'),
+            'evidence_level' => $request->input('evidence_level'),
+            'publisher' => $request->input('publisher'),
+            'source_url' => $request->input('source_url'),
+            'published_at' => $request->input('published_at'),
+            'reviewed_at' => $request->input('reviewed_at'),
+            'is_approved' => $request->boolean('is_approved', true),
             'file_path'     => $path,
             'original_name' => $file->getClientOriginalName(),
             'mime_type'     => $file->getMimeType(),
@@ -173,6 +197,23 @@ class KnowledgeController extends Controller
             'chunk_count'      => $document->chunks_count ?? 0,
             'processing_error' => $document->processing_error,
             'processed_at'     => $document->processed_at?->toISOString(),
+            'topics'            => $document->topics ?? [],
+            'problem_types'     => $document->problem_types ?? [],
+            'age_min_months'    => $document->age_min_months,
+            'age_max_months'    => $document->age_max_months,
+            'evidence_level'    => $document->evidence_level,
+            'is_approved'       => (bool) $document->is_approved,
         ];
+    }
+
+    private function commaSeparatedValues(mixed $value): array
+    {
+        return collect(explode(',', (string) $value))
+            ->map(fn (string $item): string => trim($item))
+            ->filter()
+            ->unique()
+            ->take(20)
+            ->values()
+            ->all();
     }
 }
