@@ -124,4 +124,34 @@ class ChatTurnPlannerServiceTest extends TestCase
         $this->assertNull($plan['question']);
         $this->assertSame([], $plan['missing_fields']);
     }
+
+    public function test_it_answers_when_a_behavior_abc_snapshot_is_already_complete(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn([
+            'action' => 'ask_clarification',
+            'domain' => 'child_behavior',
+            'case_specific' => true,
+            'information_sufficient' => false,
+            'reason' => 'Communication details could also be useful.',
+            'question' => 'كيف يطلب الجهاز عادة؟',
+            'missing_fields' => ['communication'],
+            'search_queries' => ['screen transition child behavior antecedent consequence'],
+            'follow_up_needed' => true,
+            'confidence' => 0.8,
+        ]);
+
+        $plan = (new ChatTurnPlannerService($llm))->plan(
+            'عمره خمس سنوات. يصرخ غالبًا عندما أوقف الجهاز، ثم أعيد له الجهاز فيهدأ. يحدث ذلك يوميًا ولا يؤذي نفسه.',
+            ['profile' => ['age_months' => 60], 'memories' => []],
+            [],
+            'child_behavior'
+        );
+
+        $this->assertSame('answer', $plan['action']);
+        $this->assertTrue($plan['information_sufficient']);
+        $this->assertNull($plan['question']);
+        $this->assertSame([], $plan['missing_fields']);
+        $this->assertTrue($plan['follow_up_needed']);
+    }
 }

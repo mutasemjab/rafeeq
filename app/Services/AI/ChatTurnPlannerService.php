@@ -97,6 +97,23 @@ PROMPT;
             $result['follow_up_needed'] = true;
             $result['reason'] = 'The caregiver supplied a requested outcome observation; analyze it before asking the next question.';
         }
+        if (
+            $action === 'ask_clarification'
+            && $this->hasSufficientBehaviorAbcSnapshot(
+                $message,
+                $childContext,
+                $recentHistory,
+                $domainHint,
+                (string) ($result['domain'] ?? '')
+            )
+        ) {
+            $action = 'answer';
+            $result['information_sufficient'] = true;
+            $result['question'] = null;
+            $result['missing_fields'] = [];
+            $result['follow_up_needed'] = true;
+            $result['reason'] = 'Age, observable behavior, antecedent, consequence, frequency, and immediate safety are already available; provide an initial source-backed step before requesting optional details.';
+        }
         if (! in_array($action, self::ACTIONS, true)) {
             throw new RuntimeException('Turn planner returned an unsupported action.');
         }
@@ -294,6 +311,62 @@ PROMPT;
 
         foreach ($outcomeMarkers as $marker) {
             if (str_contains($normalized, $marker)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasSufficientBehaviorAbcSnapshot(
+        string $message,
+        array $childContext,
+        array $recentHistory,
+        ?string $domainHint,
+        string $plannedDomain
+    ): bool {
+        $domain = mb_strtolower(trim(($domainHint ?? '').' '.$plannedDomain));
+        if (! $this->containsAny($domain, ['behavior', 'behaviour', 'سلوك'])) {
+            return false;
+        }
+
+        $historyText = collect($recentHistory)
+            ->take(-8)
+            ->pluck('content')
+            ->filter(fn ($content): bool => is_string($content))
+            ->implode(' ');
+        $text = mb_strtolower(trim($historyText.' '.$message));
+        $profile = is_array($childContext['profile'] ?? null) ? $childContext['profile'] : [];
+
+        $hasAge = is_numeric($profile['age_months'] ?? null)
+            || is_numeric($profile['age'] ?? null)
+            || preg_match('/(?:عمره|عمرها|بعمر|aged?)\s*(?:\d+|سنة|سنتين|ثلاث|أربع|خمس|ست|سبع|ثمان|تسع|عشر)/u', $text) === 1
+            || preg_match('/\b\d+\s*(?:سنوات?|سنين?|أشهر?|years?|months?)\b/u', $text) === 1;
+
+        $hasAntecedent = $this->containsAny($text, [
+            'عندما', 'لما ', 'قبل أن', 'قبل ما', 'بمجرد', 'حين ',
+            'when ', 'before ', 'as soon as', 'whenever ',
+        ]);
+        $hasConsequence = $this->containsAny($text, [
+            'ثم ', 'بعدها', 'بعد ذلك', 'فيهدأ', 'فهدأ', 'أعيد له', 'أعطيه', 'نعطيه',
+            'then ', 'afterward', 'afterwards', 'calms', 'calmed', 'give it back', 'gave it back',
+        ]);
+        $hasFrequency = $this->containsAny($text, [
+            'يومي', 'كل يوم', 'غالبًا', 'غالبا', 'دائمًا', 'دائما', 'مرة', 'مرات',
+            'daily', 'every day', 'often', 'usually', 'times a ', 'times per ',
+        ]);
+        $hasSafety = $this->containsAny($text, [
+            'لا يؤذي', 'لا تؤذي', 'لا يضرب', 'لا تضرب', 'لا يوجد خطر', 'بدون أذى',
+            'does not hurt', "doesn't hurt", 'no self-harm', 'not dangerous', 'no immediate danger',
+        ]);
+
+        return $hasAge && $hasAntecedent && $hasConsequence && $hasFrequency && $hasSafety;
+    }
+
+    private function containsAny(string $text, array $needles): bool
+    {
+        foreach ($needles as $needle) {
+            if (str_contains($text, $needle)) {
                 return true;
             }
         }
