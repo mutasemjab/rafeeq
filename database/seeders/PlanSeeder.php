@@ -16,7 +16,7 @@ class PlanSeeder extends Seeder
             'billing_period'          => 'monthly',
             'price'                   => 0,
             'currency'                => 'USD',
-            'ai_messages_per_day'     => 5,
+            'ai_messages_per_day'     => 100,
             'max_children'            => 1,
             'max_documents_per_child' => 3,
             'has_specialist_access'   => false,

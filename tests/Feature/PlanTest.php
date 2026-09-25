@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Plan;
+use Database\Seeders\PlanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -17,5 +18,15 @@ class PlanTest extends TestCase
 
         $response = $this->getJson('/api/v1/plans')->assertOk();
         $this->assertCount(3, $response->json());
+    }
+
+    public function test_free_plan_allows_one_hundred_ai_messages_per_day(): void
+    {
+        $this->seed(PlanSeeder::class);
+
+        $this->assertDatabaseHas('plans', [
+            'slug' => 'free',
+            'ai_messages_per_day' => 100,
+        ]);
     }
 }
