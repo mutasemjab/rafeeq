@@ -84,8 +84,13 @@ class ChildChatOrchestrationTest extends TestCase
             'case_specific' => true,
             'information_sufficient' => false,
             'reason' => 'ABC context is missing.',
-            'question' => 'ماذا يحدث مباشرة قبل الصراخ، وماذا تفعلون بعده؟',
-            'missing_fields' => ['antecedent', 'consequence'],
+            'question' => 'ذكرتِ أن الصراخ يتكرر؛ ما الذي يحدث قبله مباشرة؟',
+            'known_facts' => ['عمر الطفل خمس سنوات', 'الصراخ متكرر'],
+            'decision_to_make' => 'اختيار أول تدخل وقائي.',
+            'question_target' => 'antecedent',
+            'question_anchor' => 'الصراخ المتكرر',
+            'expected_answer_use' => 'تحديد التغيير الوقائي الأنسب.',
+            'missing_fields' => ['antecedent'],
             'search_queries' => [],
             'follow_up_needed' => true,
             'confidence' => 0.95,
@@ -106,8 +111,12 @@ class ChildChatOrchestrationTest extends TestCase
         );
 
         $this->assertSame('clarification', $reply->metadata['response_type']);
-        $this->assertSame(['antecedent', 'consequence'], $reply->metadata['turn_plan']['missing_fields']);
+        $this->assertSame(['antecedent'], $reply->metadata['turn_plan']['missing_fields']);
         $this->assertSame([], $reply->sources);
+        $state = $conversation->fresh()->case_state;
+        $this->assertSame(['عمر الطفل خمس سنوات', 'الصراخ متكرر'], $state['known_facts']);
+        $this->assertSame('antecedent', data_get($state, 'asked_questions.0.target'));
+        $this->assertSame('clarification', data_get($state, 'asked_questions.0.source'));
     }
 
     public function test_missing_retrieved_evidence_returns_explicit_insufficiency(): void
@@ -199,6 +208,8 @@ class ChildChatOrchestrationTest extends TestCase
             'question' => 'بعد ثلاثة أيام، ما التغيير الذي لاحظتِه؟',
             'purpose' => 'outcome_check',
             'wait_for_observation' => true,
+            'anchor' => 'الخطوة البسيطة لمدة ثلاثة أيام',
+            'decision_impact' => 'تحديد تثبيت الخطوة أو تعديلها.',
         ]);
 
         $reply = $this->service($dependencies)->ask(
@@ -213,6 +224,10 @@ class ChildChatOrchestrationTest extends TestCase
         $this->assertSame(['بعد ثلاثة أيام، ما التغيير الذي لاحظتِه؟'], $reply->metadata['suggested_questions']);
         $this->assertSame('behavior', $conversation->fresh()->active_domain);
         $this->assertSame('بعد ثلاثة أيام، ما التغيير الذي لاحظتِه؟', $conversation->fresh()->next_question);
+        $this->assertSame(
+            'الخطوة البسيطة لمدة ثلاثة أيام',
+            data_get($conversation->fresh()->case_state, 'asked_questions.0.anchor')
+        );
         $this->assertDatabaseHas('child_memories', [
             'child_id' => $child->id,
             'memory_key' => 'communication.primary_language',

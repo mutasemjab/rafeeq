@@ -18,11 +18,16 @@ class ChatTurnPlannerServiceTest extends TestCase
         $llm->shouldReceive('chatJson')
             ->once()
             ->withArgs(function (array $messages, array $schema, array $options): bool {
+                $payload = (string) data_get($messages, '1.content');
+
                 return ($schema['properties']['action']['enum'] ?? []) === [
                     'answer',
                     'ask_clarification',
                     'refer_to_specialist',
-                ] && ($options['schema_name'] ?? null) === 'rafeeq_turn_plan';
+                ] && in_array('question_anchor', $schema['required'] ?? [], true)
+                    && ($options['schema_name'] ?? null) === 'rafeeq_turn_plan'
+                    && str_contains($payload, '"asked_questions"')
+                    && str_contains($payload, 'كم مرة يحدث الصراخ يوميًا؟');
             })
             ->andReturn([
                 'action' => 'ask_clarification',
@@ -30,8 +35,13 @@ class ChatTurnPlannerServiceTest extends TestCase
                 'case_specific' => true,
                 'information_sufficient' => false,
                 'reason' => 'Antecedent and consequence are missing.',
-                'question' => 'ماذا يحدث مباشرة قبل الصراخ، وماذا تفعلون بعده؟',
-                'missing_fields' => ['antecedent', 'consequence'],
+                'question' => 'عندما يبدأ الصراخ، ما الشيء الذي حدث قبله مباشرة؟',
+                'known_facts' => ['عمر الطفل خمس سنوات', 'الأم أبلغت عن صراخ متكرر'],
+                'decision_to_make' => 'اختيار أول خطوة مناسبة قبل الصراخ.',
+                'question_target' => 'antecedent',
+                'question_anchor' => 'الصراخ المتكرر',
+                'expected_answer_use' => 'تمييز المواقف التي تحتاج تعديلًا وقائيًا.',
+                'missing_fields' => ['antecedent'],
                 'search_queries' => [],
                 'follow_up_needed' => true,
                 'confidence' => 0.94,
@@ -41,12 +51,21 @@ class ChatTurnPlannerServiceTest extends TestCase
             'ابني يصرخ كثيرًا',
             ['profile' => ['age' => 5], 'memories' => []],
             [],
-            'behavior'
+            'behavior',
+            [],
+            [
+                'asked_questions' => [[
+                    'question' => 'كم مرة يحدث الصراخ يوميًا؟',
+                    'target' => 'frequency',
+                ]],
+            ]
         );
 
         $this->assertSame('ask_clarification', $plan['action']);
-        $this->assertSame(['antecedent', 'consequence'], $plan['missing_fields']);
-        $this->assertNotEmpty($plan['question']);
+        $this->assertSame(['antecedent'], $plan['missing_fields']);
+        $this->assertSame('antecedent', $plan['question_target']);
+        $this->assertSame('الصراخ المتكرر', $plan['question_anchor']);
+        $this->assertCount(2, $plan['known_facts']);
     }
 
     public function test_it_rejects_an_answer_marked_information_insufficient(): void

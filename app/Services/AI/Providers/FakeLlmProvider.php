@@ -51,6 +51,11 @@ class FakeLlmProvider implements LlmProviderInterface
                 'information_sufficient' => true,
                 'reason' => 'Enough information in the fake provider.',
                 'question' => null,
+                'known_facts' => [],
+                'decision_to_make' => null,
+                'question_target' => null,
+                'question_anchor' => null,
+                'expected_answer_use' => null,
                 'missing_fields' => [],
                 'search_queries' => [],
                 'follow_up_needed' => false,
@@ -67,6 +72,8 @@ class FakeLlmProvider implements LlmProviderInterface
                 'question' => null,
                 'purpose' => null,
                 'wait_for_observation' => false,
+                'anchor' => null,
+                'decision_impact' => null,
             ];
         }
 

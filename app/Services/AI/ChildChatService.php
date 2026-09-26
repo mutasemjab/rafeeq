@@ -415,8 +415,15 @@ class ChildChatService
             $turnPlan,
             $childCtx,
             $guardHistory,
-            $language
-        ) ?? ['question' => null, 'purpose' => null, 'wait_for_observation' => false];
+            $language,
+            is_array($conversation->case_state) ? $conversation->case_state : []
+        ) ?? [
+            'question' => null,
+            'purpose' => null,
+            'wait_for_observation' => false,
+            'anchor' => null,
+            'decision_impact' => null,
+        ];
         $suggestedQuestion = $followUp['question'] ?? null;
         $suggestedQuestions = is_string($suggestedQuestion) && trim($suggestedQuestion) !== ''
             ? [trim($suggestedQuestion)]
