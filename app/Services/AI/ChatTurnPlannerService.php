@@ -159,7 +159,7 @@ PROMPT;
                 : 'moderate',
             'evidence_required' => ($result['evidence_required'] ?? null) !== false,
             'web_search_needed' => ($result['web_search_needed'] ?? null) === true,
-            'memory_candidates' => $this->memoryCandidates($result['memory_candidates'] ?? []),
+            'memory_candidates' => $this->memoryCandidates($result['memory_candidates'] ?? [], $message),
             'confidence' => is_numeric($result['confidence'] ?? null)
                 ? max(0.0, min(1.0, (float) $result['confidence']))
                 : 0.0,
@@ -303,7 +303,7 @@ PROMPT;
         return mb_substr(implode(' ', array_slice($questionParts, 0, $limit)), 0, 500);
     }
 
-    private function memoryCandidates(mixed $values): array
+    private function memoryCandidates(mixed $values, string $latestMessage): array
     {
         return collect(is_array($values) ? $values : [])
             ->filter(fn ($value): bool => is_array($value))
@@ -324,7 +324,9 @@ PROMPT;
                     ) ? $value['fact_status'] : 'reported_concern',
                 ];
             })
-            ->filter(fn (array $value): bool => $value['content'] !== '' && $value['evidence'] !== '')
+            ->filter(fn (array $value): bool => $value['content'] !== ''
+                && $value['evidence'] !== ''
+                && mb_stripos($latestMessage, $value['evidence']) !== false)
             ->take(8)
             ->values()
             ->all();

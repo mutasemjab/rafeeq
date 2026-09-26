@@ -176,4 +176,54 @@ class ChatTurnPlannerServiceTest extends TestCase
         $this->assertSame([], $plan['missing_fields']);
         $this->assertTrue($plan['follow_up_needed']);
     }
+
+    public function test_it_only_accepts_memory_evidence_from_the_latest_caregiver_message(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn([
+            'action' => 'answer',
+            'domain' => 'behavior',
+            'case_specific' => true,
+            'information_sufficient' => true,
+            'reason' => 'Enough information.',
+            'question' => null,
+            'missing_fields' => [],
+            'search_queries' => [],
+            'follow_up_needed' => true,
+            'risk_level' => 'moderate',
+            'evidence_required' => true,
+            'web_search_needed' => false,
+            'memory_candidates' => [
+                [
+                    'key' => 'child_age',
+                    'type' => 'demographic',
+                    'title' => 'Age',
+                    'content' => 'The child is five.',
+                    'confidence' => 1,
+                    'evidence' => 'ابني عمره خمس سنوات',
+                    'fact_status' => 'confirmed_by_caregiver',
+                ],
+                [
+                    'key' => 'screen_trigger',
+                    'type' => 'behavior_pattern',
+                    'title' => 'Screen transition trigger',
+                    'content' => 'Screaming starts when the tablet is stopped.',
+                    'confidence' => 1,
+                    'evidence' => 'يبدأ الصراخ عندما أوقف الآيباد',
+                    'fact_status' => 'reported_concern',
+                ],
+            ],
+            'confidence' => 0.95,
+        ]);
+
+        $plan = (new ChatTurnPlannerService($llm))->plan(
+            'يبدأ الصراخ عندما أوقف الآيباد',
+            ['profile' => ['age' => 5], 'memories' => []],
+            [['role' => 'user', 'content' => 'ابني عمره خمس سنوات']],
+            'behavior'
+        );
+
+        $this->assertCount(1, $plan['memory_candidates']);
+        $this->assertSame('screen_trigger', $plan['memory_candidates'][0]['key']);
+    }
 }
