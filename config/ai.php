@@ -81,7 +81,7 @@ return [
     'turn_planner_enabled' => (bool) env('AI_TURN_PLANNER_ENABLED', true),
     'turn_planner_model' => env('AI_TURN_PLANNER_MODEL', env('AI_CHAT_MODEL', 'gpt-5.6-luna')),
     'turn_planner_reasoning_effort' => env('AI_TURN_PLANNER_REASONING_EFFORT', 'none'),
-    'turn_planner_max_completion_tokens' => (int) env('AI_TURN_PLANNER_MAX_COMPLETION_TOKENS', 750),
+    'turn_planner_max_completion_tokens' => (int) env('AI_TURN_PLANNER_MAX_COMPLETION_TOKENS', 1500),
     'follow_up_suggestions_enabled' => (bool) env('AI_FOLLOW_UP_SUGGESTIONS_ENABLED', true),
     'follow_up_model' => env('AI_FOLLOW_UP_MODEL', env('AI_TURN_PLANNER_MODEL', env('AI_CHAT_MODEL', 'gpt-5.6-luna'))),
     'follow_up_reasoning_effort' => env('AI_FOLLOW_UP_REASONING_EFFORT', 'none'),

@@ -70,6 +70,7 @@ Rules:
 20. Set web_search_needed=true when current guidance matters, internal evidence may be insufficient, or a high-risk factual claim needs corroboration. Web search never replaces professional assessment.
 21. Extract memory_candidates only for durable facts explicitly stated by the caregiver in the latest message. Never store an inferred diagnosis, temporary small talk, instructions, or assistant-generated content. Evidence must be a short excerpt from the latest message.
 22. risk_level is low, moderate, or high. High does not mean emergency; emergencies are handled by a separate safety layer.
+23. Keep the structured result concise so it is never truncated: known_facts at most 12 short items, missing_fields at most 6, memory_candidates at most 4, and search_queries at most 3. Do not repeat the same fact across fields.
 PROMPT;
 
         $result = $this->llm->chatJson([
@@ -89,7 +90,7 @@ PROMPT;
             'schema_name' => 'rafeeq_turn_plan',
             'model' => $model,
             'reasoning_effort' => (string) config('ai.turn_planner_reasoning_effort', 'none'),
-            'max_completion_tokens' => (int) config('ai.turn_planner_max_completion_tokens', 750),
+            'max_completion_tokens' => (int) config('ai.turn_planner_max_completion_tokens', 1500),
         ]);
 
         $action = (string) ($result['action'] ?? '');

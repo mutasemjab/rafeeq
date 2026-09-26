@@ -27,6 +27,7 @@ class ChatTurnPlannerServiceTest extends TestCase
                     'refer_to_specialist',
                 ] && in_array('question_anchor', $schema['required'] ?? [], true)
                     && ($options['schema_name'] ?? null) === 'rafeeq_turn_plan'
+                    && ($options['max_completion_tokens'] ?? 0) >= 1500
                     && str_contains($systemPrompt, 'request exactly one answer field')
                     && str_contains($systemPrompt, 'never combine two of them in one question')
                     && str_contains($payload, '"asked_questions"')
