@@ -136,6 +136,7 @@ return [
         env('AI_OPENAI_WEB_SEARCH_FAIL_OPEN', true)
     ),
     'openai_web_search_context_size' => env('AI_OPENAI_WEB_SEARCH_CONTEXT_SIZE', 'medium'),
+    'max_provider_web_sources' => (int) env('AI_MAX_PROVIDER_WEB_SOURCES', 6),
     'web_search_connect_timeout' => (int) env('AI_WEB_SEARCH_CONNECT_TIMEOUT', 15),
     'web_search_request_timeout' => (int) env('AI_WEB_SEARCH_REQUEST_TIMEOUT', 300),
     'openai_web_search_allowed_domains' => array_values(array_filter(array_map(

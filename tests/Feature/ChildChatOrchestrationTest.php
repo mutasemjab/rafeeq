@@ -159,7 +159,8 @@ class ChildChatOrchestrationTest extends TestCase
     public function test_answer_persists_child_fact_case_state_and_one_next_question(): void
     {
         Config::set('ai.require_retrieved_evidence', true);
-        Config::set('ai.openai_web_search_enabled', false);
+        Config::set('ai.openai_web_search_enabled', true);
+        Config::set('ai.max_provider_web_sources', 6);
         Config::set('ai.default_medical_sources', []);
         $user = User::factory()->create();
         $child = Child::factory()->create(['user_id' => $user->id]);
@@ -188,11 +189,19 @@ class ChildChatOrchestrationTest extends TestCase
         ]];
         $dependencies['planner']->shouldReceive('plan')->once()->andReturn($plan);
         $dependencies['llm']->shouldReceive('embeddingMany')->once()->andReturn([[1.0, 0.0]]);
-        $dependencies['llm']->shouldReceive('answer')->once()->andReturn([
+        $providerSources = collect(range(1, 10))->map(fn (int $index): array => [
+            'title' => "Web source {$index}",
+            'url' => "https://example.org/source-{$index}",
+            'snippet' => "Evidence {$index}",
+        ])->all();
+        $dependencies['llm']->shouldReceive('answer')->once()->withArgs(
+            fn (array $messages, array $options): bool => ($options['web_search'] ?? false) === true
+                && ($options['web_search_required'] ?? false) === true
+        )->andReturn([
             'content' => 'ابدئي بخطوة بسيطة ومحددة.',
-            'sources' => [],
+            'sources' => $providerSources,
             'model' => 'answer-model',
-            'used_web_search' => false,
+            'used_web_search' => true,
             'usage' => ['input_tokens' => 10, 'output_tokens' => 8],
         ]);
         $dependencies['attachments']->shouldReceive('searchWithEmbeddings')->once()->andReturn([]);
@@ -228,6 +237,9 @@ class ChildChatOrchestrationTest extends TestCase
             'الخطوة البسيطة لمدة ثلاثة أيام',
             data_get($conversation->fresh()->case_state, 'asked_questions.0.anchor')
         );
+        $this->assertSame(6, $reply->metadata['evidence']['web_sources']);
+        $this->assertTrue($reply->metadata['evidence']['used_web_search']);
+        $this->assertCount(6, collect($reply->sources)->where('source_type', 'web'));
         $this->assertDatabaseHas('child_memories', [
             'child_id' => $child->id,
             'memory_key' => 'communication.primary_language',

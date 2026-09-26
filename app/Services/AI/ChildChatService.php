@@ -364,8 +364,8 @@ class ChildChatService
         try {
             $answerResult = $this->llm->answer($messages, [
                 'web_search' => $hostedWebSearch,
-                'web_search_required' => ($turnPlan['web_search_needed'] ?? false)
-                    || ($evidenceRequired && $knowledgeSources === [] && $attachmentSources === []),
+                'web_search_required' => $hostedWebSearch
+                    && ($evidenceRequired || ($turnPlan['web_search_needed'] ?? false)),
             ]);
             $reply = trim((string) ($answerResult['content'] ?? ''));
             if ($reply === '') {
@@ -779,15 +779,17 @@ class ChildChatService
             return (bool) ($turnPlan['web_search_needed'] ?? false);
         }
 
-        return ($turnPlan['web_search_needed'] ?? false)
-            || $knowledgeSources === []
-            || in_array($turnPlan['risk_level'] ?? 'moderate', ['moderate', 'high'], true);
+        return true;
     }
 
     private function normalizeProviderWebSources(array $sources, int $existingWebCount): array
     {
+        $limit = max(1, (int) config('ai.max_provider_web_sources', 6));
+
         return collect($sources)
             ->filter(fn ($source): bool => is_array($source) && filter_var($source['url'] ?? null, FILTER_VALIDATE_URL))
+            ->unique(fn (array $source): string => rtrim((string) $source['url'], '/'))
+            ->take($limit)
             ->values()
             ->map(function (array $source, int $index) use ($existingWebCount): array {
                 return [

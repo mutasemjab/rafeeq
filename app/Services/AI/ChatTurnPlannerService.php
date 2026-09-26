@@ -73,7 +73,7 @@ Rules:
 23. Keep the structured result concise so it is never truncated: known_facts at most 12 short items, missing_fields at most 6, memory_candidates at most 4, and search_queries at most 3. Do not repeat the same fact across fields.
 PROMPT;
 
-        $result = $this->llm->chatJson([
+        $plannerMessages = [
             ['role' => 'system', 'content' => $systemPrompt],
             ['role' => 'user', 'content' => json_encode([
                 'domain_hint' => $domainHint,
@@ -86,12 +86,30 @@ PROMPT;
                 'latest_message' => mb_substr(trim($message), 0, 4000),
                 'suggested_search_queries' => array_values(array_slice($suggestedSearchQueries, 0, 4)),
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
-        ], $this->schema(), [
+        ];
+        $plannerOptions = [
             'schema_name' => 'rafeeq_turn_plan',
             'model' => $model,
             'reasoning_effort' => (string) config('ai.turn_planner_reasoning_effort', 'none'),
             'max_completion_tokens' => (int) config('ai.turn_planner_max_completion_tokens', 1500),
-        ]);
+        ];
+        $result = $this->llm->chatJson($plannerMessages, $this->schema(), $plannerOptions);
+
+        if ($this->repeatsAskedQuestionTopic($result, $conversationState)) {
+            $forbiddenTopic = $this->questionTopic(
+                (string) ($result['question_target'] ?? ''),
+                (string) ($result['question'] ?? '')
+            );
+            $revisionMessages = [
+                $plannerMessages[0],
+                [
+                    'role' => 'system',
+                    'content' => "Quality correction: the proposed clarification repeats the already-asked topic '{$forbiddenTopic}'. Re-plan the turn. Do not ask that topic again or paraphrase an earlier question. Use the caregiver's latest answer, then either ask one different unanswered atomic field, answer if enough information exists, or refer when appropriate.",
+                ],
+                $plannerMessages[1],
+            ];
+            $result = $this->llm->chatJson($revisionMessages, $this->schema(), $plannerOptions);
+        }
 
         $action = (string) ($result['action'] ?? '');
         if ($action === 'answer' && $this->isDirectDiagnosisRequest($message)) {
@@ -366,6 +384,79 @@ PROMPT;
         }
 
         return false;
+    }
+
+    private function repeatsAskedQuestionTopic(array $plan, array $conversationState): bool
+    {
+        if (($plan['action'] ?? null) !== 'ask_clarification') {
+            return false;
+        }
+
+        $question = trim((string) ($plan['question'] ?? ''));
+        $target = trim((string) ($plan['question_target'] ?? ''));
+        $topic = $this->questionTopic($target, $question);
+        $normalizedQuestion = $this->normalizeQuestion($question);
+
+        foreach ($conversationState['asked_questions'] ?? [] as $asked) {
+            if (! is_array($asked)) {
+                continue;
+            }
+
+            $askedQuestion = (string) ($asked['question'] ?? '');
+            if (
+                $normalizedQuestion !== ''
+                && $normalizedQuestion === $this->normalizeQuestion($askedQuestion)
+            ) {
+                return true;
+            }
+
+            $askedTopic = $this->questionTopic(
+                (string) ($asked['target'] ?? ''),
+                $askedQuestion
+            );
+            if ($topic !== null && $topic === $askedTopic) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function questionTopic(string $target, string $question): ?string
+    {
+        $text = mb_strtolower(trim($target.' '.$question));
+        $topics = [
+            'immediate_safety' => ['safety', 'harm', 'danger', 'hurt', 'hit', 'self-injury', 'أذى', 'يؤذي', 'يضرب', 'خطر'],
+            'antecedent' => ['antecedent', 'trigger', 'immediately before', 'what happens before', 'قبل السلوك', 'قبل الصراخ', 'قبله مباشرة', 'المحفز'],
+            'consequence' => ['consequence', 'immediately after', 'what happens after', 'بعد السلوك', 'بعد الصراخ', 'بعد ذلك', 'استجابتكم'],
+            'frequency' => ['frequency', 'how often', 'كم مرة', 'التكرار'],
+            'duration' => ['duration', 'how long', 'كم يستمر', 'كم استمر', 'المدة'],
+            'intensity' => ['intensity', 'severity', 'الشدة'],
+            'setting' => ['setting', 'across settings', 'at school', 'في المدرسة', 'في الحضانة', 'في البيت', 'المكان'],
+            'comprehension' => ['comprehension', 'receptive', 'understand', 'فهم', 'ينفذ', 'تنفذ'],
+            'expression' => ['expression', 'expressive', 'uses words', 'يستخدم كلمات', 'تستخدم كلمات', 'يطلب'],
+            'hearing' => ['hearing', 'سمع', 'السمع'],
+            'regression' => ['regression', 'lost skills', 'فقد', 'تراجع'],
+            'current_step' => ['current step', 'independent step', 'prompt level', 'مستوى المساعدة', 'الخطوة التي', 'بمفرده', 'بنفسه'],
+            'response_to_name' => ['response to name', 'responds to name', 'مناداته باسمه', 'تنادينه باسمه', 'الاستجابة للاسم'],
+        ];
+
+        foreach ($topics as $topic => $needles) {
+            if ($this->containsAny($text, $needles)) {
+                return $topic;
+            }
+        }
+
+        $normalizedTarget = $this->normalizeQuestion($target);
+
+        return $normalizedTarget !== '' ? $normalizedTarget : null;
+    }
+
+    private function normalizeQuestion(string $question): string
+    {
+        $question = mb_strtolower($question);
+
+        return preg_replace('/[^\p{L}\p{N}]+/u', '', $question) ?? $question;
     }
 
     private function isDirectDiagnosisRequest(string $message): bool

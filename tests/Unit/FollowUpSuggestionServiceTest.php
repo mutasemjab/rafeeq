@@ -51,4 +51,37 @@ class FollowUpSuggestionServiceTest extends TestCase
         $this->assertSame('تطبيق الخطوة ثلاثة أيام', $result['anchor']);
         $this->assertStringContainsString('نعدّلها', $result['decision_impact']);
     }
+
+    public function test_it_revises_a_compound_follow_up_into_one_atomic_measurement(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->twice()->andReturn(
+            [
+                'question' => 'بعد استخدام المؤقت، كم استمر الصراخ، وهل انتقل للنشاط التالي؟',
+                'purpose' => 'outcome_check',
+                'wait_for_observation' => true,
+                'anchor' => 'استخدام المؤقت',
+                'decision_impact' => 'تعديل الخطة.',
+            ],
+            [
+                'question' => 'بعد استخدام المؤقت، كم دقيقة استمر الصراخ؟',
+                'purpose' => 'duration_check',
+                'wait_for_observation' => true,
+                'anchor' => 'استخدام المؤقت',
+                'decision_impact' => 'تحديد تثبيت مدة التنبيه أو تعديلها.',
+            ]
+        );
+
+        $result = (new FollowUpSuggestionService($llm))->suggest(
+            'يصرخ عند إيقاف الآيباد.',
+            'استخدمي مؤقتًا قبل الانتقال.',
+            ['domain' => 'behavior'],
+            ['profile' => ['age' => 5], 'memories' => []],
+            [],
+            'ar'
+        );
+
+        $this->assertSame('بعد استخدام المؤقت، كم دقيقة استمر الصراخ؟', $result['question']);
+        $this->assertStringNotContainsString('وهل', $result['question']);
+    }
 }

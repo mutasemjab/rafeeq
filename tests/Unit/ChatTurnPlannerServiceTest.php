@@ -260,4 +260,54 @@ class ChatTurnPlannerServiceTest extends TestCase
         $this->assertSame('observable_social_communication_example', $plan['question_target']);
         $this->assertStringContainsString('تنادينه باسمه', $plan['question']);
     }
+
+    public function test_it_replans_when_a_question_repeats_an_already_asked_topic(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->twice()->andReturn(
+            [
+                'action' => 'ask_clarification',
+                'domain' => 'behavior',
+                'case_specific' => true,
+                'information_sufficient' => false,
+                'reason' => 'Safety is important.',
+                'question' => 'عندما يصرخ، هل يضرب نفسه أو شخصًا آخر؟',
+                'question_target' => 'immediate danger or harm',
+                'missing_fields' => ['safety', 'antecedent'],
+                'search_queries' => [],
+                'follow_up_needed' => true,
+                'confidence' => 0.9,
+            ],
+            [
+                'action' => 'ask_clarification',
+                'domain' => 'behavior',
+                'case_specific' => true,
+                'information_sufficient' => false,
+                'reason' => 'The trigger changes the first step.',
+                'question' => 'قبل أن يبدأ الصراخ مباشرة، ماذا يحدث عادةً؟',
+                'question_target' => 'antecedent',
+                'missing_fields' => ['antecedent'],
+                'search_queries' => [],
+                'follow_up_needed' => true,
+                'confidence' => 0.94,
+            ]
+        );
+
+        $plan = (new ChatTurnPlannerService($llm))->plan(
+            'يصرخ كثيرًا عند الانتقال بين الأنشطة.',
+            ['profile' => ['age' => 5], 'memories' => []],
+            [],
+            'behavior',
+            [],
+            [
+                'asked_questions' => [[
+                    'question' => 'هل يؤذي نفسه أو غيره عندما يصرخ؟',
+                    'target' => 'immediate_safety',
+                ]],
+            ]
+        );
+
+        $this->assertSame('antecedent', $plan['question_target']);
+        $this->assertStringContainsString('قبل أن يبدأ الصراخ', $plan['question']);
+    }
 }
