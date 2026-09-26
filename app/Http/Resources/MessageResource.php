@@ -20,11 +20,15 @@ class MessageResource extends JsonResource
             'next_action' => data_get($this->metadata, 'next_action'),
             'suggested_questions' => data_get($this->metadata, 'suggested_questions', []),
             'follow_up' => data_get($this->metadata, 'follow_up'),
-            'evidence' => data_get($this->metadata, 'evidence', [
+            'evidence' => array_merge([
+                'internal_search_performed' => false,
+                'internal_search_completed_before_web' => false,
+                'hosted_web_search_requested' => false,
+                'search_order' => [],
                 'internal_sources' => 0,
                 'web_sources' => 0,
                 'used_web_search' => false,
-            ]),
+            ], (array) data_get($this->metadata, 'evidence', [])),
             'case_state' => data_get($this->metadata, 'case_state'),
             'safety_level' => data_get($this->metadata, 'safety.level', 'routine'),
             'safety_flags' => $this->safety_flags ?? [],

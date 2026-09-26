@@ -239,6 +239,13 @@ class ChildChatOrchestrationTest extends TestCase
         );
         $this->assertSame(6, $reply->metadata['evidence']['web_sources']);
         $this->assertTrue($reply->metadata['evidence']['used_web_search']);
+        $this->assertTrue($reply->metadata['evidence']['internal_search_performed']);
+        $this->assertTrue($reply->metadata['evidence']['internal_search_completed_before_web']);
+        $this->assertTrue($reply->metadata['evidence']['hosted_web_search_requested']);
+        $this->assertSame(
+            ['internal_knowledge', 'hosted_web'],
+            $reply->metadata['evidence']['search_order']
+        );
         $this->assertCount(6, collect($reply->sources)->where('source_type', 'web'));
         $this->assertDatabaseHas('child_memories', [
             'child_id' => $child->id,

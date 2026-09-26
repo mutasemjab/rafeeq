@@ -454,6 +454,12 @@ class ChildChatService
                 'next_action' => $suggestedQuestions !== [] ? 'await_follow_up' : 'complete',
                 'case_state' => $conversation->case_state,
                 'evidence' => [
+                    'internal_search_performed' => true,
+                    'internal_search_completed_before_web' => true,
+                    'hosted_web_search_requested' => $hostedWebSearch,
+                    'search_order' => $hostedWebSearch
+                        ? ['internal_knowledge', 'hosted_web']
+                        : ['internal_knowledge'],
                     'internal_sources' => count($knowledgeSources) + count($attachmentSources),
                     'web_sources' => count($webSources),
                     'used_web_search' => (bool) ($answerResult['used_web_search'] ?? false),
