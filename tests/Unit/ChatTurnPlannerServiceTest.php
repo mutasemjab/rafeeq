@@ -226,4 +226,37 @@ class ChatTurnPlannerServiceTest extends TestCase
         $this->assertCount(1, $plan['memory_candidates']);
         $this->assertSame('screen_trigger', $plan['memory_candidates'][0]['key']);
     }
+
+    public function test_it_never_answers_a_direct_diagnosis_request_from_one_reported_sign(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn([
+            'action' => 'answer',
+            'domain' => 'autism_development',
+            'case_specific' => true,
+            'information_sufficient' => true,
+            'reason' => 'Could provide general information.',
+            'question' => null,
+            'missing_fields' => [],
+            'search_queries' => [],
+            'follow_up_needed' => false,
+            'risk_level' => 'moderate',
+            'evidence_required' => true,
+            'web_search_needed' => false,
+            'memory_candidates' => [],
+            'confidence' => 0.8,
+        ]);
+
+        $plan = (new ChatTurnPlannerService($llm))->plan(
+            'طفلي لا ينظر إليّ كثيرًا، هل لديه توحد؟',
+            ['profile' => ['age_months' => 36], 'memories' => []],
+            [],
+            'autism and developmental concerns'
+        );
+
+        $this->assertSame('ask_clarification', $plan['action']);
+        $this->assertFalse($plan['information_sufficient']);
+        $this->assertSame('observable_social_communication_example', $plan['question_target']);
+        $this->assertStringContainsString('تنادينه باسمه', $plan['question']);
+    }
 }
