@@ -8,6 +8,7 @@ use App\Console\Commands\ImportKnowledgeIndexCommand;
 use App\Console\Commands\KnowledgeStatusCommand;
 use App\Console\Commands\ReembedChatAttachmentsCommand;
 use App\Console\Commands\EvaluateChildAssistantCommand;
+use App\Console\Commands\EvaluateAnswerQualityCommand;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -25,6 +26,7 @@ class Kernel extends ConsoleKernel
         KnowledgeStatusCommand::class,
         ReembedChatAttachmentsCommand::class,
         EvaluateChildAssistantCommand::class,
+        EvaluateAnswerQualityCommand::class,
     ];
 
     /**

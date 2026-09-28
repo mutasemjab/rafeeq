@@ -57,6 +57,7 @@ class FakeLlmProvider implements LlmProviderInterface
                 'question_anchor' => null,
                 'expected_answer_use' => null,
                 'missing_fields' => [],
+                'problem_types' => [],
                 'search_queries' => [],
                 'follow_up_needed' => false,
                 'risk_level' => 'low',
@@ -74,6 +75,22 @@ class FakeLlmProvider implements LlmProviderInterface
                 'wait_for_observation' => false,
                 'anchor' => null,
                 'decision_impact' => null,
+            ];
+        }
+
+        if (isset($properties['scores']) || $this->messagesHintAnswerQuality($messages)) {
+            return [
+                'action' => 'approve',
+                'issues' => [],
+                'strengths' => ['Grounded test answer.'],
+                'scores' => [
+                    'specificity' => 1.0,
+                    'grounding' => 1.0,
+                    'practicality' => 1.0,
+                    'professional_tone' => 1.0,
+                    'calibration' => 1.0,
+                ],
+                'revised_answer' => null,
             ];
         }
 
@@ -167,6 +184,17 @@ class FakeLlmProvider implements LlmProviderInterface
     {
         foreach ($messages as $message) {
             if (stripos((string) ($message['content'] ?? ''), 'single best next conversational question') !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function messagesHintAnswerQuality(array $messages): bool
+    {
+        foreach ($messages as $message) {
+            if (stripos((string) ($message['content'] ?? ''), 'final clinical-quality editor') !== false) {
                 return true;
             }
         }

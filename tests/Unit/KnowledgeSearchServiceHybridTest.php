@@ -51,5 +51,8 @@ class KnowledgeSearchServiceHybridTest extends TestCase
         $this->assertSame(2, $results[0]['chunk_id']);
         $this->assertSame('KB_SOURCE_1', $results[0]['source_label']);
         $this->assertArrayHasKey('retrieval_signals', $results[0]);
+        $this->assertArrayHasKey('authority', $results[0]['retrieval_signals']);
+        $this->assertArrayHasKey('recency', $results[0]['retrieval_signals']);
+        $this->assertArrayHasKey('language', $results[0]['retrieval_signals']);
     }
 }

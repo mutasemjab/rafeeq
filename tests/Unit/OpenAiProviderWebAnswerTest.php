@@ -7,6 +7,7 @@ use App\Services\AI\Providers\OpenAiProvider;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 use Tests\TestCase;
 
 class OpenAiProviderWebAnswerTest extends TestCase
@@ -93,5 +94,61 @@ class OpenAiProviderWebAnswerTest extends TestCase
                 && ! isset($request['tools'])
                 && ! isset($request['tool_choice']);
         });
+    }
+
+    public function test_it_returns_only_sources_cited_by_the_answer_when_annotations_are_available(): void
+    {
+        Config::set('ai.openai_api_key', 'test-key');
+        Config::set('openai.api_key', 'test-key');
+        Config::set('ai.answer_model', 'test-model');
+
+        Http::fake([
+            'api.openai.com/v1/responses' => Http::response([
+                'output' => [
+                    [
+                        'type' => 'web_search_call',
+                        'action' => ['sources' => [
+                            ['title' => 'Unused', 'url' => 'https://example.org/unused'],
+                            ['title' => 'Used', 'url' => 'https://www.cdc.gov/used'],
+                        ]],
+                    ],
+                    [
+                        'type' => 'message',
+                        'content' => [[
+                            'type' => 'output_text',
+                            'text' => 'Cited answer.',
+                            'annotations' => [[
+                                'type' => 'url_citation',
+                                'title' => 'Used',
+                                'url' => 'https://www.cdc.gov/used',
+                            ]],
+                        ]],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $result = (new OpenAiProvider(new OpenAiConfigResolver()))->answer([
+            ['role' => 'user', 'content' => 'Question'],
+        ], ['web_search' => true, 'web_search_required' => true]);
+
+        $this->assertCount(1, $result['sources']);
+        $this->assertSame('https://www.cdc.gov/used', $result['sources'][0]['url']);
+    }
+
+    public function test_required_web_search_never_falls_back_to_an_unsearched_answer(): void
+    {
+        Config::set('ai.openai_api_key', 'test-key');
+        Config::set('openai.api_key', 'test-key');
+        Config::set('ai.openai_responses_fail_open', true);
+
+        Http::fake([
+            'api.openai.com/v1/responses' => Http::response(['error' => ['message' => 'Unavailable']], 503),
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        (new OpenAiProvider(new OpenAiConfigResolver()))->answer([
+            ['role' => 'user', 'content' => 'Current guidance?'],
+        ], ['web_search' => true, 'web_search_required' => true]);
     }
 }

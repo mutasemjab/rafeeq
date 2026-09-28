@@ -173,7 +173,12 @@ class ChildChatDomainGuardTest extends TestCase
             'ما مراحل البلع؟',
             'ما مؤشرات تأخر اللغة؟',
         ];
+        $retrievalQueries = [
+            implode('', $questions),
+            ...$questions,
+        ];
         $embeddings = [
+            [0.7, 0.7],
             [1.0, 0.0],
             [0.0, 1.0],
         ];
@@ -181,7 +186,7 @@ class ChildChatDomainGuardTest extends TestCase
         $llm = Mockery::mock(LlmProviderInterface::class);
         $llm->shouldReceive('embeddingMany')
             ->once()
-            ->with($questions)
+            ->with($retrievalQueries)
             ->andReturn($embeddings);
         $llm->shouldReceive('answer')->once()->andReturn($this->answerResult('إجابة للسؤالين.'));
         $childContext = Mockery::mock(ChildContextService::class);
@@ -223,7 +228,7 @@ class ChildChatDomainGuardTest extends TestCase
         );
 
         $this->assertSame('إجابة للسؤالين.', $reply->content);
-        $this->assertSame(2, $reply->metadata['retrieval_query_count']);
+        $this->assertSame(3, $reply->metadata['retrieval_query_count']);
     }
 
     public function test_answer_provider_failure_returns_service_unavailable_without_fake_message(): void
@@ -315,8 +320,11 @@ class ChildChatDomainGuardTest extends TestCase
         $llm = Mockery::mock(LlmProviderInterface::class);
         $llm->shouldReceive('embeddingMany')
             ->once()
-            ->with($decision['search_queries'])
-            ->andReturn([[1.0, 0.0]]);
+            ->with([
+                'كيف أقيّم اللغة الاستقبالية والتعبيرية؟',
+                ...$decision['search_queries'],
+            ])
+            ->andReturn([[1.0, 0.0], [0.9, 0.1]]);
         $llm->shouldReceive('answer')
             ->once()
             ->andReturnUsing(function (array $messages) use (&$capturedMessages): array {

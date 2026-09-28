@@ -56,11 +56,25 @@ class KnowledgeSearchService
             $semantic = max(0.0, min(1.0, (float) ($result['similarity'] ?? 0)));
             $lexical = $this->lexicalScore($terms, (string) ($result['content'] ?? ''));
             $metadata = $this->metadataScore($result, $filters);
-            $result['retrieval_score'] = round(($semantic * 0.78) + ($lexical * 0.17) + ($metadata * 0.05), 6);
+            $authority = $this->authorityScore($result);
+            $recency = $this->recencyScore($result);
+            $language = $this->languageScore($result, $filters);
+            $result['retrieval_score'] = round(
+                ($semantic * 0.62)
+                + ($lexical * 0.16)
+                + ($metadata * 0.10)
+                + ($authority * 0.06)
+                + ($recency * 0.03)
+                + ($language * 0.03),
+                6
+            );
             $result['retrieval_signals'] = [
                 'semantic' => round($semantic, 6),
                 'lexical' => round($lexical, 6),
                 'metadata' => round($metadata, 6),
+                'authority' => round($authority, 6),
+                'recency' => round($recency, 6),
+                'language' => round($language, 6),
             ];
         }
         unset($result);
@@ -135,5 +149,59 @@ class KnowledgeSearchService
         })->count();
 
         return min(1.0, $matches / max(1, $targets->count()));
+    }
+
+    private function authorityScore(array $result): float
+    {
+        $level = mb_strtolower(trim((string) ($result['evidence_level'] ?? '')));
+        $evidence = match (true) {
+            str_contains($level, 'systematic'), str_contains($level, 'meta') => 1.0,
+            str_contains($level, 'guideline'), str_contains($level, 'clinical'), str_contains($level, 'high') => 0.95,
+            str_contains($level, 'peer'), str_contains($level, 'research'), str_contains($level, 'moderate') => 0.78,
+            str_contains($level, 'professional'), str_contains($level, 'consensus') => 0.72,
+            str_contains($level, 'low'), str_contains($level, 'opinion') => 0.35,
+            default => 0.50,
+        };
+        $provenance = trim((string) ($result['publisher'] ?? '')) !== '' ? 0.65 : 0.35;
+        if (filter_var($result['url'] ?? null, FILTER_VALIDATE_URL)) {
+            $provenance = min(1.0, $provenance + 0.20);
+        }
+
+        return ($evidence * 0.75) + ($provenance * 0.25);
+    }
+
+    private function recencyScore(array $result): float
+    {
+        $date = $result['reviewed_at'] ?? $result['published_at'] ?? null;
+        if ($date === null || trim((string) $date) === '') {
+            return 0.45;
+        }
+
+        try {
+            $years = max(0.0, now()->diffInDays(\Carbon\Carbon::parse($date), true) / 365.25);
+        } catch (\Throwable) {
+            return 0.45;
+        }
+
+        return match (true) {
+            $years <= 2 => 1.0,
+            $years <= 5 => 0.80,
+            $years <= 8 => 0.58,
+            default => 0.35,
+        };
+    }
+
+    private function languageScore(array $result, array $filters): float
+    {
+        $requested = mb_strtolower(trim((string) ($filters['language'] ?? '')));
+        $source = mb_strtolower(trim((string) ($result['language'] ?? '')));
+        if ($requested === '' || $source === '') {
+            return 0.60;
+        }
+        if ($source === $requested || str_contains($source, 'multi') || str_contains($source, 'bilingual')) {
+            return 1.0;
+        }
+
+        return 0.45;
     }
 }

@@ -27,6 +27,7 @@ class ChildChatService
         private ?ChildMemoryManager $memoryManager = null,
         private ?ConversationStateService $conversationState = null,
         private ?FollowUpSuggestionService $followUpSuggestions = null,
+        private ?AnswerQualityService $answerQuality = null,
     ) {
     }
 
@@ -278,6 +279,7 @@ class ChildChatService
         // 9. Search web fallback when enabled.
         $webSources = $this->searchWebSources($userMessage);
         $hostedWebSearch = $this->shouldUseHostedWebSearch($turnPlan, $knowledgeSources, $domainDecision);
+        $hostedWebSearchRequired = $hostedWebSearch;
         $evidenceRequired = config('ai.require_retrieved_evidence', true)
             && $this->requiresKnowledgeEvidence($turnPlan, $domainDecision);
 
@@ -305,16 +307,20 @@ class ChildChatService
             );
         }
 
-        // 10. Include public medical/wellness references for visible citation metadata.
-        $medicalSources = $this->defaultMedicalSources();
+        // Generic medical landing pages are a last-resort reference, not
+        // automatic evidence for a specific intervention. Prefer retrieved
+        // internal guidance or a live authoritative lookup.
+        $medicalSources = $knowledgeSources === [] && ! $hostedWebSearch
+            ? $this->defaultMedicalSources()
+            : [];
 
         // 11. Merge sources
-        $allSources = $this->normalizeUtf8Value(array_values(array_merge(
+        $allSources = $this->selectContextSources($this->normalizeUtf8Value(array_values(array_merge(
             $attachmentSources,
             $knowledgeSources,
             $webSources,
             $medicalSources
-        )));
+        ))));
         Log::info('[Chat] Step 8: Total sources merged', [
             'total' => count($allSources),
             'attachment_sources' => count($attachmentSources),
@@ -364,8 +370,7 @@ class ChildChatService
         try {
             $answerResult = $this->llm->answer($messages, [
                 'web_search' => $hostedWebSearch,
-                'web_search_required' => $hostedWebSearch
-                    && ($evidenceRequired || ($turnPlan['web_search_needed'] ?? false)),
+                'web_search_required' => $hostedWebSearchRequired,
             ]);
             $reply = trim((string) ($answerResult['content'] ?? ''));
             if ($reply === '') {
@@ -409,6 +414,50 @@ class ChildChatService
             );
         }
 
+        $qualityContextSources = $this->selectContextSources($this->mergeUniqueSources(array_merge(
+            $providerWebSources,
+            $allSources
+        )));
+        $quality = $this->answerQuality?->review(
+            $userMessage,
+            $reply,
+            $turnPlan,
+            $childCtx,
+            $this->buildSourceContext($qualityContextSources),
+            $language
+        ) ?? [
+            'content' => $reply,
+            'action' => 'approve',
+            'passed' => true,
+            'revised' => false,
+            'issues' => [],
+            'strengths' => [],
+            'scores' => [],
+            'model' => null,
+        ];
+
+        if (($quality['passed'] ?? true) !== true) {
+            return $this->persistControlResponse(
+                $conversation,
+                (string) config("ai.safety_messages.insufficient_evidence.{$language}"),
+                'insufficient_evidence',
+                [
+                    'safety' => $safetyDecision,
+                    'turn_plan' => $turnPlan,
+                    'domain_guard' => $domainDecision,
+                    'answer_quality' => $quality,
+                    'next_action' => 'add_approved_source_or_consult_specialist',
+                    'memory_saved_count' => $memorySaved,
+                    'suggested_questions' => [],
+                    'case_state' => $conversation->fresh()->case_state,
+                ],
+                ['insufficient_evidence']
+            );
+        }
+
+        $reply = trim((string) ($quality['content'] ?? $reply));
+        $usedSources = $this->sourcesUsedInReply($allSources, $reply, $evidenceRequired);
+
         $followUp = $this->followUpSuggestions?->suggest(
             $userMessage,
             $reply,
@@ -439,7 +488,7 @@ class ChildChatService
             'child_id' => $childId,
             'role' => 'assistant',
             'content' => $reply,
-            'sources' => $allSources,
+            'sources' => $usedSources,
             'metadata' => [
                 'response_type' => 'answer',
                 'safety' => $safetyDecision,
@@ -451,6 +500,7 @@ class ChildChatService
                 'memory_saved_count' => $memorySaved,
                 'suggested_questions' => $suggestedQuestions,
                 'follow_up' => $followUp,
+                'answer_quality' => $quality,
                 'next_action' => $suggestedQuestions !== [] ? 'await_follow_up' : 'complete',
                 'case_state' => $conversation->case_state,
                 'evidence' => [
@@ -464,6 +514,7 @@ class ChildChatService
                     'web_sources' => count($webSources),
                     'used_web_search' => (bool) ($answerResult['used_web_search'] ?? false),
                     'model_knowledge_allowed' => ! $evidenceRequired || $allSources !== [],
+                    'cited_sources' => count($usedSources),
                 ],
             ],
             'model_name' => $answerResult['model'] ?? config('ai.chat_model'),
@@ -558,6 +609,7 @@ class ChildChatService
     private function retrievalQueries(string $message, array $suggestedQueries = []): array
     {
         $maxQuestions = max(1, (int) config('ai.max_questions_per_message', 4));
+        $message = trim($message);
         $suggestedQueries = array_values(array_filter(
             array_map(
                 fn ($query): string => is_string($query) ? trim($query) : '',
@@ -565,18 +617,25 @@ class ChildChatService
             ),
             fn (string $query): bool => $query !== ''
         ));
-        if ($suggestedQueries !== []) {
-            return array_slice($suggestedQueries, 0, $maxQuestions);
-        }
-
-        $normalized = preg_replace('/([?؟])(?=\p{L})/u', '$1 ', trim($message)) ?? trim($message);
+        $normalized = preg_replace('/([?؟])(?=\p{L})/u', '$1 ', $message) ?? $message;
         $parts = preg_split('/(?<=[?؟])\s+/u', $normalized, $maxQuestions) ?: [];
         $parts = array_values(array_filter(
             array_map('trim', $parts),
             fn (string $part): bool => $part !== ''
         ));
 
-        return $parts !== [] ? $parts : [trim($message)];
+        // Keep the caregiver's original language for multilingual semantic and
+        // lexical retrieval, then add the planner's normalized English queries.
+        $queries = collect([
+            $message,
+            ...($suggestedQueries !== [] ? $suggestedQueries : $parts),
+        ])->filter(fn (string $query): bool => $query !== '')
+            ->unique(fn (string $query): string => mb_strtolower($query))
+            ->take($maxQuestions)
+            ->values()
+            ->all();
+
+        return $queries !== [] ? $queries : [$message];
     }
 
     private function serviceUnavailableException(
@@ -686,7 +745,17 @@ class ChildChatService
             $label = $source['source_label'] ?? $source['label'] ?? 'SOURCE';
             $lines = [];
 
-            foreach (['title' => 'Title', 'url' => 'URL'] as $key => $labelText) {
+            foreach ([
+                'title' => 'Title',
+                'url' => 'URL',
+                'publisher' => 'Publisher',
+                'evidence_level' => 'Evidence level',
+                'language' => 'Language',
+                'published_at' => 'Published',
+                'reviewed_at' => 'Reviewed',
+                'age_min_months' => 'Minimum age (months)',
+                'age_max_months' => 'Maximum age (months)',
+            ] as $key => $labelText) {
                 if (! empty($source[$key])) {
                     $lines[] = $labelText.': '.$source[$key];
                 }
@@ -767,7 +836,7 @@ class ChildChatService
             'age_months' => is_numeric($ageMonths) ? max(0, (int) $ageMonths) : null,
             'domain' => $turnPlan['domain'] ?? null,
             'topics' => [$turnPlan['domain'] ?? null],
-            'problem_types' => array_values($turnPlan['missing_fields'] ?? []),
+            'problem_types' => array_values($turnPlan['problem_types'] ?? []),
             'language' => $language,
         ], fn ($value): bool => $value !== null && $value !== [] && $value !== '');
     }
@@ -785,7 +854,74 @@ class ChildChatService
             return (bool) ($turnPlan['web_search_needed'] ?? false);
         }
 
-        return true;
+        if (($turnPlan['web_search_needed'] ?? false) === true || ($turnPlan['risk_level'] ?? null) === 'high') {
+            return true;
+        }
+
+        if ($knowledgeSources === []) {
+            return true;
+        }
+
+        $bestScore = collect($knowledgeSources)->max(function (array $source): float {
+            return (float) ($source['retrieval_score'] ?? $source['similarity'] ?? 0.0);
+        });
+
+        return $bestScore < (float) config('ai.web_search_internal_confidence_threshold', 0.68);
+    }
+
+    private function selectContextSources(array $sources): array
+    {
+        $limit = max(1, (int) config('ai.max_context_chunks', 12));
+        $sources = collect($sources)->filter(fn ($source): bool => is_array($source));
+        $types = ['chat_attachment', 'knowledge_base', 'web', 'medical_reference'];
+        $selected = collect();
+
+        foreach ($types as $type) {
+            $typeLimit = match ($type) {
+                'chat_attachment' => min(4, $limit),
+                'knowledge_base' => min(6, (int) config('ai.max_knowledge_chunks', 8), $limit),
+                'web' => min(3, $limit),
+                default => min(1, $limit),
+            };
+            $selected = $selected->concat(
+                $sources->where('source_type', $type)->take($typeLimit)
+            );
+        }
+
+        $selected = $selected->concat(
+            $sources->reject(fn (array $source): bool => in_array($source['source_type'] ?? null, $types, true))
+        );
+
+        // Fill any remaining budget with lower-ranked items from the original
+        // retrieval order after every evidence type had a chance to appear.
+        $selected = $selected->concat($sources);
+
+        return array_slice($this->mergeUniqueSources($selected->values()->all()), 0, $limit);
+    }
+
+    private function sourcesUsedInReply(array $sources, string $reply, bool $evidenceRequired): array
+    {
+        preg_match_all('/\[((?:CHAT|KB|WEB|MED)_SOURCE_\d+)\]/', $reply, $matches);
+        $labels = array_unique($matches[1] ?? []);
+        $used = collect($sources)->filter(function ($source) use ($labels, $reply): bool {
+            if (! is_array($source)) {
+                return false;
+            }
+
+            $label = (string) ($source['source_label'] ?? '');
+            $url = trim((string) ($source['url'] ?? ''));
+
+            return ($label !== '' && in_array($label, $labels, true))
+                || ($url !== '' && str_contains($reply, $url));
+        })->values()->all();
+
+        if ($used !== [] || ! $evidenceRequired) {
+            return $used;
+        }
+
+        // Backward-compatible fallback for a valid answer produced by a
+        // provider that omitted inline annotation data.
+        return array_slice($sources, 0, min(3, count($sources)));
     }
 
     private function normalizeProviderWebSources(array $sources, int $existingWebCount): array

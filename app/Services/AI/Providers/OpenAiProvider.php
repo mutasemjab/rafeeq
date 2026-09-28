@@ -93,15 +93,23 @@ class OpenAiProvider implements LlmProviderInterface
                 'message' => $exception->getMessage(),
             ]);
 
-            if (! config('ai.openai_responses_fail_open', true)) {
+            // A required web lookup is part of the evidence contract. Silently
+            // falling back to an answer without that lookup would make a
+            // time-sensitive or weak-evidence answer look fully verified.
+            if ($webSearchRequired || ! config('ai.openai_responses_fail_open', true)) {
                 throw $exception;
             }
         }
 
-        $model = (string) ($options['model'] ?? config('ai.chat_model'));
+        $model = (string) ($options['model'] ?? config('ai.answer_model', config('ai.chat_model')));
+        $fallbackOptions = array_merge([
+            'model' => $model,
+            'reasoning_effort' => (string) config('ai.answer_reasoning_effort', 'medium'),
+            'max_completion_tokens' => (int) config('ai.answer_max_output_tokens', 1400),
+        ], $options);
 
         return [
-            'content' => $this->chat($messages, $options),
+            'content' => $this->chat($messages, $fallbackOptions),
             'sources' => [],
             'model' => $model,
             'used_web_search' => false,
@@ -241,7 +249,7 @@ class OpenAiProvider implements LlmProviderInterface
             'instructions' => $instructions,
             'input' => $input,
             'store' => false,
-            'max_output_tokens' => (int) config('ai.chat_max_completion_tokens', 900),
+            'max_output_tokens' => (int) config('ai.answer_max_output_tokens', 1400),
         ];
 
         if ($webSearch) {
@@ -288,14 +296,15 @@ class OpenAiProvider implements LlmProviderInterface
 
         $data = $response->json();
         $content = '';
-        $sources = [];
+        $discoveredSources = [];
+        $citedSources = [];
         $usedWebSearch = false;
 
         foreach ((array) ($data['output'] ?? []) as $item) {
             if (($item['type'] ?? null) === 'web_search_call') {
                 $usedWebSearch = true;
                 foreach ((array) data_get($item, 'action.sources', []) as $source) {
-                    $this->addWebSource($sources, $source);
+                    $this->addWebSource($discoveredSources, $source);
                 }
             }
 
@@ -311,7 +320,7 @@ class OpenAiProvider implements LlmProviderInterface
                 $content .= (string) ($part['text'] ?? '');
                 foreach ((array) ($part['annotations'] ?? []) as $annotation) {
                     if (($annotation['type'] ?? null) === 'url_citation') {
-                        $this->addWebSource($sources, $annotation);
+                        $this->addWebSource($citedSources, $annotation);
                     }
                 }
             }
@@ -322,7 +331,9 @@ class OpenAiProvider implements LlmProviderInterface
             throw new RuntimeException('OpenAI Responses returned an empty answer.');
         }
 
-        $sources = array_values($sources);
+        // Return citations actually used in the answer. Search-result sources
+        // are only a fallback for providers that omit URL annotations.
+        $sources = array_values($citedSources !== [] ? $citedSources : $discoveredSources);
         foreach ($sources as $index => &$source) {
             $source['source_label'] = 'WEB_SOURCE_'.($index + 1);
         }

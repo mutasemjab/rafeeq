@@ -21,7 +21,8 @@ return [
     'chat_reasoning_effort' => env('AI_CHAT_REASONING_EFFORT', 'none'),
     'chat_max_completion_tokens' => (int) env('AI_CHAT_MAX_COMPLETION_TOKENS', 900),
     'answer_model' => env('AI_ANSWER_MODEL', env('AI_WEB_ANSWER_MODEL', 'gpt-6-astra')),
-    'answer_reasoning_effort' => env('AI_ANSWER_REASONING_EFFORT', env('AI_WEB_ANSWER_REASONING_EFFORT', 'low')),
+    'answer_reasoning_effort' => env('AI_ANSWER_REASONING_EFFORT', env('AI_WEB_ANSWER_REASONING_EFFORT', 'medium')),
+    'answer_max_output_tokens' => (int) env('AI_ANSWER_MAX_OUTPUT_TOKENS', 1400),
     'embedding_model' => env('AI_EMBEDDING_MODEL', 'text-embedding-3-large'),
     'embedding_dimensions' => (int) env('AI_EMBEDDING_DIMENSIONS', 1536),
     'embedding_batch_size' => (int) env('AI_EMBEDDING_BATCH_SIZE', 64),
@@ -54,6 +55,7 @@ return [
     */
     'document_similarity_threshold' => (float) env('AI_DOCUMENT_SIMILARITY_THRESHOLD', 0.50),
     'require_retrieved_evidence' => (bool) env('AI_REQUIRE_RETRIEVED_EVIDENCE', true),
+    'web_search_internal_confidence_threshold' => (float) env('AI_WEB_SEARCH_INTERNAL_CONFIDENCE_THRESHOLD', 0.68),
 
     'max_chat_attachment_chunks' => (int) env('AI_MAX_CHAT_ATTACHMENT_CHUNKS', 6),
     'max_knowledge_chunks' => (int) env('AI_MAX_KNOWLEDGE_CHUNKS', 8),
@@ -86,6 +88,10 @@ return [
     'follow_up_model' => env('AI_FOLLOW_UP_MODEL', env('AI_TURN_PLANNER_MODEL', env('AI_CHAT_MODEL', 'gpt-5.6-luna'))),
     'follow_up_reasoning_effort' => env('AI_FOLLOW_UP_REASONING_EFFORT', 'none'),
     'follow_up_max_completion_tokens' => (int) env('AI_FOLLOW_UP_MAX_COMPLETION_TOKENS', 320),
+    'answer_quality_gate_enabled' => (bool) env('AI_ANSWER_QUALITY_GATE_ENABLED', true),
+    'answer_quality_model' => env('AI_ANSWER_QUALITY_MODEL', env('AI_ANSWER_MODEL', 'gpt-6-astra')),
+    'answer_quality_reasoning_effort' => env('AI_ANSWER_QUALITY_REASONING_EFFORT', 'low'),
+    'answer_quality_max_completion_tokens' => (int) env('AI_ANSWER_QUALITY_MAX_COMPLETION_TOKENS', 1800),
 
     'safety_messages' => [
         'emergency' => [
@@ -143,7 +149,7 @@ return [
         'trim',
         explode(',', (string) env(
             'AI_OPENAI_WEB_SEARCH_ALLOWED_DOMAINS',
-            'who.int,cdc.gov,nih.gov,medlineplus.gov,nhs.uk,aap.org,healthychildren.org,asha.org,unicef.org,autism.org.uk'
+            'who.int,cdc.gov,nih.gov,pubmed.ncbi.nlm.nih.gov,medlineplus.gov,nhs.uk,nice.org.uk,aap.org,healthychildren.org,asha.org,aota.org,apta.org,unicef.org,autism.org.uk'
         ))
     ))),
 
@@ -219,10 +225,12 @@ Specialist conversation style:
 - Separate clearly: what the caregiver reported, what the sources say generally, and what is only a cautious working interpretation.
 - Use natural, warm language that matches the caregiver's language and register. In Arabic, use clear conversational Arabic that feels human and respectful; do not sound like a translated textbook, questionnaire, or call-center script.
 - Explain the reasoning briefly: why the proposed first step fits the pattern described. Do not expose internal chain-of-thought or hidden analysis.
+- For a child-specific concern, form a compact expert working formulation before answering: the observable pattern, one cautious source-backed explanation, the decision this explanation changes, and the smallest measurable trial. Express the result naturally rather than naming this framework.
 - Give one main priority and at most two supporting actions. Make each action concrete: when to do it, how to do it, and what observable result to watch.
 - Treat the caregiver as a partner who knows the child. Do not lecture, blame, exaggerate certainty, or overwhelm with long lists.
 - Refer naturally to the child's known age, communication style, setting, trigger, goal, or prior response when relevant. Never invent a personal detail.
 - When a hypothesis is useful, label it as a possibility and name the observation that would support or weaken it.
+- When the caregiver reports an outcome after trying a step, compare it with the earlier baseline, explain what the change suggests without overstating causality, and decide whether to continue, adjust, or escalate.
 - Avoid repetitive disclaimers and boilerplate. Include safety or professional-referral language only when relevant, and make it specific to the concern.
 - End the substantive answer cleanly. The application separately adds one case-specific follow-up question.
 
@@ -260,6 +268,8 @@ Core rules:
 31. Do not restate the entire history. Select only the details that matter to the current decision.
 32. Do not present a checklist unless the caregiver explicitly asks for one. Prefer a short narrative explanation followed by the prioritized action.
 33. A useful response should leave the caregiver knowing what to do first, what to observe, and when the result should be reviewed.
+34. Do not give disconnected tips. Every recommended step must connect to a reported pattern, a cited general principle, or an explicit goal.
+35. When discussing a possible diagnosis, explain what the reported sign can and cannot establish, what broader pattern matters, and when a qualified assessment is appropriate.
 PROMPT,
 
 ];

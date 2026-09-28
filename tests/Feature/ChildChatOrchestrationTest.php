@@ -198,7 +198,7 @@ class ChildChatOrchestrationTest extends TestCase
             fn (array $messages, array $options): bool => ($options['web_search'] ?? false) === true
                 && ($options['web_search_required'] ?? false) === true
         )->andReturn([
-            'content' => 'ابدئي بخطوة بسيطة ومحددة.',
+            'content' => 'ابدئي بخطوة بسيطة ومحددة [KB_SOURCE_1] [WEB_SOURCE_1].',
             'sources' => $providerSources,
             'model' => 'answer-model',
             'used_web_search' => true,
@@ -210,7 +210,7 @@ class ChildChatOrchestrationTest extends TestCase
             'source_type' => 'knowledge_base',
             'chunk_id' => 1,
             'content' => 'Use one observable first step.',
-            'similarity' => 0.9,
+            'similarity' => 0.55,
         ]]);
         $dependencies['web']->shouldReceive('search')->never();
         $dependencies['follow_up']->shouldReceive('suggest')->once()->andReturn([
@@ -246,7 +246,7 @@ class ChildChatOrchestrationTest extends TestCase
             ['internal_knowledge', 'hosted_web'],
             $reply->metadata['evidence']['search_order']
         );
-        $this->assertCount(6, collect($reply->sources)->where('source_type', 'web'));
+        $this->assertCount(1, collect($reply->sources)->where('source_type', 'web'));
         $this->assertDatabaseHas('child_memories', [
             'child_id' => $child->id,
             'memory_key' => 'communication.primary_language',

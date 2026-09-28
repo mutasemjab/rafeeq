@@ -1,0 +1,53 @@
+[
+  {
+    "id": "behavior_screen_transition_ar",
+    "language": "ar",
+    "message": "ابني عمره خمس سنوات. يصرخ عندما أوقف الجهاز، ثم أعيده له فيهدأ. يحدث هذا يوميًا ولا يؤذي نفسه. ماذا أفعل؟",
+    "minimum_score": 0.78,
+    "child_context": {"profile": {"age_months": 60}, "memories": []},
+    "turn_plan": {
+      "action": "answer",
+      "domain": "child_behavior",
+      "case_specific": true,
+      "information_sufficient": true,
+      "known_facts": ["العمر خمس سنوات", "الصراخ يبدأ عند إيقاف الجهاز", "إعادة الجهاز تهدئ الصراخ", "لا يوجد أذى للنفس"],
+      "risk_level": "low",
+      "evidence_required": true
+    },
+    "source_context": "[KB_SOURCE_1]\nTitle: Transition support guide\nPublisher: Approved Rafiq clinical team\nEvidence level: professional_guideline\nContent: Use predictable transition warnings, a clear next activity, brief calm language, and consistent follow-through. Measure duration and recovery across several comparable transitions."
+  },
+  {
+    "id": "speech_expression_ar",
+    "language": "ar",
+    "message": "بنتي عمرها ثلاث سنوات تفهم الأوامر البسيطة وتطلب الأشياء بالإشارة لكنها تستخدم كلمتين فقط.",
+    "minimum_score": 0.75,
+    "child_context": {"profile": {"age_months": 36}, "memories": []},
+    "turn_plan": {
+      "action": "answer",
+      "domain": "speech_language",
+      "case_specific": true,
+      "information_sufficient": true,
+      "known_facts": ["العمر ثلاث سنوات", "تفهم أوامر بسيطة", "تطلب بالإشارة", "تستخدم كلمتين"],
+      "risk_level": "moderate",
+      "evidence_required": true
+    },
+    "source_context": "[KB_SOURCE_1]\nTitle: Early communication support\nPublisher: Approved speech-language team\nEvidence level: professional_guideline\nContent: Model short functional words during motivating routines, accept gestures while pairing them with language, avoid pressuring repetition, and recommend hearing and speech-language assessment when expressive communication is substantially limited for age."
+  },
+  {
+    "id": "follow_up_measured_outcome_ar",
+    "language": "ar",
+    "message": "جربنا الجدول البصري خمسة أيام وانخفض الصراخ من ست مرات إلى مرتين يوميًا.",
+    "minimum_score": 0.78,
+    "child_context": {"profile": {"age_months": 60}, "memories": []},
+    "turn_plan": {
+      "action": "answer",
+      "domain": "child_behavior",
+      "case_specific": true,
+      "information_sufficient": true,
+      "known_facts": ["تم استخدام جدول بصري خمسة أيام", "انخفض الصراخ من ست مرات إلى مرتين يوميًا"],
+      "risk_level": "low",
+      "evidence_required": true
+    },
+    "source_context": "[KB_SOURCE_1]\nTitle: Monitoring behavior support\nPublisher: Approved Rafiq clinical team\nEvidence level: professional_guideline\nContent: Compare a defined baseline with repeated observations after an intervention. A meaningful improvement supports continuing the strategy while checking consistency across settings before adding complexity."
+  }
+]

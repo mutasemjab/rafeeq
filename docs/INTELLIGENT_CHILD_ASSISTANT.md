@@ -15,8 +15,10 @@ Every message follows this ordered pipeline:
 9. Decide whether authoritative web search is needed. Web results are restricted to configured domains.
 10. Apply the evidence gate. High-impact child guidance is not generated without retrieved evidence.
 11. Send the turn plan, child context, and retrieved evidence to the final answer model through the OpenAI Responses API.
-12. Generate one useful next question, persist the case state, and return both visible text and structured follow-up data.
-13. On later turns, re-plan the case using the answer, the new observation, and the saved child state.
+12. Run the final answer through a structured specialist-quality gate that approves, revises, or rejects unsupported content.
+13. Keep only sources actually cited by the final answer in the user-visible source list.
+14. Generate one useful next question, persist the case state, and return both visible text and structured follow-up data.
+15. On later turns, re-plan the case using the answer, the new observation, and the saved child state.
 
 The user-visible pattern is therefore:
 
@@ -70,11 +72,16 @@ OPENAI_API_KEY=...
 AI_PROVIDER=openai
 AI_CHAT_MODEL=gpt-5.6-luna
 AI_ANSWER_MODEL=gpt-6-astra
-AI_ANSWER_REASONING_EFFORT=low
+AI_ANSWER_REASONING_EFFORT=medium
+AI_ANSWER_MAX_OUTPUT_TOKENS=1400
+AI_ANSWER_QUALITY_GATE_ENABLED=true
+AI_ANSWER_QUALITY_MODEL=gpt-6-astra
+AI_ANSWER_QUALITY_REASONING_EFFORT=low
 AI_REQUIRE_RETRIEVED_EVIDENCE=true
 AI_OPENAI_WEB_SEARCH_ENABLED=true
 AI_OPENAI_RESPONSES_FAIL_OPEN=true
-AI_OPENAI_WEB_SEARCH_ALLOWED_DOMAINS=who.int,cdc.gov,nih.gov,medlineplus.gov,nhs.uk,aap.org,healthychildren.org,asha.org,unicef.org,autism.org.uk
+AI_WEB_SEARCH_INTERNAL_CONFIDENCE_THRESHOLD=0.68
+AI_OPENAI_WEB_SEARCH_ALLOWED_DOMAINS=who.int,cdc.gov,nih.gov,pubmed.ncbi.nlm.nih.gov,medlineplus.gov,nhs.uk,nice.org.uk,aap.org,healthychildren.org,asha.org,aota.org,apta.org,unicef.org,autism.org.uk
 AI_MEMORY_MINIMUM_CONFIDENCE=0.78
 ```
 
@@ -100,8 +107,9 @@ Run the automated suite and the scenario evaluator before release:
 vendor/bin/phpunit
 php artisan ai:evaluate-child-assistant --json
 php artisan ai:evaluate-child-assistant --live --json
+php artisan ai:evaluate-answer-quality --live --json
 ```
 
-The offline evaluator covers deterministic emergency behavior. Live mode evaluates model-dependent clarification, domain, non-diagnosis, behavior ABC, and follow-up cases. Add anonymized real failure cases to `resources/ai/evals/child_assistant_cases.json` before changing prompts or models.
+The offline evaluator covers deterministic emergency behavior. Live mode evaluates model-dependent clarification, domain, non-diagnosis, behavior ABC, and follow-up cases. The answer-quality evaluator generates complete answers and grades specificity, grounding, practicality, professional tone, calibration, and citations. Add anonymized real failure cases to both evaluation datasets before changing prompts or models.
 
 Monitor at least: escalation rate, unsupported-answer rate, retrieval hit rate, web-search rate, repeated-question rate, memory correction rate, source coverage, response latency, model failures, and caregiver feedback. Do not log raw child content in analytics.
