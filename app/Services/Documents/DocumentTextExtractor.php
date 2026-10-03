@@ -17,24 +17,27 @@ class DocumentTextExtractor
 {
     private const CACHE_VERSION = 4;
 
-    public function extractFromStoragePath(string $filePath, ?string $mimeType = null): array
+    public function extractFromStoragePath(string $filePath, ?string $mimeType = null, bool $useCache = true): array
     {
-        return $this->extractFromAbsolutePath(Storage::path($filePath), $mimeType);
+        return $this->extractFromAbsolutePath(Storage::path($filePath), $mimeType, $useCache);
     }
 
     /**
      * @return array<int, array{page: int|null, text: string}>
      */
-    public function extractFromAbsolutePath(string $absolutePath, ?string $mimeType = null): array
+    public function extractFromAbsolutePath(string $absolutePath, ?string $mimeType = null, bool $useCache = true): array
     {
-        if (!is_file($absolutePath) || !is_readable($absolutePath)) {
+        if (! is_file($absolutePath) || ! is_readable($absolutePath)) {
             throw new RuntimeException("File not found or unreadable: {$absolutePath}");
         }
 
         $extension = strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION));
         $mimeType = strtolower((string) ($mimeType ?? mime_content_type($absolutePath) ?: ''));
 
-        $cachePath = $this->extractionCachePath($absolutePath);
+        // Private case files must not outlive account deletion in the shared
+        // knowledge cache. Callers opt out per extraction, without changing
+        // process-wide configuration used by other jobs.
+        $cachePath = $useCache ? $this->extractionCachePath($absolutePath) : null;
         if ($cachePath !== null && is_file($cachePath)) {
             $cached = json_decode((string) file_get_contents($cachePath), true);
             if (
@@ -58,8 +61,7 @@ class DocumentTextExtractor
             'xlsx' => $this->extractXlsx($absolutePath),
             'xls' => $this->extractLegacySpreadsheet($absolutePath),
             'jpg', 'jpeg', 'png', 'webp', 'tif', 'tiff' => $this->extractImage($absolutePath),
-            'mp3', 'm4a', 'wav', 'mp4', 'mov', 'm4v', 'avi', 'flv' =>
-                app(MediaTranscriber::class)->transcribe($absolutePath),
+            'mp3', 'm4a', 'wav', 'mp4', 'mov', 'm4v', 'avi', 'flv' => app(MediaTranscriber::class)->transcribe($absolutePath),
             default => throw new RuntimeException(
                 "Unsupported file type for text extraction: {$extension} ({$mimeType})"
             ),
@@ -67,7 +69,7 @@ class DocumentTextExtractor
 
         if ($cachePath !== null && $this->hasMeaningfulText($pages)) {
             $directory = dirname($cachePath);
-            if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+            if (! is_dir($directory) && ! mkdir($directory, 0775, true) && ! is_dir($directory)) {
                 throw new RuntimeException('Unable to create the extraction cache directory.');
             }
             file_put_contents($cachePath, json_encode([
@@ -107,15 +109,15 @@ class DocumentTextExtractor
     private function extractPdf(string $path): array
     {
         $strategies = [
-            'pdftotext' => fn(): array => $this->extractPdfWithPdftotext($path),
+            'pdftotext' => fn (): array => $this->extractPdfWithPdftotext($path),
         ];
 
         if ((filesize($path) ?: PHP_INT_MAX) <= (int) config('ai.pdf_parser_max_bytes', 15 * 1024 * 1024)) {
-            $strategies['pdf_parser'] = fn(): array => $this->extractPdfWithParser($path);
+            $strategies['pdf_parser'] = fn (): array => $this->extractPdfWithParser($path);
         }
 
-        $strategies['ocr'] = fn(): array => $this->extractPdfWithOcr($path);
-        $strategies['vision'] = fn(): array => $this->extractPdfWithVision($path);
+        $strategies['ocr'] = fn (): array => $this->extractPdfWithOcr($path);
+        $strategies['vision'] = fn (): array => $this->extractPdfWithVision($path);
 
         foreach ($strategies as $name => $strategy) {
             try {
@@ -146,7 +148,7 @@ class DocumentTextExtractor
 
     protected function extractPdfWithPdftotext(string $path): array
     {
-        if (!$this->commandExists('pdftotext')) {
+        if (! $this->commandExists('pdftotext')) {
             return [];
         }
 
@@ -164,7 +166,7 @@ class DocumentTextExtractor
 
     protected function extractPdfWithParser(string $path): array
     {
-        if (!class_exists(Parser::class)) {
+        if (! class_exists(Parser::class)) {
             return [];
         }
 
@@ -183,7 +185,7 @@ class DocumentTextExtractor
 
     protected function extractPdfWithOcr(string $path): array
     {
-        if (!$this->commandExists('gs') || !$this->commandExists('tesseract')) {
+        if (! $this->commandExists('gs') || ! $this->commandExists('tesseract')) {
             return [];
         }
 
@@ -218,7 +220,7 @@ class DocumentTextExtractor
                     $path,
                 ], false);
 
-                if (!is_file($image)) {
+                if (! is_file($image)) {
                     continue;
                 }
 
@@ -237,7 +239,7 @@ class DocumentTextExtractor
 
     protected function extractPdfWithVision(string $path, ?array $selectedPages = null): array
     {
-        if (!$this->commandExists('gs')) {
+        if (! $this->commandExists('gs')) {
             return [];
         }
 
@@ -279,7 +281,7 @@ class DocumentTextExtractor
                     $path,
                 ], false);
 
-                if (!is_file($image)) {
+                if (! is_file($image)) {
                     continue;
                 }
 
@@ -305,6 +307,7 @@ class DocumentTextExtractor
 
         if ($this->commandExists('textutil')) {
             $text = $this->runCommand(['textutil', '-convert', 'txt', '-stdout', $path], false);
+
             return $this->requireText([['page' => 1, 'text' => $this->normalize((string) $text)]], 'DOCX');
         }
 
@@ -357,7 +360,7 @@ class DocumentTextExtractor
             ['antiword', $path],
             ['catdoc', '-d', 'utf-8', $path],
         ] as $command) {
-            if (!$this->commandExists($command[0])) {
+            if (! $this->commandExists($command[0])) {
                 continue;
             }
 
@@ -370,8 +373,7 @@ class DocumentTextExtractor
 
         if ($this->commandExists('soffice')) {
             try {
-                return $this->convertWithLibreOffice($path, 'pdf', 'pdf', fn(string $converted): array =>
-                    $this->extractPdf($converted)
+                return $this->convertWithLibreOffice($path, 'pdf', 'pdf', fn (string $converted): array => $this->extractPdf($converted)
                 );
             } catch (Throwable $exception) {
                 Log::warning('knowledge.extractor.legacy_doc_libreoffice_failed', [
@@ -432,8 +434,7 @@ class DocumentTextExtractor
             return $pages;
         }
 
-        return $this->convertWithLibreOffice($path, 'pdf', 'pdf', fn(string $converted): array =>
-            $this->extractPdf($converted)
+        return $this->convertWithLibreOffice($path, 'pdf', 'pdf', fn (string $converted): array => $this->extractPdf($converted)
         );
     }
 
@@ -445,14 +446,13 @@ class DocumentTextExtractor
             );
         }
 
-        return $this->convertWithLibreOffice($path, 'pptx', 'pptx', fn(string $converted): array =>
-            $this->extractPptx($converted)
+        return $this->convertWithLibreOffice($path, 'pptx', 'pptx', fn (string $converted): array => $this->extractPptx($converted)
         );
     }
 
     private function enrichSparsePdfPages(string $path, array $pages): array
     {
-        if (!config('ai.document_vision_fill_sparse_pages', true) || !$this->commandExists('gs')) {
+        if (! config('ai.document_vision_fill_sparse_pages', true) || ! $this->commandExists('gs')) {
             return $pages;
         }
 
@@ -482,6 +482,7 @@ class DocumentTextExtractor
 
         if ($sparsePages === []) {
             ksort($byPage);
+
             return array_values($byPage);
         }
 
@@ -509,8 +510,8 @@ class DocumentTextExtractor
         }
 
         ksort($byPage);
-        return array_values(array_filter($byPage, fn(array $page): bool =>
-            trim((string) ($page['text'] ?? '')) !== ''
+
+        return array_values(array_filter($byPage, fn (array $page): bool => trim((string) ($page['text'] ?? '')) !== ''
         ));
     }
 
@@ -546,7 +547,7 @@ class DocumentTextExtractor
 
         foreach ($sheets as $sheetNumber => $entry) {
             $xml = $zip->getFromName($entry);
-            if (!is_string($xml)) {
+            if (! is_string($xml)) {
                 continue;
             }
 
@@ -590,8 +591,7 @@ class DocumentTextExtractor
 
     private function extractLegacySpreadsheet(string $path): array
     {
-        return $this->convertWithLibreOffice($path, 'xlsx', 'xlsx', fn(string $converted): array =>
-            $this->extractXlsx($converted)
+        return $this->convertWithLibreOffice($path, 'xlsx', 'xlsx', fn (string $converted): array => $this->extractXlsx($converted)
         );
     }
 
@@ -612,7 +612,7 @@ class DocumentTextExtractor
 
     protected function ocrImage(string $path): string
     {
-        if (!$this->commandExists('tesseract')) {
+        if (! $this->commandExists('tesseract')) {
             throw new RuntimeException('Tesseract is required for image and scanned-PDF OCR.');
         }
 
@@ -633,7 +633,7 @@ class DocumentTextExtractor
         string $extension,
         callable $extractor
     ): array {
-        if (!$this->commandExists('soffice')) {
+        if (! $this->commandExists('soffice')) {
             throw new RuntimeException(
                 'LibreOffice (soffice) is required for legacy DOC/PPT/XLS conversion.'
             );
@@ -707,7 +707,7 @@ class DocumentTextExtractor
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
-        if (!$loaded) {
+        if (! $loaded) {
             throw new RuntimeException('Unable to parse document XML.');
         }
 
@@ -716,7 +716,7 @@ class DocumentTextExtractor
 
     private function openZip(string $path, string $type): ZipArchive
     {
-        if (!class_exists(ZipArchive::class)) {
+        if (! class_exists(ZipArchive::class)) {
             throw new RuntimeException("The PHP zip extension is required for {$type} extraction.");
         }
 
@@ -724,6 +724,7 @@ class DocumentTextExtractor
         if ($zip->open($path) !== true) {
             throw new RuntimeException("Unable to open {$type} file.");
         }
+
         return $zip;
     }
 
@@ -736,25 +737,26 @@ class DocumentTextExtractor
                 $pages[] = ['page' => $index + 1, 'text' => $normalized];
             }
         }
+
         return $pages;
     }
 
     private function pdfPageCount(string $path): int
     {
-        if (!$this->commandExists('pdfinfo')) {
+        if (! $this->commandExists('pdfinfo')) {
             return 0;
         }
         $output = (string) $this->runCommand(['pdfinfo', $path], false);
+
         return preg_match('/^Pages:\s+(\d+)/mi', $output, $matches) ? (int) $matches[1] : 0;
     }
 
     private function requireText(array $pages, string $type): array
     {
-        $pages = array_values(array_filter($pages, fn(array $page): bool =>
-            trim((string) ($page['text'] ?? '')) !== ''
+        $pages = array_values(array_filter($pages, fn (array $page): bool => trim((string) ($page['text'] ?? '')) !== ''
         ));
 
-        if (!$this->hasMeaningfulText($pages)) {
+        if (! $this->hasMeaningfulText($pages)) {
             throw new RuntimeException("{$type} extraction produced no usable text.");
         }
 
@@ -764,9 +766,10 @@ class DocumentTextExtractor
     private function hasMeaningfulText(array $pages): bool
     {
         $text = trim(implode(' ', array_map(
-            fn(array $page): string => (string) ($page['text'] ?? ''),
+            fn (array $page): string => (string) ($page['text'] ?? ''),
             $pages
         )));
+
         return mb_strlen(preg_replace('/\s+/u', '', $text) ?? $text) >= 3;
     }
 
@@ -786,7 +789,7 @@ class DocumentTextExtractor
         $process->setTimeout(max(30, (int) config('ai.document_extraction_command_timeout', 900)));
         $process->run();
 
-        if ($throwOnFailure && !$process->isSuccessful()) {
+        if ($throwOnFailure && ! $process->isSuccessful()) {
             throw new RuntimeException(trim($process->getErrorOutput()) ?: 'Document conversion command failed.');
         }
 
@@ -796,19 +799,20 @@ class DocumentTextExtractor
     private function makeTempDirectory(string $prefix): string
     {
         $base = storage_path('app/knowledge-tmp');
-        if (!is_dir($base) && !mkdir($base, 0775, true) && !is_dir($base)) {
+        if (! is_dir($base) && ! mkdir($base, 0775, true) && ! is_dir($base)) {
             throw new RuntimeException('Unable to create the knowledge temporary directory.');
         }
         $path = $base.DIRECTORY_SEPARATOR.$prefix.'-'.bin2hex(random_bytes(8));
-        if (!mkdir($path, 0775, true) && !is_dir($path)) {
+        if (! mkdir($path, 0775, true) && ! is_dir($path)) {
             throw new RuntimeException('Unable to create a temporary extraction directory.');
         }
+
         return $path;
     }
 
     private function deleteDirectory(string $directory): void
     {
-        if (!is_dir($directory)) {
+        if (! is_dir($directory)) {
             return;
         }
         foreach (scandir($directory) ?: [] as $item) {
@@ -851,7 +855,7 @@ class DocumentTextExtractor
     {
         $contents = file_get_contents($path);
 
-        if ($contents === false || !str_starts_with($contents, "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1")) {
+        if ($contents === false || ! str_starts_with($contents, "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1")) {
             return false;
         }
 
@@ -867,24 +871,25 @@ class DocumentTextExtractor
 
     private function normalize(string $text): string
     {
-        if (!mb_check_encoding($text, 'UTF-8')) {
+        if (! mb_check_encoding($text, 'UTF-8')) {
             $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8, Windows-1256, Windows-1252, ISO-8859-1');
         }
         $text = str_replace(["\r\n", "\r", "\0"], ["\n", "\n", ''], $text);
         $text = preg_replace('/[\t ]+/u', ' ', $text) ?? $text;
         $text = preg_replace('/ *\n */u', "\n", $text) ?? $text;
         $text = preg_replace('/\n{3,}/u', "\n\n", $text) ?? $text;
+
         return trim($text);
     }
 
     private function extractionCachePath(string $path): ?string
     {
-        if (!config('ai.document_extraction_cache', true)) {
+        if (! config('ai.document_extraction_cache', true)) {
             return null;
         }
 
         $hash = hash_file('sha256', $path);
-        if (!is_string($hash)) {
+        if (! is_string($hash)) {
             return null;
         }
 

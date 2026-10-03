@@ -7,6 +7,8 @@ use App\Services\AI\Providers\OpenAiProvider;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Mockery;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -150,5 +152,50 @@ class OpenAiProviderWebAnswerTest extends TestCase
         (new OpenAiProvider(new OpenAiConfigResolver()))->answer([
             ['role' => 'user', 'content' => 'Current guidance?'],
         ], ['web_search' => true, 'web_search_required' => true]);
+    }
+
+    public function test_request_timing_is_logged_without_child_or_answer_content(): void
+    {
+        Config::set('ai.openai_api_key', 'test-key');
+        Config::set('openai.api_key', 'test-key');
+        Config::set('ai.answer_model', 'test-model');
+        Log::spy();
+        Http::fake([
+            'api.openai.com/v1/responses' => Http::response(['output_text' => 'Private answer content.']),
+        ]);
+
+        (new OpenAiProvider(new OpenAiConfigResolver()))->answer([
+            ['role' => 'user', 'content' => 'Private child content.'],
+        ]);
+
+        Log::shouldHaveReceived('info')->once()->with('ai.provider.request_completed', Mockery::on(
+            fn (array $metadata): bool => $metadata['operation'] === 'responses'
+                && $metadata['model'] === 'test-model'
+                && $metadata['succeeded'] === true
+                && is_int($metadata['duration_ms'])
+                && $metadata['duration_ms'] >= 0
+                && array_keys($metadata) === ['operation', 'model', 'schema', 'duration_ms', 'succeeded']
+        ));
+    }
+
+    public function test_failed_requests_also_record_duration(): void
+    {
+        Config::set('ai.openai_api_key', 'test-key');
+        Config::set('openai.api_key', 'test-key');
+        Log::spy();
+        Http::fake([
+            'api.openai.com/v1/responses' => Http::response(['error' => ['message' => 'Unavailable']], 503),
+        ]);
+
+        try {
+            (new OpenAiProvider(new OpenAiConfigResolver()))->answer([
+                ['role' => 'user', 'content' => 'Question'],
+            ], ['web_search' => true, 'web_search_required' => true]);
+            $this->fail('A required lookup must fail when the provider is unavailable.');
+        } catch (RuntimeException $exception) {
+            Log::shouldHaveReceived('info')->once()->with('ai.provider.request_completed', Mockery::on(
+                fn (array $metadata): bool => $metadata['succeeded'] === false && $metadata['duration_ms'] >= 0
+            ));
+        }
     }
 }

@@ -14,6 +14,7 @@ class Message extends Model
         'user_id',
         'child_id',
         'role',
+        'reply_to_message_id',
         'content',
         'input_type',
         'source_type',
@@ -26,8 +27,8 @@ class Message extends Model
     ];
 
     protected $casts = [
-        'sources'      => 'array',
-        'metadata'     => 'array',
+        'sources' => 'array',
+        'metadata' => 'array',
         'safety_flags' => 'array',
     ];
 

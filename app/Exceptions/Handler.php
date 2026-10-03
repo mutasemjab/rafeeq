@@ -2,8 +2,8 @@
 
 namespace App\Exceptions;
 
-use Illuminate\Auth\AuthenticationException;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Http\JsonResponse;
@@ -36,6 +36,9 @@ class Handler extends ExceptionHandler
 
     public function render($request, Throwable $e): mixed
     {
+        if ($e instanceof \Illuminate\Http\Exceptions\HttpResponseException) {
+            return $e->getResponse();
+        }
         if ($request->is('api/*') || $request->expectsJson()) {
             return $this->handleApiException($request, $e);
         }

@@ -15,14 +15,17 @@ class ChildContextService
      * @param  int       $userId
      * @return array{profile: array|null, memories: array, summary: string|null}
      */
-    public function build(?int $childId, int $userId): array
+    public function build(?int $childId, int $userId, ?Conversation $conversation = null): array
     {
         if (!$childId) {
-            return [
+            $context = [
                 'profile'  => null,
                 'memories' => [],
                 'summary'  => null,
             ];
+            $context['case_brief'] = CaseBriefService::build($context, (array) ($conversation?->case_state ?? []), $conversation?->summary);
+
+            return $context;
         }
 
         $child = Child::where('id', $childId)
@@ -56,10 +59,21 @@ class ChildContextService
             ->filter()
             ->implode("\n");
 
-        return [
+        $previousProgress = Conversation::query()
+            ->where('child_id', $childId)->where('user_id', $userId)
+            ->when($conversation !== null, fn ($query) => $query->where('id', '!=', $conversation->id))
+            ->whereNotNull('case_state')->latest('updated_at')->take(3)->get(['case_state'])
+            ->map(fn (Conversation $item): array => (array) data_get($item->case_state, 'progress', []))
+            ->filter()->values()->all();
+
+        $context = [
             'profile'  => $profile,
             'memories' => $memories->toArray(),
             'summary'  => $longitudinalSummary !== '' ? $longitudinalSummary : null,
+            'previous_progress' => $previousProgress,
         ];
+        $context['case_brief'] = CaseBriefService::build($context, (array) ($conversation?->case_state ?? []), $conversation?->summary);
+
+        return $context;
     }
 }

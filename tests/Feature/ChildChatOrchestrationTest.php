@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Child;
 use App\Models\Conversation;
 use App\Models\User;
+use App\Services\AI\CaseDocumentContextService;
 use App\Services\AI\ChatTurnPlannerService;
 use App\Services\AI\ChildChatService;
 use App\Services\AI\ChildContextService;
@@ -18,6 +19,7 @@ use App\Services\Search\ChatAttachmentSearchService;
 use App\Services\Search\Contracts\WebSearchServiceInterface;
 use App\Services\Search\KnowledgeSearchService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Config;
 use Mockery;
 use Tests\TestCase;
@@ -251,6 +253,155 @@ class ChildChatOrchestrationTest extends TestCase
             'child_id' => $child->id,
             'memory_key' => 'communication.primary_language',
         ]);
+    }
+
+    public function test_nonurgent_referral_uses_case_context_and_generates_helpful_response_without_medical_evidence(): void
+    {
+        Config::set('ai.require_retrieved_evidence', true);
+        Config::set('ai.openai_web_search_enabled', false);
+        Config::set('ai.web_search_enabled', false);
+        $user = User::factory()->create();
+        $child = Child::factory()->create(['user_id' => $user->id, 'diagnosis' => 'Reported autism']);
+        $conversation = Conversation::factory()->create(['user_id' => $user->id, 'child_id' => $child->id]);
+        $dependencies = $this->baseDependencies();
+        $documents = ['attachments' => [['status' => 'processed', 'excerpts' => ['Reported diagnosis: autism; age: 3.']]], 'child_documents' => []];
+        $caseDocuments = Mockery::mock(CaseDocumentContextService::class);
+        $caseDocuments->shouldReceive('build')->once()->with($user->id, Mockery::type(Conversation::class), $child->id)->andReturn($documents);
+        $this->app->instance(CaseDocumentContextService::class, $caseDocuments);
+        $dependencies['safety']->shouldReceive('evaluate')->once()->andReturn($this->routineSafety());
+        $dependencies['guard']->shouldReceive('evaluate')->once()->andReturn($this->allowedDomain());
+        $dependencies['context']->shouldReceive('build')->once()->andReturn(['profile' => ['age' => 3, 'diagnosis' => 'Reported autism'], 'memories' => []]);
+        $plan = array_merge($this->answerPlan(), ['action' => 'refer_to_specialist', 'information_sufficient' => false, 'follow_up_needed' => false]);
+        $dependencies['planner']->shouldReceive('plan')->once()->withArgs(
+            fn ($message, $context): bool => $context['documents'] === $documents
+        )->andReturn($plan);
+        $dependencies['llm']->shouldReceive('embeddingMany')->once()->andReturn([[1.0, 0.0]]);
+        $dependencies['attachments']->shouldReceive('searchWithEmbeddings')->once()->andReturn([]);
+        $dependencies['knowledge']->shouldReceive('searchForCase')->once()->andReturn([]);
+        $dependencies['llm']->shouldReceive('answer')->once()->withArgs(function (array $messages): bool {
+            return str_contains($messages[0]['content'], 'NON-URGENT professional assessment')
+                && str_contains($messages[1]['content'], 'Reported diagnosis: autism; age: 3.');
+        })->andReturn([
+            'content' => 'التوحد مذكور في البيانات التي أرفقتها. لا أقدر أحدد تشخيصًا جديدًا من الشات، لكن أقدر أساعدك في ترتيب الملاحظات التي تريد مناقشتها مع المختص.',
+            'sources' => [], 'model' => 'answer-model',
+        ]);
+        $dependencies['follow_up']->shouldReceive('suggest')->once()->andReturn(['question' => null]);
+        $reply = $this->service($dependencies)->ask($conversation, 'شو تشخيص الحالة المرفقة؟', $user->id, $child->id, 'ar');
+
+        $this->assertSame('specialist_referral', $reply->metadata['response_type']);
+        $this->assertSame('arrange_professional_assessment', $reply->metadata['next_action']);
+        $this->assertSame('refer_to_specialist', $reply->metadata['turn_plan']['action']);
+        $this->assertSame('refer_to_specialist', $conversation->fresh()->case_state['last_action']);
+        $this->assertStringContainsString('التوحد مذكور', $reply->content);
+        $this->assertNotSame(config('ai.safety_messages.specialist_referral.ar'), $reply->content);
+        $this->assertSame([], $reply->sources);
+    }
+
+    public function test_chat_frustration_can_receive_natural_reply_without_embedding_or_medical_search(): void
+    {
+        Config::set('ai.require_retrieved_evidence', true);
+        $user = User::factory()->create();
+        $conversation = Conversation::factory()->create(['user_id' => $user->id]);
+        $dependencies = $this->baseDependencies();
+        $dependencies['safety']->shouldReceive('evaluate')->once()->andReturn($this->routineSafety());
+        $dependencies['guard']->shouldReceive('evaluate')->once()->andReturn(array_merge($this->allowedDomain(), ['category' => 'app_support']));
+        $dependencies['context']->shouldReceive('build')->once()->andReturn(['profile' => null, 'memories' => []]);
+        $dependencies['planner']->shouldReceive('plan')->once()->andReturn(array_merge($this->answerPlan(), [
+            'domain' => 'app_support', 'case_specific' => false, 'risk_level' => 'low',
+            'evidence_required' => false, 'follow_up_needed' => false,
+        ]));
+        $dependencies['llm']->shouldReceive('embeddingMany')->never();
+        $dependencies['attachments']->shouldReceive('searchWithEmbeddings')->never();
+        $dependencies['knowledge']->shouldReceive('searchForCase')->never();
+        $dependencies['web']->shouldReceive('search')->never();
+        $dependencies['llm']->shouldReceive('answer')->once()->withArgs(
+            fn (array $messages, array $options): bool => $options['web_search'] === false
+        )->andReturn(['content' => 'معك حق، كررت الإحالة بدل ما أوضح كيف أقدر أساعدك. أقدر أساعدك تفهم المعلومات اللي شاركتها وترتب أسئلتك.', 'sources' => []]);
+        $dependencies['follow_up']->shouldReceive('suggest')->once()->andReturn(['question' => null]);
+        $reply = $this->service($dependencies)->ask($conversation, 'حتى في مجال تجاوبني على أي إشي؟', $user->id, null, 'ar');
+
+        $this->assertSame('answer', $reply->metadata['response_type']);
+        $this->assertFalse($reply->metadata['evidence']['internal_search_performed']);
+        $this->assertSame([], $reply->metadata['evidence']['search_order']);
+        $this->assertSame(0, $reply->metadata['retrieval_query_count']);
+        $this->assertSame([], $reply->sources);
+    }
+
+    public function test_readable_case_report_can_be_summarized_without_clinical_retrieval(): void
+    {
+        Config::set('ai.require_retrieved_evidence', true);
+        $user = User::factory()->create();
+        $conversation = Conversation::factory()->create(['user_id' => $user->id]);
+        $dependencies = $this->baseDependencies();
+        $documents = ['attachments' => [['content_available' => true, 'excerpts' => [['content' => 'Report states: uses gestures to request.']]]], 'child_documents' => []];
+        $caseDocuments = Mockery::mock(CaseDocumentContextService::class);
+        $caseDocuments->shouldReceive('build')->once()->andReturn($documents);
+        $this->app->instance(CaseDocumentContextService::class, $caseDocuments);
+        $dependencies['safety']->shouldReceive('evaluate')->once()->andReturn($this->routineSafety());
+        $dependencies['guard']->shouldReceive('evaluate')->once()->andReturn($this->allowedDomain());
+        $dependencies['context']->shouldReceive('build')->once()->andReturn(['profile' => null, 'memories' => []]);
+        $dependencies['planner']->shouldReceive('plan')->once()->withArgs(
+            fn ($message, $context): bool => $context['documents'] === $documents
+        )->andReturn(array_merge($this->answerPlan(), ['evidence_required' => false, 'follow_up_needed' => false]));
+        $dependencies['llm']->shouldReceive('embeddingMany')->never();
+        $dependencies['knowledge']->shouldReceive('searchForCase')->never();
+        $dependencies['attachments']->shouldReceive('searchWithEmbeddings')->never();
+        $dependencies['llm']->shouldReceive('answer')->once()->withArgs(
+            fn (array $messages, array $options): bool => str_contains($messages[1]['content'], 'uses gestures to request') && $options['web_search'] === false
+        )->andReturn(['content' => 'التقرير المرفق بيذكر إنه بيستخدم الإشارة عشان يطلب الأشياء.', 'sources' => []]);
+        $dependencies['follow_up']->shouldReceive('suggest')->once()->andReturn(['question' => null]);
+        $reply = $this->service($dependencies)->ask($conversation, 'لخص لي الملاحظة المكتوبة في التقرير فقط', $user->id, null, 'ar');
+
+        $this->assertSame('answer', $reply->metadata['response_type']);
+        $this->assertStringContainsString('التقرير المرفق', $reply->content);
+        $this->assertSame([], $reply->sources);
+        $this->assertFalse($reply->metadata['evidence']['internal_search_performed']);
+    }
+
+    public function test_private_case_attachment_is_not_sufficient_authority_for_clinical_guidance(): void
+    {
+        Config::set('ai.require_retrieved_evidence', true);
+        Config::set('ai.openai_web_search_enabled', false);
+        Config::set('ai.web_search_enabled', false);
+        $user = User::factory()->create();
+        $conversation = Conversation::factory()->create(['user_id' => $user->id]);
+        $dependencies = $this->baseDependencies();
+        $dependencies['safety']->shouldReceive('evaluate')->once()->andReturn($this->routineSafety());
+        $dependencies['guard']->shouldReceive('evaluate')->once()->andReturn($this->allowedDomain());
+        $dependencies['context']->shouldReceive('build')->once()->andReturn(['profile' => null, 'memories' => []]);
+        $dependencies['planner']->shouldReceive('plan')->once()->andReturn($this->answerPlan());
+        $dependencies['llm']->shouldReceive('embeddingMany')->once()->andReturn([[1.0, 0.0]]);
+        $dependencies['attachments']->shouldReceive('searchWithEmbeddings')->once()->andReturn([[
+            'source_label' => 'CHAT_SOURCE_1', 'source_type' => 'chat_attachment',
+            'content' => 'Caregiver report: child hits during transitions.',
+        ]]);
+        $dependencies['knowledge']->shouldReceive('searchForCase')->once()->andReturn([]);
+        $dependencies['llm']->shouldReceive('answer')->never();
+        $reply = $this->service($dependencies)->ask($conversation, 'ما الخطة العلاجية بناء على الملف؟', $user->id, null, 'ar');
+
+        $this->assertSame('insufficient_evidence', $reply->metadata['response_type']);
+    }
+
+    public function test_memory_and_summary_work_is_deferred_when_queue_is_synchronous(): void
+    {
+        Bus::fake();
+        Config::set('queue.default', 'sync');
+        $user = User::factory()->create();
+        $child = Child::factory()->create(['user_id' => $user->id]);
+        $conversation = Conversation::factory()->create(['user_id' => $user->id, 'child_id' => $child->id, 'message_count' => 9]);
+        $dependencies = $this->baseDependencies();
+        $dependencies['safety']->shouldReceive('evaluate')->once()->andReturn($this->routineSafety());
+        $dependencies['guard']->shouldReceive('evaluate')->once()->andReturn($this->allowedDomain());
+        $dependencies['context']->shouldReceive('build')->once()->andReturn(['profile' => null, 'memories' => []]);
+        $dependencies['planner']->shouldReceive('plan')->once()->andReturn(array_merge($this->answerPlan(), ['evidence_required' => false, 'follow_up_needed' => false]));
+        $dependencies['llm']->shouldReceive('answer')->once()->andReturn(['content' => 'أقدر أساعدك في استخدام ملف الطفل.', 'sources' => []]);
+        $dependencies['follow_up']->shouldReceive('suggest')->once()->andReturn(['question' => null]);
+        $this->service($dependencies)->ask($conversation, 'كيف أستخدم الملف؟', $user->id, $child->id, 'ar');
+
+        Bus::assertDispatchedAfterResponse(\App\Jobs\UpdateChildMemoryJob::class);
+        Bus::assertDispatchedAfterResponse(\App\Jobs\SummarizeConversationJob::class);
+        Bus::assertNotDispatchedSync(\App\Jobs\UpdateChildMemoryJob::class);
+        Bus::assertNotDispatchedSync(\App\Jobs\SummarizeConversationJob::class);
     }
 
     private function baseDependencies(): array

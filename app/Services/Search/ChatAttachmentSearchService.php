@@ -56,6 +56,10 @@ class ChatAttachmentSearchService
         foreach ($results as $i => &$result) {
             $result['source_label'] = 'CHAT_SOURCE_'.($i + 1);
             $result['source_type'] = 'chat_attachment';
+            $result['title'] = $result['original_name'] ?? 'Uploaded file';
+            // Preserve attachment_id for an owned-file UI action. Never put a
+            // permanent public URL or a temporary bearer URL into model context.
+            unset($result['url']);
             $result['snippet'] = mb_substr($result['content'] ?? '', 0, 200);
         }
         unset($result);

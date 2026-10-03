@@ -16,15 +16,15 @@ class ConversationController extends Controller
     {
         $conversations = $request->user()
             ->conversations()
-            ->latest()
+            ->orderByDesc('updated_at')->orderByDesc('id')
             ->paginate(20);
 
         return response()->json([
             'data' => ConversationResource::collection($conversations->items()),
             'meta' => [
                 'current_page' => $conversations->currentPage(),
-                'last_page'    => $conversations->lastPage(),
-                'total'        => $conversations->total(),
+                'last_page' => $conversations->lastPage(),
+                'total' => $conversations->total(),
             ],
         ]);
     }
@@ -40,9 +40,9 @@ class ConversationController extends Controller
 
         $conversation = $request->user()->conversations()->create([
             'child_id' => $data['child_id'] ?? null,
-            'title'    => $data['title'] ?? null,
-            'source'   => Conversation::normalizeSource($data['source'] ?? null),
-            'status'   => 'active',
+            'title' => $data['title'] ?? null,
+            'source' => Conversation::normalizeSource($data['source'] ?? null),
+            'status' => 'active',
         ]);
 
         return response()->json(new ConversationResource($conversation), 201);
@@ -58,7 +58,7 @@ class ConversationController extends Controller
 
         return response()->json([
             'conversation' => new ConversationResource($conversation),
-            'messages'     => MessageResource::collection($messages),
+            'messages' => MessageResource::collection($messages),
         ]);
     }
 
@@ -66,6 +66,7 @@ class ConversationController extends Controller
     {
         $this->authorize('delete', $conversation);
         $conversation->delete();
+
         return response()->json(['message' => 'Conversation deleted.']);
     }
 }

@@ -19,7 +19,7 @@ class UpdateChildMemoryJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public function __construct(
-        private int  $conversationId,
+        private int $conversationId,
         private ?int $childId
     ) {
     }
@@ -27,7 +27,7 @@ class UpdateChildMemoryJob implements ShouldQueue
     public function handle(): void
     {
         // Nothing to do if there is no child attached to this conversation.
-        if (!$this->childId) {
+        if (! $this->childId) {
             return;
         }
 
@@ -109,17 +109,22 @@ PROMPT;
                 return;
             }
 
-            app(ChildMemoryManager::class)->applyCandidates(
-                $this->childId,
-                (int) $conversation->user_id,
-                $recentMessages->last()?->id,
-                $memories
-            );
+            foreach ($memories as $memory) {
+                $evidence = is_string($memory['evidence'] ?? null) ? trim($memory['evidence']) : '';
+                $source = $evidence === '' ? null : $recentMessages->reverse()->first(
+                    fn (Message $message): bool => mb_strpos($message->content, $evidence) !== false
+                );
+                if ($source) {
+                    app(ChildMemoryManager::class)->applyCandidates(
+                        $this->childId, (int) $conversation->user_id, (int) $source->id, [$memory]
+                    );
+                }
+            }
         } catch (Throwable $e) {
             Log::error('UpdateChildMemoryJob failed', [
                 'conversation_id' => $this->conversationId,
-                'child_id'        => $this->childId,
-                'error'           => $e->getMessage(),
+                'child_id' => $this->childId,
+                'error' => $e->getMessage(),
             ]);
         }
     }

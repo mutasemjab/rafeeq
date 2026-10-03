@@ -59,7 +59,11 @@ class OpenAiProvider implements LlmProviderInterface
 
             $payload = array_merge($defaults, $options);
 
-            $response = OpenAI::chat()->create($payload);
+            $response = $this->observeRequest(
+                'chat',
+                (string) $payload['model'],
+                fn () => OpenAI::chat()->create($payload)
+            );
 
             $content = trim((string) ($response->choices[0]->message->content ?? ''));
             if ($content === '') {
@@ -154,7 +158,12 @@ class OpenAiProvider implements LlmProviderInterface
                 'response_format' => $responseFormat,
             ], $options);
 
-            $response = OpenAI::chat()->create($payload);
+            $response = $this->observeRequest(
+                'chat_json',
+                (string) $payload['model'],
+                fn () => OpenAI::chat()->create($payload),
+                $schemaName
+            );
 
             $message = $response->choices[0]->message ?? null;
             $refusal = is_object($message) && isset($message->refusal)
@@ -225,8 +234,7 @@ class OpenAiProvider implements LlmProviderInterface
         bool $webSearch,
         bool $webSearchRequired,
         array $options
-    ): array
-    {
+    ): array {
         $model = (string) ($options['model'] ?? config('ai.answer_model', config('ai.chat_model')));
         $instructions = collect($messages)
             ->where('role', 'system')
@@ -285,14 +293,18 @@ class OpenAiProvider implements LlmProviderInterface
             ]);
         }
 
-        $response = $request->post('https://api.openai.com/v1/responses', $payload);
-        if ($response->failed()) {
-            throw new RuntimeException(sprintf(
-                'OpenAI Responses request failed with HTTP %d: %s',
-                $response->status(),
-                mb_substr((string) $response->body(), 0, 1000)
-            ));
-        }
+        $response = $this->observeRequest('responses', $model, function () use ($request, $payload) {
+            $response = $request->post('https://api.openai.com/v1/responses', $payload);
+            if ($response->failed()) {
+                throw new RuntimeException(sprintf(
+                    'OpenAI Responses request failed with HTTP %d: %s',
+                    $response->status(),
+                    mb_substr((string) $response->body(), 0, 1000)
+                ));
+            }
+
+            return $response;
+        });
 
         $data = $response->json();
         $content = '';
@@ -350,6 +362,29 @@ class OpenAiProvider implements LlmProviderInterface
                 'total_tokens' => data_get($data, 'usage.total_tokens'),
             ],
         ];
+    }
+
+    private function observeRequest(string $operation, string $model, callable $request, ?string $schemaName = null): mixed
+    {
+        $startedAt = hrtime(true);
+        $succeeded = false;
+
+        try {
+            $response = $request();
+            $succeeded = true;
+
+            return $response;
+        } finally {
+            // Timing metadata only: no messages, child details, raw output, or
+            // exception text. Schema identifies planner/reviewer/follow-up cost.
+            Log::info('ai.provider.request_completed', [
+                'operation' => $operation,
+                'model' => $model,
+                'schema' => $schemaName,
+                'duration_ms' => (int) round((hrtime(true) - $startedAt) / 1_000_000),
+                'succeeded' => $succeeded,
+            ]);
+        }
     }
 
     private function allowedWebDomains(): array

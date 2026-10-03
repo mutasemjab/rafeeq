@@ -58,4 +58,46 @@ class ConversationStateServiceTest extends TestCase
         $this->assertSame('consequence', data_get($state, 'asked_questions.1.target'));
         $this->assertSame('إيقاف الجهاز', data_get($state, 'asked_questions.1.anchor'));
     }
+
+    public function test_an_explicit_correction_supersedes_the_same_field_and_retains_its_provenance(): void
+    {
+        $conversation = Conversation::factory()->create(['user_id' => User::factory()]);
+        $service = new ConversationStateService();
+        foreach ([['age_years', 'عمره ثلاث سنوات', 21], ['child.age', 'أقصد عمره خمس سنوات', 22]] as [$key, $content, $id]) {
+            $service->recordPlan($conversation->fresh(), [
+                'action' => 'answer', 'known_facts' => [$content],
+                'memory_candidates' => [[
+                    'key' => $key, 'content' => $content, 'evidence' => $content,
+                    'confidence' => 0.98, 'fact_status' => 'confirmed_by_caregiver',
+                ]],
+            ], ['level' => 'routine'], $id, $content);
+        }
+        $state = $conversation->fresh()->case_state;
+        $this->assertSame(['أقصد عمره خمس سنوات'], $state['known_facts']);
+        $this->assertSame(22, $state['fact_index']['child.age']['source_message_id']);
+        $this->assertSame('superseded', $state['superseded_facts'][0]['status']);
+        $this->assertSame('عمره ثلاث سنوات', $state['superseded_facts'][0]['content']);
+        $service->recordPlan($conversation->fresh(), [
+            'action' => 'answer', 'known_facts' => ['عمره ثلاث سنوات'],
+            'memory_candidates' => [['key' => 'child.age', 'content' => 'عمره ثلاث سنوات', 'evidence' => 'عمره ثلاث سنوات', 'confidence' => 0.98]],
+        ], ['level' => 'routine'], 24, 'راجعت التاريخ الصحيح، عمره ثلاث سنوات');
+        $this->assertSame(['عمره ثلاث سنوات'], $conversation->fresh()->case_state['known_facts']);
+    }
+
+    public function test_progress_preserves_recommendation_and_report_without_claiming_adherence(): void
+    {
+        $conversation = Conversation::factory()->create([
+            'user_id' => User::factory(),
+            'case_state' => ['case_specific' => true, 'decision_to_make' => 'دعم الانتقال', 'question_scope' => 'behavior:transition'],
+        ]);
+        $service = new ConversationStateService();
+        $service->recordAnswer($conversation, 'بعد التجربة، كيف سار الانتقال؟', ['wait_for_observation' => true], 'answer', 'يمكن تجربة تنبيه قبل الانتقال.');
+        $this->assertSame('awaiting_observation', $conversation->fresh()->case_state['progress']['status']);
+        $this->assertSame('observation', $conversation->fresh()->case_state['progress']['waiting_for']);
+        $service->recordPlan($conversation->fresh(), ['action' => 'answer', 'outcome_reported' => true], ['level' => 'routine'], 23, 'جربنا ومفيش فرق.');
+        $state = $conversation->fresh()->case_state;
+        $this->assertSame('جربنا ومفيش فرق.', $state['progress']['outcome_reports'][0]['content']);
+        $this->assertSame('يمكن تجربة تنبيه قبل الانتقال.', $state['progress']['recommended_step']);
+        $this->assertSame(1, $state['observation_round']);
+    }
 }

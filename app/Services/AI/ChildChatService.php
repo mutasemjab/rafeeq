@@ -3,8 +3,6 @@
 namespace App\Services\AI;
 
 use App\Exceptions\ChatServiceUnavailableException;
-use App\Jobs\SummarizeConversationJob;
-use App\Jobs\UpdateChildMemoryJob;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Services\AI\Contracts\LlmProviderInterface;
@@ -28,6 +26,7 @@ class ChildChatService
         private ?ConversationStateService $conversationState = null,
         private ?FollowUpSuggestionService $followUpSuggestions = null,
         private ?AnswerQualityService $answerQuality = null,
+        private ?CaseDocumentContextService $caseDocuments = null,
     ) {
     }
 
@@ -37,6 +36,47 @@ class ChildChatService
         int $userId,
         ?int $childId = null,
         ?string $language = 'en',
+        ?Message $persistedUserMessage = null,
+        ?callable $progress = null,
+        bool $deferMaintenance = false,
+    ): Message {
+        if ($persistedUserMessage !== null && (
+            (int) $persistedUserMessage->conversation_id !== (int) $conversation->id
+            || (int) $persistedUserMessage->user_id !== $userId
+            || $persistedUserMessage->role !== 'user'
+            || $persistedUserMessage->content !== $userMessage
+        )) {
+            throw new \InvalidArgumentException('Persisted user message does not match this turn.');
+        }
+        if ($persistedUserMessage && ($existing = Message::where('reply_to_message_id', $persistedUserMessage->id)
+            ->where('conversation_id', $conversation->id)->where('user_id', $userId)->where('role', 'assistant')->first())) {
+            return $existing;
+        }
+        $startedAt = microtime(true);
+        $responseType = 'failed';
+        try {
+            $reply = $this->processTurn($conversation, $userMessage, $userId, $childId, $language, $persistedUserMessage, $progress, $deferMaintenance);
+            $responseType = $reply->metadata['response_type'] ?? 'answer';
+
+            return $reply;
+        } finally {
+            Log::info('ai.chat.completed', [
+                'conversation_id' => $conversation->id,
+                'response_type' => $responseType,
+                'duration_ms' => round((microtime(true) - $startedAt) * 1000),
+            ]);
+        }
+    }
+
+    private function processTurn(
+        Conversation $conversation,
+        string $userMessage,
+        int $userId,
+        ?int $childId,
+        ?string $language,
+        ?Message $persistedUserMessage = null,
+        ?callable $progress = null,
+        bool $deferMaintenance = false,
     ): Message {
         $language = $this->responseLanguage($language, $userMessage);
 
@@ -49,7 +89,7 @@ class ChildChatService
         ]);
 
         // 1. Persist user message
-        $userMsg = Message::create([
+        $userMsg = $persistedUserMessage ?? Message::create([
             'conversation_id' => $conversation->id,
             'user_id' => $userId,
             'child_id' => $childId,
@@ -82,8 +122,11 @@ class ChildChatService
         ]);
 
         if (in_array($safetyDecision['level'], ['emergency', 'urgent_specialist'], true)) {
+            $progress && $progress('persisting_reply');
+
             return $this->persistControlResponse(
                 $conversation,
+                $userMsg,
                 $this->safetyTriage->response($safetyDecision['level'], $language),
                 $safetyDecision['level'] === 'emergency' ? 'urgent_escalation' : 'specialist_referral',
                 [
@@ -119,8 +162,11 @@ class ChildChatService
         }
 
         if (! $domainDecision['allowed']) {
+            $progress && $progress('persisting_reply');
+
             return $this->persistDomainRefusal(
                 $conversation,
+                $userMsg,
                 $userMessage,
                 $language,
                 $domainDecision
@@ -129,7 +175,7 @@ class ChildChatService
 
         // 5. Build child context
         try {
-            $childCtx = $this->childContext->build($childId, $userId);
+            $childCtx = $this->childContext->build($childId, $userId, $conversation);
             Log::info('[Chat] Step 5: Child context built', [
                 'has_profile' => ! empty($childCtx['profile']),
                 'memory_count' => count($childCtx['memories'] ?? []),
@@ -137,6 +183,16 @@ class ChildChatService
         } catch (\Throwable $e) {
             Log::error('[Chat] Step 5 FAILED: child context', ['error' => $e->getMessage()]);
             $childCtx = ['profile' => null, 'memories' => [], 'summary' => null];
+        }
+
+        // Read bounded, owned case documents before planning. This requires no
+        // embedding/model call and preserves processing status for honest replies.
+        try {
+            $childCtx['documents'] = ($this->caseDocuments ?? app(CaseDocumentContextService::class))
+                ->build($userId, $conversation, $childId);
+        } catch (\Throwable $e) {
+            Log::warning('ai.case_documents.unavailable', ['exception' => $e::class]);
+            $childCtx['documents'] = ['available' => false, 'attachments' => [], 'child_documents' => []];
         }
 
         // 6. Decide whether to answer, ask one focused clarification, or refer.
@@ -175,11 +231,17 @@ class ChildChatService
             ]);
         }
 
-        $this->conversationState?->recordPlan($conversation, $turnPlan, $safetyDecision);
+        $this->conversationState?->recordPlan($conversation, $turnPlan, $safetyDecision, (int) $userMsg->id, $userMessage);
+        $childCtx['case_brief'] = app(CaseBriefService::class)->build(
+            $childCtx, (array) $conversation->fresh()->case_state, $conversation->summary
+        );
 
         if ($turnPlan['action'] === 'ask_clarification') {
+            $progress && $progress('persisting_reply');
+
             return $this->persistControlResponse(
                 $conversation,
+                $userMsg,
                 (string) $turnPlan['question'],
                 'clarification',
                 [
@@ -194,104 +256,103 @@ class ChildChatService
             );
         }
 
-        if ($turnPlan['action'] === 'refer_to_specialist') {
-            return $this->persistControlResponse(
-                $conversation,
-                (string) config("ai.safety_messages.specialist_referral.{$language}"),
-                'specialist_referral',
-                [
-                    'safety' => $safetyDecision,
-                    'turn_plan' => $turnPlan,
-                    'next_action' => 'arrange_professional_assessment',
-                    'domain_guard' => $domainDecision,
-                    'memory_saved_count' => $memorySaved,
-                    'suggested_questions' => [],
-                    'case_state' => $conversation->fresh()->case_state,
-                ],
-                ['specialist_referral']
-            );
-        }
+        // A non-urgent referral is part of a useful answer, not a terminal
+        // canned response. Emergency/urgent triage still exits above.
+        $referralRequested = $turnPlan['action'] === 'refer_to_specialist';
+        $needsRetrieval = $this->requiresKnowledgeEvidence($turnPlan, $domainDecision)
+            || ($turnPlan['web_search_needed'] ?? false) === true;
+        $retrievalQueries = [];
+        $attachmentSources = [];
+        $knowledgeSources = [];
+        $webSources = [];
+        $hostedWebSearch = false;
 
-        try {
-            $retrievalQueries = $this->retrievalQueries(
-                $userMessage,
-                $turnPlan['search_queries'] !== []
-                    ? $turnPlan['search_queries']
-                    : ($domainDecision['search_queries'] ?? [])
-            );
-            $queryEmbeddings = $this->llm->embeddingMany($retrievalQueries);
+        if ($needsRetrieval) {
+            $progress && $progress('searching_sources');
+            try {
+                $retrievalQueries = $this->retrievalQueries(
+                    $userMessage,
+                    $turnPlan['search_queries'] !== []
+                        ? $turnPlan['search_queries']
+                        : ($domainDecision['search_queries'] ?? [])
+                );
+                $queryEmbeddings = $this->llm->embeddingMany($retrievalQueries);
 
-            if (count($queryEmbeddings) !== count($retrievalQueries)) {
-                throw new \RuntimeException('The embedding provider returned an unexpected number of vectors.');
-            }
+                if (count($queryEmbeddings) !== count($retrievalQueries)) {
+                    throw new \RuntimeException('The embedding provider returned an unexpected number of vectors.');
+                }
 
-            Log::info('[Chat] Retrieval queries embedded', [
-                'query_count' => count($retrievalQueries),
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('[Chat] Retrieval embedding FAILED', ['error' => $e->getMessage()]);
-            throw $this->serviceUnavailableException($userMsg, $language, 'embedding', $e);
-        }
-
-        // 7. Search chat attachments (user + conversation scoped)
-        try {
-            $attachmentSources = $this->attachmentSearch->searchWithEmbeddings(
-                $userId,
-                (int) $conversation->id,
-                $queryEmbeddings
-            );
-            Log::info('[Chat] Step 4: Chat attachment search', [
-                'chunks_found' => count($attachmentSources),
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('[Chat] Step 4 FAILED: attachment search', ['error' => $e->getMessage()]);
-            throw $this->serviceUnavailableException($userMsg, $language, 'attachment_search', $e);
-        }
-
-        // 8. Search knowledge base
-        try {
-            $knowledgeSources = $this->knowledgeSearch->searchForCase(
-                $queryEmbeddings,
-                $retrievalQueries,
-                $this->knowledgeFilters($childCtx, $turnPlan, $language)
-            );
-            Log::info('[Chat] Step 5: Knowledge base search', [
-                'chunks_found' => count($knowledgeSources),
-            ]);
-
-            foreach ($knowledgeSources as $i => $chunk) {
-                Log::info('[Chat] Step 5: KB chunk #'.($i + 1), [
-                    'source_label' => $chunk['source_label'] ?? null,
-                    'document_id' => $chunk['knowledge_document_id'] ?? null,
-                    'similarity' => round($chunk['similarity'] ?? 0, 4),
-                    'content_preview' => mb_substr($chunk['content'] ?? '', 0, 200),
+                Log::info('[Chat] Retrieval queries embedded', [
+                    'query_count' => count($retrievalQueries),
                 ]);
+            } catch (\Throwable $e) {
+                Log::error('[Chat] Retrieval embedding FAILED', ['error' => $e->getMessage()]);
+                throw $this->serviceUnavailableException($userMsg, $language, 'embedding', $e);
             }
 
-            if (empty($knowledgeSources)) {
-                Log::warning('[Chat] Step 8: No knowledge chunks found — evidence gate will decide whether answering is allowed');
+            // 7. Search chat attachments (user + conversation scoped)
+            try {
+                $attachmentSources = $this->attachmentSearch->searchWithEmbeddings(
+                    $userId,
+                    (int) $conversation->id,
+                    $queryEmbeddings
+                );
+                Log::info('[Chat] Step 4: Chat attachment search', [
+                    'chunks_found' => count($attachmentSources),
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('[Chat] Step 4 FAILED: attachment search', ['error' => $e->getMessage()]);
+                throw $this->serviceUnavailableException($userMsg, $language, 'attachment_search', $e);
             }
-        } catch (\Throwable $e) {
-            Log::error('[Chat] Step 5 FAILED: knowledge search', ['error' => $e->getMessage()]);
-            throw $this->serviceUnavailableException($userMsg, $language, 'knowledge_search', $e);
+
+            // 8. Search knowledge base
+            try {
+                $knowledgeSources = $this->knowledgeSearch->searchForCase(
+                    $queryEmbeddings,
+                    $retrievalQueries,
+                    $this->knowledgeFilters($childCtx, $turnPlan, $language)
+                );
+                Log::info('[Chat] Step 5: Knowledge base search', [
+                    'chunks_found' => count($knowledgeSources),
+                ]);
+
+                foreach ($knowledgeSources as $i => $chunk) {
+                    Log::info('[Chat] Step 5: KB chunk #'.($i + 1), [
+                        'source_label' => $chunk['source_label'] ?? null,
+                        'document_id' => $chunk['knowledge_document_id'] ?? null,
+                        'similarity' => round($chunk['similarity'] ?? 0, 4),
+                        'content_preview' => mb_substr($chunk['content'] ?? '', 0, 200),
+                    ]);
+                }
+
+                if (empty($knowledgeSources)) {
+                    Log::warning('[Chat] Step 8: No knowledge chunks found — evidence gate will decide whether answering is allowed');
+                }
+            } catch (\Throwable $e) {
+                Log::error('[Chat] Step 5 FAILED: knowledge search', ['error' => $e->getMessage()]);
+                throw $this->serviceUnavailableException($userMsg, $language, 'knowledge_search', $e);
+            }
+
+            // 9. Search web fallback when enabled.
+            $webSources = $this->searchWebSources($userMessage);
+            $hostedWebSearch = $this->shouldUseHostedWebSearch($turnPlan, $knowledgeSources, $domainDecision);
         }
-
-        // 9. Search web fallback when enabled.
-        $webSources = $this->searchWebSources($userMessage);
-        $hostedWebSearch = $this->shouldUseHostedWebSearch($turnPlan, $knowledgeSources, $domainDecision);
         $hostedWebSearchRequired = $hostedWebSearch;
         $evidenceRequired = config('ai.require_retrieved_evidence', true)
             && $this->requiresKnowledgeEvidence($turnPlan, $domainDecision);
 
         if (
             $evidenceRequired
-            && $attachmentSources === []
+            && ! $referralRequested
             && $knowledgeSources === []
             && $webSources === []
             && ! $hostedWebSearch
         ) {
+            $progress && $progress('persisting_reply');
+
             return $this->persistControlResponse(
                 $conversation,
+                $userMsg,
                 (string) config("ai.safety_messages.insufficient_evidence.{$language}"),
                 'insufficient_evidence',
                 [
@@ -310,7 +371,7 @@ class ChildChatService
         // Generic medical landing pages are a last-resort reference, not
         // automatic evidence for a specific intervention. Prefer retrieved
         // internal guidance or a live authoritative lookup.
-        $medicalSources = $knowledgeSources === [] && ! $hostedWebSearch
+        $medicalSources = $needsRetrieval && ! $referralRequested && $knowledgeSources === [] && ! $hostedWebSearch
             ? $this->defaultMedicalSources()
             : [];
 
@@ -341,6 +402,10 @@ class ChildChatService
             $systemPrompt .= "\n\nRespond in Arabic.";
         }
 
+        if ($referralRequested) {
+            $systemPrompt .= "\n\nThis turn recommends a NON-URGENT professional assessment. Explain the limitation briefly using the reported facts, acknowledge any assessment already reported, and still address the caregiver's latest request within scope. Do not diagnose, repeat a stock referral, or give a comprehensive home treatment plan. Help organize one relevant observation or question for the appointment. With no relevant authoritative evidence, limit the response to reflecting reported information, explaining that chat cannot establish a diagnosis, and preparing for assessment; do not invent clinical reasons or interventions. A prior referral is context, not an instruction to refuse every later question.";
+        }
+
         $messages = [['role' => 'system', 'content' => $systemPrompt]];
         $referenceData = $this->buildReferenceDataBlock(
             $childCtx,
@@ -368,6 +433,7 @@ class ChildChatService
         // 14. Call the answer provider. Internal evidence is already present in
         // the prompt; the Responses API may additionally use hosted web search.
         try {
+            $progress && $progress('preparing_reply');
             $answerResult = $this->llm->answer($messages, [
                 'web_search' => $hostedWebSearch,
                 'web_search_required' => $hostedWebSearchRequired,
@@ -393,12 +459,15 @@ class ChildChatService
 
         if (
             $evidenceRequired
-            && $attachmentSources === []
+            && ! $referralRequested
             && $knowledgeSources === []
             && $webSources === []
         ) {
+            $progress && $progress('persisting_reply');
+
             return $this->persistControlResponse(
                 $conversation,
+                $userMsg,
                 (string) config("ai.safety_messages.insufficient_evidence.{$language}"),
                 'insufficient_evidence',
                 [
@@ -418,13 +487,15 @@ class ChildChatService
             $providerWebSources,
             $allSources
         )));
+        $progress && $progress('reviewing_reply');
         $quality = $this->answerQuality?->review(
             $userMessage,
             $reply,
             $turnPlan,
             $childCtx,
             $this->buildSourceContext($qualityContextSources),
-            $language
+            $language,
+            $guardHistory
         ) ?? [
             'content' => $reply,
             'action' => 'approve',
@@ -436,9 +507,15 @@ class ChildChatService
             'model' => null,
         ];
 
+        if (($quality['action'] ?? null) === 'unreviewed' && ($quality['passed'] ?? false) !== true) {
+            throw $this->serviceUnavailableException($userMsg, $language, 'answer_review', new \RuntimeException('Answer review unavailable.'));
+        }
         if (($quality['passed'] ?? true) !== true) {
+            $progress && $progress('persisting_reply');
+
             return $this->persistControlResponse(
                 $conversation,
+                $userMsg,
                 (string) config("ai.safety_messages.insufficient_evidence.{$language}"),
                 'insufficient_evidence',
                 [
@@ -456,7 +533,7 @@ class ChildChatService
         }
 
         $reply = trim((string) ($quality['content'] ?? $reply));
-        $usedSources = $this->sourcesUsedInReply($allSources, $reply, $evidenceRequired);
+        $usedSources = $this->sourcesUsedInReply($allSources, $reply, $evidenceRequired && ! $referralRequested);
 
         $followUp = $this->followUpSuggestions?->suggest(
             $userMessage,
@@ -478,7 +555,10 @@ class ChildChatService
             ? [trim($suggestedQuestion)]
             : [];
         $reply = $this->appendFollowUpQuestion($reply, $suggestedQuestion, $language);
-        $this->conversationState?->recordAnswer($conversation, $suggestedQuestion, $followUp);
+        $progress && $progress('persisting_reply');
+        $this->conversationState?->recordAnswer(
+            $conversation, $suggestedQuestion, $followUp, $referralRequested ? 'refer_to_specialist' : 'answer', $reply
+        );
         $conversation->refresh();
 
         // 15. Persist assistant message
@@ -487,10 +567,11 @@ class ChildChatService
             'user_id' => $userId,
             'child_id' => $childId,
             'role' => 'assistant',
+            'reply_to_message_id' => $userMsg->id,
             'content' => $reply,
             'sources' => $usedSources,
             'metadata' => [
-                'response_type' => 'answer',
+                'response_type' => $referralRequested ? 'specialist_referral' : 'answer',
                 'safety' => $safetyDecision,
                 'turn_plan' => $turnPlan,
                 'domain_guard' => $domainDecision,
@@ -501,22 +582,25 @@ class ChildChatService
                 'suggested_questions' => $suggestedQuestions,
                 'follow_up' => $followUp,
                 'answer_quality' => $quality,
-                'next_action' => $suggestedQuestions !== [] ? 'await_follow_up' : 'complete',
+                'next_action' => $referralRequested
+                    ? 'arrange_professional_assessment'
+                    : ($suggestedQuestions !== [] ? (($followUp['wait_for_observation'] ?? false) ? 'observe_then_follow_up' : 'await_follow_up') : 'complete'),
                 'case_state' => $conversation->case_state,
                 'evidence' => [
-                    'internal_search_performed' => true,
-                    'internal_search_completed_before_web' => true,
+                    'internal_search_performed' => $needsRetrieval,
+                    'internal_search_completed_before_web' => $needsRetrieval,
                     'hosted_web_search_requested' => $hostedWebSearch,
                     'search_order' => $hostedWebSearch
                         ? ['internal_knowledge', 'hosted_web']
-                        : ['internal_knowledge'],
+                        : ($needsRetrieval ? ['internal_knowledge'] : []),
                     'internal_sources' => count($knowledgeSources) + count($attachmentSources),
                     'web_sources' => count($webSources),
                     'used_web_search' => (bool) ($answerResult['used_web_search'] ?? false),
-                    'model_knowledge_allowed' => ! $evidenceRequired || $allSources !== [],
+                    'model_knowledge_allowed' => ! $evidenceRequired || $knowledgeSources !== [] || $webSources !== [],
                     'cited_sources' => count($usedSources),
                 ],
             ],
+            'safety_flags' => $referralRequested ? ['specialist_referral'] : [],
             'model_name' => $answerResult['model'] ?? config('ai.chat_model'),
             'token_usage_input' => data_get($answerResult, 'usage.input_tokens'),
             'token_usage_output' => data_get($answerResult, 'usage.output_tokens'),
@@ -527,15 +611,8 @@ class ChildChatService
         // 13. Increment count and dispatch background jobs
         $conversation->increment('message_count');
         $conversation->touch();
-        $count = $conversation->fresh()->message_count ?? 0;
-
-        if ($childId && $count > 0 && $count % 5 === 0) {
-            UpdateChildMemoryJob::dispatch($conversation->id, $childId);
-            Log::info('[Chat] Dispatched UpdateChildMemoryJob', ['count' => $count]);
-        }
-        if ($count > 0 && $count % 10 === 0) {
-            SummarizeConversationJob::dispatch($conversation->id);
-            Log::info('[Chat] Dispatched SummarizeConversationJob', ['count' => $count]);
+        if (! $deferMaintenance) {
+            app(ConversationMaintenanceService::class)->dispatch($conversation);
         }
 
         Log::info('[Chat] ── END ── reply sent', ['conversation_id' => $conversation->id]);
@@ -545,6 +622,7 @@ class ChildChatService
 
     private function persistDomainRefusal(
         Conversation $conversation,
+        Message $userMsg,
         string $userMessage,
         ?string $language,
         array $domainDecision
@@ -554,6 +632,7 @@ class ChildChatService
             'user_id' => $conversation->user_id,
             'child_id' => $conversation->child_id,
             'role' => 'assistant',
+            'reply_to_message_id' => $userMsg->id,
             'content' => $this->domainGuard->refusal($language, $userMessage),
             'sources' => [],
             'metadata' => [
@@ -577,6 +656,7 @@ class ChildChatService
 
     private function persistControlResponse(
         Conversation $conversation,
+        Message $userMsg,
         string $content,
         string $responseType,
         array $metadata,
@@ -587,6 +667,7 @@ class ChildChatService
             'user_id' => $conversation->user_id,
             'child_id' => $conversation->child_id,
             'role' => 'assistant',
+            'reply_to_message_id' => $userMsg->id,
             'content' => $content,
             'sources' => [],
             'metadata' => array_merge($metadata, ['response_type' => $responseType]),
@@ -644,7 +725,9 @@ class ChildChatService
         string $stage,
         \Throwable $previous
     ): ChatServiceUnavailableException {
-        $userMessage->delete();
+        if (! data_get($userMessage->metadata, 'client_message_id')) {
+            $userMessage->delete();
+        }
 
         $isArabic = $language === 'ar'
             || preg_match('/\p{Arabic}/u', (string) $userMessage->content) === 1;
@@ -792,6 +875,8 @@ class ChildChatService
             'turn_plan' => $turnPlan,
             'child_profile' => $childContext['profile'] ?? null,
             'child_memories' => $childContext['memories'] ?? [],
+            'case_documents' => $childContext['documents'] ?? [],
+            'case_brief' => $childContext['case_brief'] ?? null,
             'longitudinal_child_summary' => $childContext['summary'] ?? null,
             'conversation_summary' => $conversationSummary,
             'retrieved_sources' => $sourceContext !== '' ? $sourceContext : null,
@@ -807,20 +892,14 @@ class ChildChatService
 
     private function requiresKnowledgeEvidence(array $turnPlan, array $domainDecision): bool
     {
-        if (($turnPlan['evidence_required'] ?? null) === false) {
-            return false;
+        if (is_bool($turnPlan['evidence_required'] ?? null)) {
+            return $turnPlan['evidence_required'];
         }
 
-        $domain = mb_strtolower((string) ($turnPlan['domain'] ?? $domainDecision['category'] ?? ''));
-        $appDomains = ['app', 'account', 'subscription', 'appointment', 'privacy', 'rafeeq_support'];
+        $domain = mb_strtolower(trim((string) ($turnPlan['domain'] ?? $domainDecision['category'] ?? '')));
+        $appDomains = ['app', 'app_support', 'account', 'subscription', 'appointment', 'privacy', 'rafeeq_support'];
 
-        foreach ($appDomains as $appDomain) {
-            if (str_contains($domain, $appDomain)) {
-                return false;
-            }
-        }
-
-        return true;
+        return ! in_array($domain, $appDomains, true);
     }
 
     private function knowledgeFilters(array $childContext, array $turnPlan, string $language): array
@@ -829,6 +908,18 @@ class ChildChatService
         $ageMonths = $profile['age_months'] ?? null;
         if ($ageMonths === null && is_numeric($profile['age'] ?? null)) {
             $ageMonths = ((int) $profile['age']) * 12;
+        }
+        $brief = is_array($childContext['case_brief'] ?? null) ? $childContext['case_brief'] : [];
+        $reportedAgeFields = collect(array_keys((array) ($brief['current_facts'] ?? [])))
+            ->merge(collect($brief['reported_facts'] ?? [])->pluck('key'))
+            ->filter(fn ($key): bool => is_string($key))
+            ->map(fn (string $key): string => ChildMemoryManager::canonicalKey($key));
+        if ($reportedAgeFields->intersect(['child.age', 'child.birth_date'])->isNotEmpty()) {
+            // Caregiver age corrections are sourced text, not typed dates or
+            // quantities. Do not parse them heuristically or let an older
+            // profile age exclude relevant evidence; the corrected age remains
+            // in the case brief for interpretation of the broader results.
+            $ageMonths = null;
         }
 
         return array_filter([
@@ -919,9 +1010,8 @@ class ChildChatService
             return $used;
         }
 
-        // Backward-compatible fallback for a valid answer produced by a
-        // provider that omitted inline annotation data.
-        return array_slice($sources, 0, min(3, count($sources)));
+        // Retrieved material is not automatically a source actually used by the answer.
+        return [];
     }
 
     private function normalizeProviderWebSources(array $sources, int $existingWebCount): array

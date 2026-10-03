@@ -4,13 +4,23 @@
     "language": "ar",
     "message": "ابني عمره خمس سنوات. يصرخ عندما أوقف الجهاز، ثم أعيده له فيهدأ. يحدث هذا يوميًا ولا يؤذي نفسه. ماذا أفعل؟",
     "minimum_score": 0.78,
-    "child_context": {"profile": {"age_months": 60}, "memories": []},
+    "child_context": {
+      "profile": {
+        "age_months": 60
+      },
+      "memories": []
+    },
     "turn_plan": {
       "action": "answer",
       "domain": "child_behavior",
       "case_specific": true,
       "information_sufficient": true,
-      "known_facts": ["العمر خمس سنوات", "الصراخ يبدأ عند إيقاف الجهاز", "إعادة الجهاز تهدئ الصراخ", "لا يوجد أذى للنفس"],
+      "known_facts": [
+        "العمر خمس سنوات",
+        "الصراخ يبدأ عند إيقاف الجهاز",
+        "إعادة الجهاز تهدئ الصراخ",
+        "لا يوجد أذى للنفس"
+      ],
       "risk_level": "low",
       "evidence_required": true
     },
@@ -21,13 +31,23 @@
     "language": "ar",
     "message": "بنتي عمرها ثلاث سنوات تفهم الأوامر البسيطة وتطلب الأشياء بالإشارة لكنها تستخدم كلمتين فقط.",
     "minimum_score": 0.75,
-    "child_context": {"profile": {"age_months": 36}, "memories": []},
+    "child_context": {
+      "profile": {
+        "age_months": 36
+      },
+      "memories": []
+    },
     "turn_plan": {
       "action": "answer",
       "domain": "speech_language",
       "case_specific": true,
       "information_sufficient": true,
-      "known_facts": ["العمر ثلاث سنوات", "تفهم أوامر بسيطة", "تطلب بالإشارة", "تستخدم كلمتين"],
+      "known_facts": [
+        "العمر ثلاث سنوات",
+        "تفهم أوامر بسيطة",
+        "تطلب بالإشارة",
+        "تستخدم كلمتين"
+      ],
       "risk_level": "moderate",
       "evidence_required": true
     },
@@ -38,16 +58,164 @@
     "language": "ar",
     "message": "جربنا الجدول البصري خمسة أيام وانخفض الصراخ من ست مرات إلى مرتين يوميًا.",
     "minimum_score": 0.78,
-    "child_context": {"profile": {"age_months": 60}, "memories": []},
+    "child_context": {
+      "profile": {
+        "age_months": 60
+      },
+      "memories": []
+    },
     "turn_plan": {
       "action": "answer",
       "domain": "child_behavior",
       "case_specific": true,
       "information_sufficient": true,
-      "known_facts": ["تم استخدام جدول بصري خمسة أيام", "انخفض الصراخ من ست مرات إلى مرتين يوميًا"],
+      "known_facts": [
+        "تم استخدام جدول بصري خمسة أيام",
+        "انخفض الصراخ من ست مرات إلى مرتين يوميًا"
+      ],
       "risk_level": "low",
       "evidence_required": true
     },
     "source_context": "[KB_SOURCE_1]\nTitle: Monitoring behavior support\nPublisher: Approved Rafiq clinical team\nEvidence level: professional_guideline\nContent: Compare a defined baseline with repeated observations after an intervention. A meaningful improvement supports continuing the strategy while checking consistency across settings before adding complexity."
+  },
+  {
+    "id": "client_frustration_after_referral_ar",
+    "language": "ar",
+    "message": "حتى في مجال تجاوبني على أي إشي؟",
+    "minimum_score": 0.75,
+    "child_context": {
+      "profile": {
+        "age_months": 36,
+        "diagnosis": "توحد حسب ما أبلغ ولي الأمر"
+      },
+      "memories": []
+    },
+    "history": [
+      {
+        "role": "user",
+        "content": "طفلي توحد عمره 3 سنوات شو ممكن تساعدني؟"
+      },
+      {
+        "role": "assistant",
+        "content": "الأفضل ترتيب تقييم لدى مختص مناسب قبل بناء خطة منزلية كاملة."
+      }
+    ],
+    "turn_plan": {
+      "action": "answer",
+      "domain": "app_support",
+      "case_specific": false,
+      "information_sufficient": true,
+      "risk_level": "low",
+      "evidence_required": false,
+      "follow_up_needed": false
+    },
+    "source_context": "",
+    "forbidden_phrases": [
+      "الأفضل ترتيب تقييم لدى مختص مناسب قبل بناء خطة منزلية كاملة"
+    ]
+  },
+  {
+    "id": "client_reported_diagnosis_support_ar",
+    "language": "ar",
+    "message": "طفلي عنده توحد وعمره 3 سنوات. يفهم التعليمات البسيطة ويطلب الأشياء بالإشارة. كيف أتواصل معه باللعب؟",
+    "minimum_score": 0.75,
+    "child_context": {
+      "profile": {
+        "age_months": 36,
+        "diagnosis": "Reported autism"
+      },
+      "memories": []
+    },
+    "turn_plan": {
+      "action": "answer",
+      "domain": "communication",
+      "case_specific": true,
+      "information_sufficient": true,
+      "known_facts": [
+        "العمر ثلاث سنوات",
+        "تشخيص توحد أبلغ به ولي الأمر",
+        "يفهم التعليمات البسيطة",
+        "يطلب بالإشارة"
+      ],
+      "risk_level": "low",
+      "evidence_required": true
+    },
+    "source_context": "[KB_SOURCE_1]\nTitle: Early communication support\nPublisher: Approved speech-language team\nEvidence level: professional_guideline\nContent: Model short functional words during motivating routines, accept gestures while pairing them with language, avoid pressuring repetition, and recommend hearing and speech-language assessment when expressive communication is substantially limited for age.",
+    "forbidden_phrases": [
+      "الأفضل ترتيب تقييم لدى مختص مناسب قبل بناء خطة منزلية كاملة"
+    ]
+  },
+  {
+    "id": "client_contextual_diagnostic_referral_ar",
+    "language": "ar",
+    "message": "شو تشخيص الحالة بناء على الملف؟",
+    "minimum_score": 0.75,
+    "child_context": {
+      "profile": {
+        "age_months": 36
+      },
+      "memories": [],
+      "documents": {
+        "attachments": [
+          {
+            "name": "ملخص ملاحظات ولي الأمر",
+            "status": "processed",
+            "content_available": true,
+            "excerpts": [
+              {
+                "content": "الطفل يستخدم الإشارة لطلب الأشياء، والعمر ثلاث سنوات."
+              }
+            ]
+          }
+        ],
+        "child_documents": []
+      }
+    },
+    "turn_plan": {
+      "action": "refer_to_specialist",
+      "domain": "development",
+      "case_specific": true,
+      "information_sufficient": false,
+      "known_facts": [
+        "العمر ثلاث سنوات",
+        "يستخدم الإشارة لطلب الأشياء"
+      ],
+      "reason": "A new diagnosis cannot be established in chat. Reflect the reported observations and help prepare for assessment without clinical claims or a treatment plan.",
+      "risk_level": "moderate",
+      "evidence_required": true,
+      "follow_up_needed": false
+    },
+    "source_context": "",
+    "forbidden_phrases": [
+      "الأفضل ترتيب تقييم لدى مختص مناسب قبل بناء خطة منزلية كاملة"
+    ]
+  }
+  ,
+  {
+    "id": "explicit_age_correction_ar",
+    "language": "ar",
+    "message": "أقصد عمره خمس سنوات، مش ثلاث. ما العمر اللي هتعتمد عليه؟",
+    "minimum_score": 0.8,
+    "child_context": {
+      "profile": {"age": 3},
+      "memories": [{"memory_key": "child.age", "content": "العمر الحالي خمس سنوات بحسب تصحيح ولي الأمر", "source_message_id": 22}]
+    },
+    "history": [{"role": "user", "content": "عمره ثلاث سنوات"}],
+    "turn_plan": {"action": "answer", "case_specific": true, "domain": "app_support", "information_sufficient": true, "known_facts": ["صحح ولي الأمر العمر إلى خمس سنوات"], "evidence_required": false, "follow_up_needed": false},
+    "source_context": ""
+  },
+  {
+    "id": "return_to_prior_step_ar",
+    "language": "ar",
+    "message": "جربنا التنبيه قبل الانتقال والصراخ ما تغيرش.",
+    "minimum_score": 0.8,
+    "child_context": {
+      "profile": {"age_months": 60},
+      "memories": [],
+      "summary": "أبلغ ولي الأمر عن صراخ يومي عند إيقاف الجهاز؛ لا توجد إصابة بحسب آخر وصف. اقتُرح تنبيه قبل الانتقال، ولم تُسجّل نتيجة بعد.",
+      "previous_progress": [{"recommended_step": "تنبيه قبل إيقاف الجهاز مع نشاط تال واضح", "status": "awaiting_observation", "waiting_for": "observation"}]
+    },
+    "turn_plan": {"action": "answer", "domain": "child_behavior", "case_specific": true, "information_sufficient": true, "known_facts": ["ولي الأمر جرّب التنبيه ويبلغ أن الصراخ لم يتغير"], "risk_level": "low", "evidence_required": true},
+    "source_context": "[KB_SOURCE_1]\nTitle: Reviewing a support trial\nContent: Review how a proposed step was actually used, the context, and observed response before adding multiple changes. A report of no improvement alone does not establish a behavior function."
   }
 ]

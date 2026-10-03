@@ -13,7 +13,11 @@ class MessageResource extends JsonResource
             'conversation_id' => $this->conversation_id,
             'role' => $this->role,
             'content' => $this->content,
-            'sources' => $this->sources,
+            'client_message_id' => data_get($this->metadata, 'client_message_id'),
+            'user_message_id' => data_get($this->metadata, 'user_message_id', $this->role === 'user' ? $this->id : $this->reply_to_message_id),
+            'delivery_status' => data_get($this->metadata, 'delivery_status'),
+            'language' => data_get($this->metadata, 'language'),
+            'sources' => $this->safeSources(),
             'response_type' => data_get($this->metadata, 'response_type', 'answer'),
             'domain' => data_get($this->metadata, 'turn_plan.domain'),
             'missing_information' => data_get($this->metadata, 'turn_plan.missing_fields', []),
@@ -34,5 +38,27 @@ class MessageResource extends JsonResource
             'safety_flags' => $this->safety_flags ?? [],
             'created_at' => $this->created_at?->toISOString(),
         ];
+    }
+
+    private function safeSources(): mixed
+    {
+        if (! is_array($this->sources)) {
+            return $this->sources;
+        }
+
+        return array_map(function ($source) {
+            if (! is_array($source)) {
+                return $source;
+            }
+            foreach (['url', 'file_url'] as $key) {
+                $url = (string) ($source[$key] ?? '');
+                if (($source['source_type'] ?? null) === 'chat_attachment'
+                    || preg_match('#/storage/(?:app/)?(?:chat-attachments/|children/[^/]+/documents/)#i', rawurldecode($url))) {
+                    unset($source[$key]);
+                }
+            }
+
+            return $source;
+        }, $this->sources);
     }
 }

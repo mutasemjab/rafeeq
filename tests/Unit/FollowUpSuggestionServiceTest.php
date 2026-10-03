@@ -48,27 +48,21 @@ class FollowUpSuggestionServiceTest extends TestCase
 
         $this->assertSame('بعد تطبيق الخطوة ثلاثة أيام، كم مرة حدث الصراخ؟', $result['question']);
         $this->assertTrue($result['wait_for_observation']);
+        $this->assertSame('after_observation', $result['response_timing']);
         $this->assertSame('تطبيق الخطوة ثلاثة أيام', $result['anchor']);
         $this->assertStringContainsString('نعدّلها', $result['decision_impact']);
     }
 
-    public function test_it_revises_a_compound_follow_up_into_one_atomic_measurement(): void
+    public function test_it_keeps_one_atomic_measurement_without_another_model_call(): void
     {
         $llm = Mockery::mock(LlmProviderInterface::class);
-        $llm->shouldReceive('chatJson')->twice()->andReturn(
+        $llm->shouldReceive('chatJson')->once()->andReturn(
             [
                 'question' => 'بعد استخدام المؤقت، كم استمر الصراخ، وهل انتقل للنشاط التالي؟',
                 'purpose' => 'outcome_check',
                 'wait_for_observation' => true,
                 'anchor' => 'استخدام المؤقت',
                 'decision_impact' => 'تعديل الخطة.',
-            ],
-            [
-                'question' => 'بعد استخدام المؤقت، كم دقيقة استمر الصراخ؟',
-                'purpose' => 'duration_check',
-                'wait_for_observation' => true,
-                'anchor' => 'استخدام المؤقت',
-                'decision_impact' => 'تحديد تثبيت مدة التنبيه أو تعديلها.',
             ]
         );
 
@@ -81,7 +75,114 @@ class FollowUpSuggestionServiceTest extends TestCase
             'ar'
         );
 
-        $this->assertSame('بعد استخدام المؤقت، كم دقيقة استمر الصراخ؟', $result['question']);
+        $this->assertSame('بعد استخدام المؤقت، كم استمر الصراخ؟', $result['question']);
         $this->assertStringNotContainsString('وهل', $result['question']);
+    }
+
+    public function test_it_skips_optional_generation_when_planner_needs_no_follow_up(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->never();
+
+        $result = (new FollowUpSuggestionService($llm))->suggest(
+            'شكرًا', 'أهلًا بك.', ['follow_up_needed' => false], [], [], 'ar'
+        );
+
+        $this->assertNull($result['question']);
+        $this->assertFalse($result['wait_for_observation']);
+    }
+
+    public function test_it_drops_a_question_repeated_after_atomic_truncation(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn([
+            'question' => 'أين حدث الصراخ، وكم استمر؟',
+            'purpose' => 'setting_check',
+            'wait_for_observation' => false,
+            'anchor' => 'الصراخ',
+            'decision_impact' => 'اختيار الخطوة حسب المكان.',
+        ]);
+
+        $result = (new FollowUpSuggestionService($llm))->suggest(
+            'في البيت', 'فهمت المكان.', [], [], [], 'ar',
+            ['asked_questions' => [['question' => 'اين حدث الصراخ؟']]]
+        );
+
+        $this->assertNull($result['question']);
+        $this->assertNull($result['decision_impact']);
+    }
+
+    public function test_it_preserves_a_single_question_with_an_embedded_time_clause(): void
+    {
+        $question = 'How did he respond when the timer rang?';
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn([
+            'question' => $question,
+            'purpose' => 'outcome_check',
+            'wait_for_observation' => true,
+            'anchor' => 'The timer',
+            'decision_impact' => 'Adjust the transition cue.',
+        ]);
+
+        $result = (new FollowUpSuggestionService($llm))->suggest(
+            'He screams at transitions.', 'Use a timer.', [], [], [], 'en'
+        );
+
+        $this->assertSame($question, $result['question']);
+    }
+
+    public function test_it_drops_questions_without_a_decision_impact(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn([
+            'question' => 'How long did the transition take?',
+            'purpose' => 'outcome_check',
+            'wait_for_observation' => true,
+            'anchor' => 'The transition',
+            'decision_impact' => null,
+        ]);
+
+        $result = (new FollowUpSuggestionService($llm))->suggest(
+            'Thanks.', 'You are welcome.', [], [], [], 'en'
+        );
+
+        $this->assertNull($result['question']);
+        $this->assertFalse($result['wait_for_observation']);
+    }
+
+    public function test_it_drops_a_question_already_in_recent_assistant_history(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn([
+            'question' => 'What happened just before the screaming?',
+            'purpose' => 'antecedent',
+            'wait_for_observation' => false,
+            'anchor' => 'Screaming',
+            'decision_impact' => 'Identify a trigger.',
+        ]);
+
+        $result = (new FollowUpSuggestionService($llm))->suggest(
+            'I turned the screen off.', 'We can plan the transition.', [], [],
+            [['role' => 'assistant', 'content' => 'Let us understand the situation. What happened just before the screaming?']],
+            'en'
+        );
+
+        $this->assertNull($result['question']);
+    }
+
+    public function test_a_previous_round_does_not_block_a_new_outcome_measurement(): void
+    {
+        $question = 'How long did the transition take?';
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn([
+            'question' => $question, 'purpose' => 'outcome_check', 'wait_for_observation' => true,
+            'anchor' => 'The next transition', 'decision_impact' => 'Adjust the step based on the next result.',
+        ]);
+        $result = (new FollowUpSuggestionService($llm))->suggest('The last attempt was shorter.', 'Repeat the cue.',
+            ['domain' => 'behavior', 'problem_types' => ['transition']], [], [['role' => 'assistant', 'content' => $question]], 'en', [
+                'observation_round' => 1,
+                'asked_questions' => [['question' => $question, 'scope' => 'behavior:transition', 'observation_round' => 0]],
+            ]);
+        $this->assertSame($question, $result['question']);
     }
 }

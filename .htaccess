@@ -9,6 +9,10 @@
     # to application internals and private runtime data.
     RewriteRule ^(?:app|bootstrap|config|database|resources|routes|tests|vendor)(?:/|$) - [F,L,NC]
     RewriteRule ^storage/(?:logs|framework)(?:/|$) - [F,L,NC]
+    # Private child files and retained legacy originals are served only by
+    # authorized or short-lived signed API downloads, never static URLs.
+    RewriteRule ^storage/app/(?:private|knowledge-tmp|knowledge-extraction-cache)(?:/|$) - [F,L,NC]
+    RewriteRule ^storage/(?:app/public/|public/)?(?:chat-attachments|children/[^/]+/documents)(?:/|$) - [F,L,NC]
 
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .

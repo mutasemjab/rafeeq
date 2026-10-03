@@ -23,11 +23,14 @@ class ChildDocument extends Model
         'processing_error',
         'processed_at',
         'metadata',
+        'storage_disk',
+        'has_legacy_public_copy',
     ];
 
     protected $casts = [
-        'metadata'     => 'array',
+        'metadata' => 'array',
         'processed_at' => 'datetime',
+        'has_legacy_public_copy' => 'boolean',
     ];
 
     public function child()

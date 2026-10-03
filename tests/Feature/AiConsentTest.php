@@ -88,13 +88,15 @@ class AiConsentTest extends TestCase
         $this->mock(ChildChatService::class, function (MockInterface $mock) use ($conversation): void {
             $mock->shouldReceive('ask')
                 ->once()
-                ->andReturn(
-                    Message::query()->create([
+                ->andReturnUsing(function ($actualConversation, $text, $userId, $childId, $language, $userMessage) use ($conversation) {
+                    return Message::query()->create([
                         'conversation_id' => $conversation->id,
+                        'user_id' => $userId,
+                        'reply_to_message_id' => $userMessage->id,
                         'role' => 'assistant',
                         'content' => 'Here is a helpful response.',
-                    ])
-                );
+                    ]);
+                });
         });
 
         $this->actingAs($this->user, 'user-api')
@@ -151,6 +153,7 @@ class AiConsentTest extends TestCase
         config([
             'ai.provider' => 'fake',
             'ai.web_search_enabled' => false,
+            'ai.openai_web_search_enabled' => false,
             // This test covers response serialization of configured references;
             // evidence-gate behavior is covered by ChildChatOrchestrationTest.
             'ai.require_retrieved_evidence' => false,
@@ -176,6 +179,15 @@ class AiConsentTest extends TestCase
         $this->mock(WebSearchServiceInterface::class, function (MockInterface $mock): void {
             $mock->shouldReceive('search')->never();
         });
+
+        // Exercise serialization with an explicitly cited deterministic reply;
+        // generic unused references must not be presented as supporting evidence.
+        $provider = \Mockery::mock(\App\Services\AI\Providers\FakeLlmProvider::class)->makePartial();
+        $provider->shouldReceive('answer')->once()->andReturn([
+            'content' => 'General development information [MED_SOURCE_1] [MED_SOURCE_2].',
+            'sources' => [], 'used_web_search' => false, 'model' => 'fake',
+        ]);
+        $this->app->instance(\App\Services\AI\Contracts\LlmProviderInterface::class, $provider);
 
         $response = $this->actingAs($this->user, 'user-api')
             ->postJson("/api/v1/conversations/{$conversation->id}/chat", [

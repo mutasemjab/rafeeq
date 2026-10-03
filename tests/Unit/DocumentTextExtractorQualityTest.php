@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Services\Documents\DocumentTextExtractor;
+use Illuminate\Support\Facades\Storage;
 use ReflectionMethod;
 use RuntimeException;
 use Tests\TestCase;
@@ -37,6 +38,40 @@ class DocumentTextExtractorQualityTest extends TestCase
             app(DocumentTextExtractor::class)->extractFromAbsolutePath($path);
         } finally {
             @unlink($path);
+        }
+    }
+
+    public function test_private_extraction_neither_reads_nor_writes_shared_knowledge_cache(): void
+    {
+        config(['ai.document_extraction_cache' => true, 'filesystems.default' => 'public']);
+        Storage::fake('public');
+        $file = 'private-report.txt';
+        $text = 'This private assessment reports the child development observations and caregiver history. '.bin2hex(random_bytes(8));
+        Storage::disk('public')->put($file, $text);
+        $path = Storage::disk('public')->path($file);
+        $hash = hash_file('sha256', $path);
+        $cachePath = storage_path('app/knowledge-extraction-cache/'.substr($hash, 0, 2).'/'.$hash.'.json');
+        $extractor = app(DocumentTextExtractor::class);
+
+        try {
+            $this->assertSame($text, $extractor->extractFromAbsolutePath($path, 'text/plain', false)[0]['text']);
+            $this->assertFileDoesNotExist($cachePath);
+            $this->assertSame($text, $extractor->extractFromStoragePath($file, 'text/plain', false)[0]['text']);
+            $this->assertFileDoesNotExist($cachePath);
+
+            // Public knowledge extraction can still cache. Private calls must
+            // ignore even a pre-existing shared cache for identical bytes.
+            $extractor->extractFromAbsolutePath($path, 'text/plain');
+            $cached = json_decode(file_get_contents($cachePath), true);
+            $cached['pages'][0]['text'] = 'A stale shared cached assessment that must not be read for this private file.';
+            file_put_contents($cachePath, json_encode($cached));
+
+            $this->assertSame($text, $extractor->extractFromAbsolutePath($path, 'text/plain', false)[0]['text']);
+            $this->assertSame($text, $extractor->extractFromStoragePath($file, 'text/plain', false)[0]['text']);
+        } finally {
+            if (is_file($cachePath)) {
+                unlink($cachePath);
+            }
         }
     }
 }

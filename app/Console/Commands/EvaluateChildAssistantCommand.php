@@ -103,7 +103,7 @@ class EvaluateChildAssistantCommand extends Command
                 ]);
             }
 
-            if ($result['actual_safety'] !== 'routine' || ! $this->option('live')) {
+            if ($result['actual_safety'] !== 'routine' || ! $this->option('live') || ($case['safety_only'] ?? false)) {
                 return $result;
             }
 
@@ -125,11 +125,31 @@ class EvaluateChildAssistantCommand extends Command
                 $case['conversation_state'] ?? []
             );
             $result['actual_action'] = $plan['action'] ?? null;
+            $result['evidence_required'] = $plan['evidence_required'] ?? null;
+            $result['question'] = $plan['question'] ?? null;
+            if (array_key_exists('expected_evidence_required', $case)
+                && $result['evidence_required'] !== $case['expected_evidence_required']) {
+                return array_merge($result, ['status' => 'failed', 'details' => 'Evidence requirement mismatch.']);
+            }
             if ($result['actual_action'] !== ($case['expected_action'] ?? null)) {
                 return array_merge($result, [
                     'status' => 'failed',
                     'details' => 'Action mismatch; expected '.($case['expected_action'] ?? 'null').'.',
                 ]);
+            }
+            if ($result['actual_action'] === 'ask_clarification' && in_array($case['language'] ?? null, ['ar', 'en'], true)) {
+                $question = (string) ($result['question'] ?? '');
+                $arabicLetters = preg_match_all('/\p{Arabic}/u', $question) ?: 0;
+                $latinLetters = preg_match_all('/[a-z]/iu', $question) ?: 0;
+                $result['question_language'] = $arabicLetters + $latinLetters === 0
+                    ? null
+                    : ($arabicLetters > $latinLetters ? 'ar' : 'en');
+                if ($result['question_language'] !== $case['language']) {
+                    return array_merge($result, [
+                        'status' => 'failed',
+                        'details' => 'Clarification language mismatch; expected '.$case['language'].'.',
+                    ]);
+                }
             }
 
             return $result;

@@ -32,6 +32,11 @@ class ChildChatWebSearchPolicyTest extends TestCase
             Mockery::mock(SafetyTriageService::class),
             Mockery::mock(ChatTurnPlannerService::class)
         );
+        $evidenceMethod = new ReflectionMethod($service, 'requiresKnowledgeEvidence');
+        $this->assertTrue($evidenceMethod->invoke($service, ['domain' => 'appetite'], []));
+        $this->assertTrue($evidenceMethod->invoke($service, ['domain' => 'app_support', 'evidence_required' => true], []));
+        $this->assertFalse($evidenceMethod->invoke($service, ['domain' => 'app_support'], []));
+        $this->assertFalse($evidenceMethod->invoke($service, ['domain' => 'app_support', 'evidence_required' => false], []));
         $method = new ReflectionMethod($service, 'shouldUseHostedWebSearch');
         $plan = [
             'domain' => 'behavior',

@@ -4,6 +4,8 @@ namespace Tests\Unit;
 
 use App\Models\Child;
 use App\Models\ChildMemory;
+use App\Models\Conversation;
+use App\Models\Message;
 use App\Models\User;
 use App\Services\AI\ChildMemoryManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -58,5 +60,24 @@ class ChildMemoryManagerTest extends TestCase
         $memory = ChildMemory::firstOrFail();
         $this->assertSame('The child uses Arabic and English.', $memory->content);
         $this->assertCount(1, data_get($memory->metadata, 'history', []));
+    }
+
+    public function test_owned_exact_evidence_and_message_order_protect_a_correction(): void
+    {
+        $user = User::factory()->create();
+        $child = Child::factory()->create(['user_id' => $user->id]);
+        $conversation = Conversation::factory()->create(['user_id' => $user->id, 'child_id' => $child->id]);
+        $old = Message::create(['conversation_id' => $conversation->id, 'user_id' => $user->id, 'child_id' => $child->id, 'role' => 'user', 'content' => 'عمره ثلاث سنوات']);
+        $new = Message::create(['conversation_id' => $conversation->id, 'user_id' => $user->id, 'child_id' => $child->id, 'role' => 'user', 'content' => 'أقصد خمس سنوات']);
+        $candidate = fn (string $key, string $content): array => ['key' => $key, 'type' => 'development', 'content' => $content, 'evidence' => $content, 'confidence' => 0.98, 'fact_status' => 'confirmed_by_caregiver'];
+        $manager = new ChildMemoryManager();
+        $this->assertSame(1, $manager->applyCandidates($child->id, $user->id, $old->id, [$candidate('age_years', $old->content)]));
+        $this->assertSame(1, $manager->applyCandidates($child->id, $user->id, $new->id, [$candidate('child.age', $new->content)]));
+        $this->assertSame(0, $manager->applyCandidates($child->id, $user->id, $old->id, [$candidate('age_months', $old->content)]));
+        $this->assertSame(0, $manager->applyCandidates($child->id, $user->id, $new->id, [$candidate('child.age', 'عمره تسع سنوات')]));
+        $memory = ChildMemory::where('status', 'active')->sole();
+        $this->assertSame('child.age', $memory->memory_key);
+        $this->assertSame($new->content, $memory->content);
+        $this->assertSame($old->id, data_get($memory->metadata, 'history.0.source_message_id'));
     }
 }

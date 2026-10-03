@@ -26,6 +26,7 @@ class AccountDeletionTest extends TestCase
         parent::setUp();
         $this->setUpPassport();
         Storage::fake('public');
+        Storage::fake('private');
     }
 
     public function test_authenticated_user_can_delete_their_own_account(): void
@@ -107,7 +108,7 @@ class AccountDeletionTest extends TestCase
         $token = $user->createToken('mobile')->accessToken;
 
         $this->withHeaders([
-            'Authorization' => 'Bearer ' . $token,
+            'Authorization' => 'Bearer '.$token,
         ])->deleteJson('/api/v1/user/account')
             ->assertOk()
             ->assertJsonPath('success', true)
@@ -138,16 +139,45 @@ class AccountDeletionTest extends TestCase
         $token = $user->createToken('mobile')->accessToken;
 
         $this->withHeaders([
-            'Authorization' => 'Bearer ' . $token,
+            'Authorization' => 'Bearer '.$token,
         ])->deleteJson('/api/v1/user/account')
             ->assertOk();
 
         app('auth')->forgetGuards();
 
         $this->withHeaders([
-            'Authorization' => 'Bearer ' . $token,
+            'Authorization' => 'Bearer '.$token,
         ])->getJson('/api/v1/auth/me')
             ->assertStatus(401);
+    }
+
+    public function test_account_deletion_removes_private_and_retained_legacy_copies_including_soft_deleted_records(): void
+    {
+        $user = User::factory()->create();
+        $child = Child::factory()->create(['user_id' => $user->id]);
+        $conversation = Conversation::factory()->create(['user_id' => $user->id, 'child_id' => $child->id]);
+        $path = "chat-attachments/{$user->id}/{$conversation->id}/private.txt";
+        $attachment = ChatAttachment::factory()->create([
+            'user_id' => $user->id, 'conversation_id' => $conversation->id, 'child_id' => $child->id,
+            'file_path' => $path, 'storage_disk' => 'private', 'has_legacy_public_copy' => true,
+        ]);
+        Storage::disk('private')->put($path, 'Private data');
+        Storage::disk('public')->put($path, 'Legacy data');
+        $attachment->delete();
+        $documentPath = "children/{$child->id}/documents/private.txt";
+        ChildDocument::create([
+            'user_id' => $user->id, 'child_id' => $child->id, 'original_name' => 'private.txt',
+            'file_path' => $documentPath, 'storage_disk' => 'private', 'status' => 'processed',
+            'metadata' => ['extracted_text' => 'Private extracted text'],
+        ]);
+        Storage::disk('private')->put($documentPath, 'Private document');
+
+        $this->actingAs($user, 'user-api')->deleteJson('/api/v1/user/account')->assertOk();
+
+        Storage::disk('private')->assertMissing($path);
+        Storage::disk('public')->assertMissing($path);
+        Storage::disk('private')->assertMissing($documentPath);
+        $this->assertDatabaseMissing('chat_attachments', ['id' => $attachment->id]);
     }
 
     public function test_unauthenticated_request_cannot_delete_an_account(): void

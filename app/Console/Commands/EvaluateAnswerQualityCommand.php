@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\AI\AnswerQualityService;
+use App\Services\AI\CaseBriefService;
 use App\Services\AI\Contracts\LlmProviderInterface;
 use Illuminate\Console\Command;
 use RuntimeException;
@@ -77,6 +78,7 @@ class EvaluateAnswerQualityCommand extends Command
         AnswerQualityService $quality
     ): array {
         try {
+            $startedAt = microtime(true);
             $language = ($case['language'] ?? 'ar') === 'ar' ? 'ar' : 'en';
             $turnPlan = $case['turn_plan'] ?? [];
             $childContext = $case['child_context'] ?? ['profile' => null, 'memories' => []];
@@ -91,12 +93,15 @@ class EvaluateAnswerQualityCommand extends Command
                 'turn_plan' => $turnPlan,
                 'child_profile' => $childContext['profile'] ?? null,
                 'child_memories' => $childContext['memories'] ?? [],
+                'case_documents' => $childContext['documents'] ?? [],
+                'case_brief' => CaseBriefService::build($childContext),
                 'retrieved_sources' => $sourceContext,
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
             $draft = $llm->answer([
                 ['role' => 'system', 'content' => $systemPrompt],
                 ['role' => 'user', 'content' => "UNTRUSTED_REFERENCE_DATA\n{$reference}"],
+                ...array_slice($case['history'] ?? [], -8),
                 ['role' => 'user', 'content' => (string) $case['message']],
             ], ['web_search' => false, 'web_search_required' => false]);
 
@@ -106,16 +111,24 @@ class EvaluateAnswerQualityCommand extends Command
                 $turnPlan,
                 $childContext,
                 $sourceContext,
-                $language
+                $language,
+                $case['history'] ?? []
             );
             $content = trim((string) ($review['content'] ?? ''));
             $scores = is_array($review['scores'] ?? null) ? $review['scores'] : [];
             $minimumScore = $scores !== [] ? min(array_map('floatval', $scores)) : 0.0;
             $citationPresent = preg_match('/\[(?:CHAT|KB|WEB|MED)_SOURCE_\d+\]/', $content) === 1
                 || preg_match('#https?://#', $content) === 1;
-            $citationRequired = ($turnPlan['evidence_required'] ?? true) === true;
+            $citationRequired = ($turnPlan['evidence_required'] ?? true) === true
+                && ! (($turnPlan['action'] ?? null) === 'refer_to_specialist' && trim($sourceContext) === '');
+            $forbiddenPresent = collect($case['forbidden_phrases'] ?? [])->contains(
+                fn (string $phrase): bool => str_contains($content, $phrase)
+            );
             $passed = ($review['passed'] ?? false) === true
+                && ($review['reviewed'] ?? false) === true
+                && (($review['action'] ?? null) !== 'revise' || ($review['revision_verified'] ?? false) === true)
                 && $content !== ''
+                && ! $forbiddenPresent
                 && $minimumScore >= (float) ($case['minimum_score'] ?? 0.75)
                 && (! $citationRequired || $citationPresent);
 
@@ -123,10 +136,15 @@ class EvaluateAnswerQualityCommand extends Command
                 'id' => $case['id'],
                 'status' => $passed ? 'passed' : 'failed',
                 'quality_action' => $review['action'] ?? null,
+                'reviewed' => (bool) ($review['reviewed'] ?? false),
+                'revision_verified' => (bool) ($review['revision_verified'] ?? false),
+                'duration_ms' => round((microtime(true) - $startedAt) * 1000),
+                'forbidden_phrase_present' => $forbiddenPresent,
                 'minimum_score' => round($minimumScore, 2),
                 'citation_present' => $citationPresent,
                 'issues' => $review['issues'] ?? [],
                 'answer_preview' => mb_substr($content, 0, 500),
+                'final_answer' => $content,
                 'model' => $draft['model'] ?? null,
             ];
         } catch (Throwable $exception) {

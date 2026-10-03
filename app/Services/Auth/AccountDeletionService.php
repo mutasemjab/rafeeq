@@ -6,6 +6,7 @@ use App\Models\ChatAttachment;
 use App\Models\ChildDocument;
 use App\Models\PasswordOtp;
 use App\Models\User;
+use App\Services\Documents\PrivateDocumentStorage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -15,15 +16,14 @@ class AccountDeletionService
 {
     public function delete(User $user): void
     {
-        $filePaths = $this->collectFilePaths($user);
-
         DB::transaction(function () use ($user): void {
+            // Keep ownership records and the account if file deletion fails so
+            // the request can be retried, instead of leaving untracked files.
+            $this->deleteFiles($this->collectFilePaths($user));
             $this->deleteAuthArtifacts($user);
             $this->deleteAncillaryArtifacts($user);
             $user->delete();
         });
-
-        $this->deleteFiles($filePaths);
 
         Log::info('User account deleted', [
             'user_id' => $user->id,
@@ -38,21 +38,20 @@ class AccountDeletionService
             $paths[] = $user->avatar;
         }
 
-        $paths = array_merge(
-            $paths,
+        $documents = array_merge(
             ChildDocument::withTrashed()
                 ->where('user_id', $user->id)
-                ->pluck('file_path')
-                ->filter()
+                ->lockForUpdate()
+                ->get()
                 ->all(),
             ChatAttachment::withTrashed()
                 ->where('user_id', $user->id)
-                ->pluck('file_path')
-                ->filter()
+                ->lockForUpdate()
+                ->get()
                 ->all(),
         );
 
-        return array_values(array_unique(array_filter($paths)));
+        return ['public' => array_values(array_unique(array_filter($paths))), 'documents' => $documents];
     }
 
     private function deleteAuthArtifacts(User $user): void
@@ -123,10 +122,11 @@ class AccountDeletionService
 
     private function deleteFiles(array $filePaths): void
     {
-        if ($filePaths === []) {
-            return;
+        foreach ($filePaths['documents'] ?? [] as $document) {
+            app(PrivateDocumentStorage::class)->delete($document);
         }
-
-        Storage::disk('public')->delete($filePaths);
+        if (($filePaths['public'] ?? []) !== [] && ! Storage::disk('public')->delete($filePaths['public'])) {
+            throw new \RuntimeException('Account files could not be deleted. Please retry.');
+        }
     }
 }

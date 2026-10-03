@@ -232,8 +232,20 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
         $perQueryLimit = max(1, (int) ceil($limit / count($queryEmbeddings)));
         $rows = DB::table('chat_attachment_chunks as c')
             ->join('chat_attachments as a', 'a.id', '=', 'c.chat_attachment_id')
+            ->join('conversations as conversation', 'conversation.id', '=', 'a.conversation_id')
+            ->leftJoin('children as child', 'child.id', '=', 'a.child_id')
             ->where('c.user_id', $userId)
             ->where('c.conversation_id', $conversationId)
+            ->where('a.user_id', $userId)
+            ->where('a.conversation_id', $conversationId)
+            ->whereNull('a.deleted_at')
+            ->where('conversation.user_id', $userId)
+            ->whereNull('conversation.deleted_at')
+            ->where(function ($query) use ($userId): void {
+                $query->whereNull('a.child_id')->orWhere(function ($query) use ($userId): void {
+                    $query->where('child.user_id', $userId)->whereNull('child.deleted_at');
+                });
+            })
             ->where('a.status', 'processed')
             ->select([
                 'c.id               as chunk_id',

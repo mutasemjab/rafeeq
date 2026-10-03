@@ -41,6 +41,11 @@ Route::prefix('v1')->group(function () {
     Route::get('/specialists/{specialist}/reviews',       [SpecialistReviewController::class, 'index']);
     Route::get('/knowledge',                              [KnowledgeDocumentController::class, 'index']);
 
+    Route::get('/private-files/attachments/{attachment}', [ChatAttachmentController::class, 'downloadSigned'])
+        ->middleware('signed')->name('attachments.temporary-download');
+    Route::get('/private-files/child-documents/{document}', [ChildDocumentController::class, 'downloadSigned'])
+        ->middleware('signed')->name('child-documents.temporary-download');
+
     // ── Authenticated ────────────────────────────────────────────────────
     Route::middleware('auth:user-api')->group(function () {
 
@@ -59,6 +64,8 @@ Route::prefix('v1')->group(function () {
         Route::get( '/children/{child}/documents',        [ChildDocumentController::class, 'index']);
         Route::post('/children/{child}/documents',        [ChildDocumentController::class, 'store']);
         Route::delete('/children/{child}/documents/{document}', [ChildDocumentController::class, 'destroy']);
+        Route::get('/children/{child}/documents/{document}/download', [ChildDocumentController::class, 'download'])
+            ->name('child-documents.download');
 
         // Child memories
         Route::get(   '/children/{child}/memories',        [ChildMemoryController::class, 'index']);
@@ -73,14 +80,19 @@ Route::prefix('v1')->group(function () {
         Route::delete('/conversations/{conversation}',[ConversationController::class, 'destroy']);
 
         // Chat
+        Route::get('/chat/usage', [ChildChatController::class, 'usage']);
         Route::post('/conversations/{conversation}/chat', [ChildChatController::class, 'chat'])
             ->middleware('ai.consent');
+        Route::get('/conversations/{conversation}/chat/turns/{clientMessageId}', [ChildChatController::class, 'status']);
+        Route::delete('/conversations/{conversation}/chat/turns/{clientMessageId}', [ChildChatController::class, 'cancel']);
 
         // Chat attachments
         Route::get( '/conversations/{conversation}/attachments', [ChatAttachmentController::class, 'index']);
         Route::post('/attachments',                              [ChatAttachmentController::class, 'store'])
             ->middleware('ai.consent');
         Route::delete('/attachments/{attachment}',               [ChatAttachmentController::class, 'destroy']);
+        Route::post('/attachments/{attachment}/retry', [ChatAttachmentController::class, 'retry'])->middleware('ai.consent');
+        Route::get('/attachments/{attachment}/download', [ChatAttachmentController::class, 'download'])->name('attachments.download');
 
         // Appointments
         Route::get(  '/appointments',                    [AppointmentController::class, 'index']);

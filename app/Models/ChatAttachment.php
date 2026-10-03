@@ -21,10 +21,13 @@ class ChatAttachment extends Model
         'status',
         'processing_error',
         'processed_at',
+        'storage_disk',
+        'has_legacy_public_copy',
     ];
 
     protected $casts = [
         'processed_at' => 'datetime',
+        'has_legacy_public_copy' => 'boolean',
     ];
 
     public function conversation()

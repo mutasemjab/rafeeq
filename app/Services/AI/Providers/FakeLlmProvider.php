@@ -43,6 +43,22 @@ class FakeLlmProvider implements LlmProviderInterface
             ];
         }
 
+        if (isset($properties['scores']) || $this->messagesHintAnswerQuality($messages)) {
+            return [
+                'action' => 'approve',
+                'issues' => [],
+                'strengths' => ['Grounded test answer.'],
+                'scores' => [
+                    'specificity' => 1.0,
+                    'grounding' => 1.0,
+                    'practicality' => 1.0,
+                    'professional_tone' => 1.0,
+                    'calibration' => 1.0,
+                ],
+                'revised_answer' => null,
+            ];
+        }
+
         if (isset($properties['action']) || $this->messagesHintTurnPlanner($messages)) {
             return [
                 'action' => 'answer',
@@ -75,22 +91,6 @@ class FakeLlmProvider implements LlmProviderInterface
                 'wait_for_observation' => false,
                 'anchor' => null,
                 'decision_impact' => null,
-            ];
-        }
-
-        if (isset($properties['scores']) || $this->messagesHintAnswerQuality($messages)) {
-            return [
-                'action' => 'approve',
-                'issues' => [],
-                'strengths' => ['Grounded test answer.'],
-                'scores' => [
-                    'specificity' => 1.0,
-                    'grounding' => 1.0,
-                    'practicality' => 1.0,
-                    'professional_tone' => 1.0,
-                    'calibration' => 1.0,
-                ],
-                'revised_answer' => null,
             ];
         }
 

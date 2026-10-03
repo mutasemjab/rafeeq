@@ -39,18 +39,18 @@ class KnowledgeDispatchFallbackTest extends TestCase
         Storage::disk('public')->put('knowledge/fallback-queue-guide.pdf', 'placeholder document contents');
 
         $document = KnowledgeDocument::query()->create([
-            'title'         => 'Fallback Queue Guide',
-            'category'      => 'Recovery',
-            'file_path'     => 'knowledge/fallback-queue-guide.pdf',
+            'title' => 'Fallback Queue Guide',
+            'category' => 'Recovery',
+            'file_path' => 'knowledge/fallback-queue-guide.pdf',
             'original_name' => 'fallback-queue-guide.pdf',
-            'mime_type'     => 'application/pdf',
-            'file_size'     => 128,
-            'status'        => 'uploaded',
+            'mime_type' => 'application/pdf',
+            'file_size' => 128,
+            'status' => 'uploaded',
         ]);
 
         $this->app->bind(DocumentTextExtractor::class, fn () => new class
         {
-            public function extractFromStoragePath(string $filePath, ?string $mimeType = null): array
+            public function extractFromStoragePath(string $filePath, ?string $mimeType = null, bool $useCache = true): array
             {
                 return [['page' => 1, 'text' => 'Fallback queue recovery content']];
             }
@@ -98,7 +98,7 @@ class KnowledgeDispatchFallbackTest extends TestCase
 
             public function embeddingMany(array $texts): array
             {
-                return array_map(fn(): array => [0.1, 0.2], $texts);
+                return array_map(fn (): array => [0.1, 0.2], $texts);
             }
         });
 
@@ -123,7 +123,7 @@ class KnowledgeDispatchFallbackTest extends TestCase
         ProcessKnowledgeDocumentJob::dispatchWithSyncFallback($document->id);
 
         $this->assertDatabaseHas('knowledge_documents', [
-            'id'     => $document->id,
+            'id' => $document->id,
             'status' => 'processed',
         ]);
 
