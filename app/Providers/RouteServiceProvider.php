@@ -54,7 +54,12 @@ class RouteServiceProvider extends ServiceProvider
     protected function configureRateLimiting()
     {
         RateLimiter::for('api', function (Request $request) {
-            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+            // Throttling runs before the route's auth middleware. Resolve the
+            // API guard explicitly so signed-in users behind one IP do not
+            // consume each other's allowance while polling replies.
+            $user = $request->user('user-api');
+
+            return Limit::perMinute(60)->by($user ? 'user:'.$user->id : 'ip:'.$request->ip());
         });
     }
 }

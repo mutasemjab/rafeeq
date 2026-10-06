@@ -12,7 +12,9 @@ class StoreChildRequest extends FormRequest
     {
         return [
             'name'              => 'required|string|max:100',
-            'date_of_birth'     => 'required|date|before:today',
+            'date_of_birth'     => 'required|date|before_or_equal:today',
+            'country_of_birth' => 'nullable|string|max:100',
+            'country_of_residence' => 'nullable|string|max:100',
             'gender'            => 'required|in:male,female',
             'diagnosis'         => 'nullable|string|max:255',
             'diagnosis_details' => 'nullable|string',

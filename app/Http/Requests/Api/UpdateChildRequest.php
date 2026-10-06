@@ -12,7 +12,9 @@ class UpdateChildRequest extends FormRequest
     {
         return [
             'name'              => 'sometimes|required|string|max:100',
-            'date_of_birth'     => 'sometimes|required|date|before:today',
+            'date_of_birth'     => 'sometimes|required|date|before_or_equal:today',
+            'country_of_birth' => 'nullable|string|max:100',
+            'country_of_residence' => 'nullable|string|max:100',
             'gender'            => 'sometimes|required|in:male,female',
             'diagnosis'         => 'nullable|string|max:255',
             'diagnosis_details' => 'nullable|string',

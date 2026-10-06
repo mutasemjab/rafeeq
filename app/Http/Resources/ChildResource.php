@@ -14,6 +14,8 @@ class ChildResource extends JsonResource
             'date_of_birth'     => $this->birth_date?->toDateString(),
             'age'               => $this->birth_date ? $this->birth_date->age : $this->age,
             'gender'            => $this->gender,
+            'country_of_birth' => $this->country_of_birth,
+            'country_of_residence' => $this->country_of_residence,
             'diagnosis'         => $this->diagnosis,
             'diagnosis_details' => $this->condition_notes,
             'notes'             => $this->general_notes,

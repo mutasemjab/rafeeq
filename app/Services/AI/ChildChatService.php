@@ -114,6 +114,7 @@ class ChildChatService
             ->all();
 
         // 3. Safety triage always runs before scope classification or retrieval.
+        $progress && $progress('safety_triage');
         $safetyDecision = $this->safetyTriage->evaluate($userMessage, $guardHistory);
         Log::info('[Chat] Step 3: Safety triage evaluated', [
             'level' => $safetyDecision['level'],
@@ -143,6 +144,7 @@ class ChildChatService
         }
 
         // 4. Enforce Rafiq's subject boundary before retrieval or answer generation.
+        $progress && $progress('checking_context');
         $domainDecision = $this->domainGuard->evaluate($userMessage, $guardHistory);
 
         Log::info('[Chat] Step 4: Domain guard evaluated', [
@@ -196,6 +198,7 @@ class ChildChatService
         }
 
         // 6. Decide whether to answer, ask one focused clarification, or refer.
+        $progress && $progress('turn_planning');
         try {
             $turnPlan = $this->turnPlanner->plan(
                 $userMessage,

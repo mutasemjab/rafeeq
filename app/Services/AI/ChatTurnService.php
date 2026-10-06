@@ -97,12 +97,15 @@ class ChatTurnService
             if (! $this->recoverPersistedReply($current)) {
                 // Every stage renews the lease. Re-read under lock so an old
                 // poll snapshot cannot expire a worker that just progressed.
-                $leaseSeconds = max(900, (int) config('ai.chat_request_timeout', 420) + 120);
+                $queued = $current->status === 'queued';
+                $leaseSeconds = $queued
+                    ? max(30, (int) config('ai.chat_queue_timeout', 60))
+                    : max(211, (int) config('ai.chat_request_timeout', 420) + 30);
                 if (in_array($current->status, ['queued', 'processing'], true)
                     && $current->updated_at->lt(now()->subSeconds($leaseSeconds))) {
-                    $this->fail($current, 'interrupted', $current->language === 'ar'
-                        ? 'توقف تجهيز الرد. أعد المحاولة لاستكمال نفس الرسالة.'
-                        : 'Reply preparation was interrupted. Retry to resume the same message.');
+                    $this->fail($current, $queued ? 'QUEUE_UNAVAILABLE' : 'interrupted', $current->language === 'ar'
+                        ? ($queued ? 'تعذر بدء تجهيز الرد الآن. رسالتك محفوظة؛ حاول مجددًا بعد قليل.' : 'توقف تجهيز الرد. أعد المحاولة لاستكمال نفس الرسالة.')
+                        : ($queued ? 'Reply preparation could not start. Your message is saved; try again shortly.' : 'Reply preparation was interrupted. Retry to resume the same message.'));
                 }
             }
             $turn->refresh();
