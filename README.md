@@ -337,6 +337,40 @@ Supported formats: **PDF, DOCX, TXT**
 php artisan queue:work --tries=3 --timeout=120
 ```
 
+The mobile app submits chat turns asynchronously. With `QUEUE_CONNECTION=database`
+or `redis`, keep a worker running under your process supervisor and restart it
+after deploying PHP changes (`php artisan queue:restart`). Without a running
+worker, accepting a message does not generate an answer. `ProcessChatTurnJob`
+has its own 420-second timeout; the queue visibility/retry period must exceed it
+(the default is 480 seconds). Long document extraction jobs should have separate
+worker capacity so they do not block interactive replies.
+
+Unstarted chat turns now return `QUEUE_UNAVAILABLE` after
+`AI_CHAT_QUEUE_TIMEOUT` seconds (default 60). Retry retains the original message
+ID and quota reservation. A late job from an older attempt cannot process the
+new attempt. Polling can recover an answer persisted before a worker crash.
+
+To investigate a slow turn, check its `status`, `stage`, and `updated_at`, then
+the `ai.provider.request` timing events (`duration_ms`) in the server log. A
+working `/settings` endpoint alone does not verify a running chat worker or
+the external AI provider. Validate an authenticated conversation after deploying
+both the API and mobile changes.
+
+## Regression checks
+
+```bash
+php vendor/bin/phpunit
+```
+
+The backend tests use an isolated in-memory SQLite database and fake/mocked AI
+providers. Coverage includes authentication, ownership, consent, appointments,
+attachments, child profile date/age round trips, asynchronous chat recovery,
+missing workers, idempotent retries, and API rate-limit isolation. They do not
+measure production AI latency. In the mobile checkout run `flutter test` and
+`flutter analyze --no-fatal-infos`, then build each target platform. The mobile
+regressions cover lost acknowledgements, transient polling failures, malformed
+replies, PHP-compatible multipart updates, and date-based age display.
+
 ---
 
 ## Postman Collection

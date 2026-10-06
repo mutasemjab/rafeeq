@@ -42,6 +42,38 @@ class ChatTurnTransportTest extends TestCase
         ]);
     }
 
+    public function test_missing_worker_is_reported_promptly_and_late_job_cannot_process_expired_attempt(): void
+    {
+        config(['ai.chat_queue_timeout' => 60]);
+        $this->send()->assertStatus(202);
+        $turn = ChatTurn::firstOrFail();
+        $lateJob = new ProcessChatTurnJob($turn->id, $turn->attempt);
+        $this->travel(61)->seconds();
+        $this->getJson("/api/v1/conversations/{$this->conversation->id}/chat/turns/turn-1")
+            ->assertOk()->assertJsonPath('turn.status', 'failed')
+            ->assertJsonPath('turn.error.code', 'QUEUE_UNAVAILABLE');
+        $chat = Mockery::mock(ChildChatService::class);
+        $chat->shouldNotReceive('ask');
+        $lateJob->handle(app(ChatTurnService::class), $chat);
+        $this->send()->assertStatus(202)->assertJsonPath('turn.status', 'queued');
+        $lateJob->handle(app(ChatTurnService::class), $chat);
+        $this->assertSame(2, $turn->fresh()->attempt);
+        $this->assertDatabaseCount('messages', 1);
+    }
+
+    public function test_processing_turn_has_a_longer_lease_than_an_unstarted_turn(): void
+    {
+        $this->send()->assertStatus(202);
+        $turn = ChatTurn::firstOrFail();
+        $turn->update(['status' => 'processing', 'stage' => 'preparing_reply', 'started_at' => now()]);
+        $this->travel(61)->seconds();
+        $this->getJson("/api/v1/conversations/{$this->conversation->id}/chat/turns/turn-1")
+            ->assertStatus(202)->assertJsonPath('turn.status', 'processing');
+        $this->travel(400)->seconds();
+        $this->getJson("/api/v1/conversations/{$this->conversation->id}/chat/turns/turn-1")
+            ->assertOk()->assertJsonPath('turn.error.code', 'interrupted');
+    }
+
     public function test_async_accept_and_replay_persist_one_message_and_one_job(): void
     {
         $this->send()->assertStatus(202)->assertJsonPath('turn.status', 'queued');
