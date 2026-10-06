@@ -61,6 +61,30 @@ php artisan queue:work
 
 ---
 
+## Updating production
+
+Back up the database, deploy the application files, and run
+`bash scripts/post-deploy.sh` from the project directory. This applies pending
+migrations, refreshes cached environment settings, and restarts queue workers.
+Deploying PHP files alone is insufficient: chat requires the `chat_turns` table
+and the `messages.reply_to_message_id` migration. Check
+`php artisan migrate:status` after deployment.
+
+For Hostinger, keep the existing default-queue worker for document processing.
+Add a Custom cron job every minute with this command (adjust the project path):
+
+```bash
+/bin/bash /home/USER/domains/DOMAIN/public_html/scripts/run-chat-worker.sh
+```
+
+Once that cron job is installed, set `AI_CHAT_QUEUE=chat`,
+`AI_CHAT_QUEUE_TIMEOUT=120`, and `QUEUE_RETRY_AFTER=480` in production `.env`,
+then run the post-deployment script. The dedicated worker waits for new chat
+jobs, uses a lock to avoid duplicate workers, and renews periodically within
+the hosting process limit. Inspect `storage/logs/chat-worker.log` and
+`php artisan queue:failed` when troubleshooting. Without this worker, leave
+`AI_CHAT_QUEUE=default`.
+
 ## Environment Variables
 
 Add the following to your `.env`:
@@ -328,13 +352,14 @@ Supported formats: **PDF, DOCX, TXT**
 
 | Job | Trigger | Purpose |
 |---|---|---|
+| `ProcessChatTurnJob` | Chat submission | Generate and persist the reply on `AI_CHAT_QUEUE` |
 | `ProcessKnowledgeDocumentJob` | Admin upload | Extract → chunk → embed knowledge doc |
 | `ProcessChatAttachmentJob` | User upload | Extract → chunk → embed chat attachment |
 | `UpdateChildMemoryJob` | Every 5 msgs | LLM extracts child facts from conversation |
 | `SummarizeConversationJob` | Every 10 msgs | Compresses history into `conversations.summary` |
 
 ```bash
-php artisan queue:work --tries=3 --timeout=120
+php artisan queue:work --tries=3 --timeout=420
 ```
 
 The mobile app submits chat turns asynchronously. With `QUEUE_CONNECTION=database`

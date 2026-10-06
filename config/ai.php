@@ -30,6 +30,7 @@ return [
     'embedding_request_timeout' => (int) env('AI_EMBEDDING_REQUEST_TIMEOUT', 300),
     'chat_request_timeout' => (int) env('AI_CHAT_REQUEST_TIMEOUT', 420),
     'chat_queue_timeout' => (int) env('AI_CHAT_QUEUE_TIMEOUT', 60),
+    'chat_queue' => env('AI_CHAT_QUEUE', 'default'),
     'vector_search_chunk_size' => (int) env('AI_VECTOR_SEARCH_CHUNK_SIZE', 200),
 
     'document_chunk_words' => (int) env('AI_DOCUMENT_CHUNK_WORDS', 420),

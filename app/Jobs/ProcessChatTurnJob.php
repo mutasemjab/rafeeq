@@ -24,6 +24,7 @@ class ProcessChatTurnJob implements ShouldQueue
 
     public function __construct(public int $turnId, public ?int $attempt = null)
     {
+        $this->onQueue((string) config('ai.chat_queue', 'default'));
         $this->attempt ??= ChatTurn::find($turnId)?->attempt;
         $this->timeout = max(181, (int) config('ai.chat_request_timeout', 420));
     }

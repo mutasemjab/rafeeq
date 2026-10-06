@@ -83,6 +83,14 @@ class ChatTurnTransportTest extends TestCase
         Bus::assertDispatchedAfterResponse(ProcessChatTurnJob::class, 1);
     }
 
+    public function test_chat_jobs_can_use_a_dedicated_queue(): void
+    {
+        config(['queue.default' => 'database', 'ai.chat_queue' => 'chat']);
+        $this->send()->assertStatus(202);
+        Bus::assertDispatched(ProcessChatTurnJob::class, fn ($job) => $job->queue === 'chat');
+        $this->assertSame('queued', ChatTurn::firstOrFail()->status);
+    }
+
     public function test_id_cannot_be_reused_for_different_content_and_parallel_turn_is_rejected(): void
     {
         $this->send()->assertStatus(202);
