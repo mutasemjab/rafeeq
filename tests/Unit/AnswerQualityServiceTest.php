@@ -131,7 +131,7 @@ class AnswerQualityServiceTest extends TestCase
     {
         Config::set('ai.answer_quality_gate_enabled', true);
         $llm = Mockery::mock(LlmProviderInterface::class);
-        $llm->shouldReceive('chatJson')->once()->andReturn([
+        $llm->shouldReceive('chatJson')->twice()->andReturn([
             'action' => 'revise',
             'issues' => ['Needs support.'],
             'strengths' => [],
@@ -161,7 +161,7 @@ class AnswerQualityServiceTest extends TestCase
     public function test_it_rejects_a_revision_that_invents_a_url_on_a_known_domain(): void
     {
         $llm = Mockery::mock(LlmProviderInterface::class);
-        $llm->shouldReceive('chatJson')->once()->andReturn([
+        $llm->shouldReceive('chatJson')->twice()->andReturn([
             'action' => 'revise',
             'revised_answer' => 'Follow this treatment [CDC](https://www.cdc.gov/known/invented-treatment).',
         ]);
@@ -171,6 +171,38 @@ class AnswerQualityServiceTest extends TestCase
             '[WEB_SOURCE_1] URL: https://www.cdc.gov/known', 'en'
         );
 
+        $this->assertFalse($result['passed']);
+        $this->assertSame('reject', $result['action']);
+    }
+
+    public function test_invalid_citation_gets_one_repair_then_independent_verification(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($m, $s, $o) => $o['schema_name'] === 'rafeeq_answer_quality')
+            ->andReturn(['action' => 'revise', 'revised_answer' => 'Supported help [CDC](https://www.cdc.gov/invented).']);
+        $llm->shouldReceive('chatJson')->once()->withArgs(function ($m, $s, $o) {
+            $repair = json_decode($m[2]['content'], true);
+            return $o['schema_name'] === 'rafeeq_answer_quality_citation_repair'
+                && $repair['allowed_urls'] === ['https://www.cdc.gov/known'];
+        })->andReturn(['action' => 'revise', 'revised_answer' => 'Supported help [CDC](https://www.cdc.gov/known).']);
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($m, $s, $o) => $o['schema_name'] === 'rafeeq_answer_quality_verification')
+            ->andReturn(['action' => 'approve']);
+        $result = (new AnswerQualityService($llm))->review('Help.', 'Draft.', [], [],
+            '[WEB_SOURCE_1] URL: https://www.cdc.gov/known', 'en');
+        $this->assertTrue($result['passed']);
+        $this->assertTrue($result['revision_verified']);
+        $this->assertStringNotContainsString('invented', $result['content']);
+    }
+
+    public function test_citation_repair_cannot_approve_the_original_flawed_draft(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->twice()->andReturn(
+            ['action' => 'revise', 'revised_answer' => 'Claim https://www.cdc.gov/invented'],
+            ['action' => 'approve']
+        );
+        $result = (new AnswerQualityService($llm))->review('Help.', 'Flawed draft.', [], [],
+            '[WEB_SOURCE_1] URL: https://www.cdc.gov/known', 'en');
         $this->assertFalse($result['passed']);
         $this->assertSame('reject', $result['action']);
     }

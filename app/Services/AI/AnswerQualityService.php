@@ -83,6 +83,27 @@ PROMPT;
             ];
             $result = $this->llm->chatJson($messages, $this->schema(), $options);
 
+            // A citation formatting mistake must not silently invalidate an
+            // otherwise repairable turn. Allow one constrained repair; the
+            // same citation checks and independent verifier still apply.
+            $candidate = trim((string) ($result['revised_answer'] ?? ''));
+            if (($result['action'] ?? null) === 'revise' && $candidate !== ''
+                && $this->containsUnknownCitation($candidate, $sourceContext, $answer)) {
+                $repairMessages = $messages;
+                $repairMessages[] = ['role' => 'user', 'content' => json_encode([
+                    'citation_repair_required' => true,
+                    'instruction' => 'The previous revision failed citation validation. Produce a repaired revision using ONLY exact URLs and source labels already present in available_evidence or draft_answer. Do not normalize, shorten, expand, or add URL query parameters. Do not remove citations while retaining unsupported clinical claims. Keep necessary substantive repairs. Return revise or reject; the original draft has not been approved.',
+                    'rejected_revision' => mb_substr($candidate, 0, 10000),
+                    'allowed_urls' => $this->urls($sourceContext."\n".$answer),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)];
+                $result = $this->llm->chatJson($repairMessages, $this->schema(), array_merge($options, [
+                    'schema_name' => 'rafeeq_answer_quality_citation_repair',
+                ]));
+                if (($result['action'] ?? null) !== 'revise') {
+                    $result['action'] = 'reject';
+                }
+            }
+
             $action = in_array($result['action'] ?? null, ['approve', 'revise', 'reject'], true)
                 ? $result['action']
                 : 'reject';
