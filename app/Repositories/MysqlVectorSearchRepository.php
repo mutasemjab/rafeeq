@@ -254,6 +254,7 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
             ->whereNull('a.deleted_at')
             ->where('conversation.user_id', $userId)
             ->whereNull('conversation.deleted_at')
+            ->where(function ($query) { $query->whereNull('conversation.expires_at')->orWhere('conversation.expires_at', '>', now()); })
             ->where(function ($query) use ($userId): void {
                 $query->whereNull('a.child_id')->orWhere(function ($query) use ($userId): void {
                     $query->where('child.user_id', $userId)->whereNull('child.deleted_at');

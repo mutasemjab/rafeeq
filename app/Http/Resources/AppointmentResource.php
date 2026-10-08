@@ -15,6 +15,7 @@ class AppointmentResource extends JsonResource
             'booking_reference' => $this->booking_reference,
             'specialist'        => new SpecialistResource($this->whenLoaded('specialist')),
             'child_id'          => $this->child_id,
+            'person_profile_id' => $this->person_profile_id,
             'appointment_type'  => $this->appointment_type,
             'scheduled_date'    => $this->scheduled_date?->toDateString(),
             'start_time'        => $this->start_time,

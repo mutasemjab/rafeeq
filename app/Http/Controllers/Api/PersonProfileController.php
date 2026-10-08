@@ -49,7 +49,16 @@ class PersonProfileController extends Controller
     public function update(Request $request, PersonProfile $personProfile)
     {
         $this->assertOwner($request, $personProfile);
-        $personProfile->update($request->validate($this->profileRules()));
+        $data = $request->validate($this->profileRules());
+        DB::transaction(function () use ($personProfile, $data): void {
+            $beforeAge = $personProfile->effectiveAgeMonths();
+            $beforeBirth = $personProfile->birth_date?->format('Y-m-d');
+            $personProfile->fill($data);
+            $ageChanged = $beforeAge !== $personProfile->effectiveAgeMonths() || $beforeBirth !== $personProfile->birth_date?->format('Y-m-d');
+            if ($ageChanged) { $personProfile->age_updated_at = now(); }
+            $personProfile->save();
+            if ($ageChanged) { app(\App\Services\AI\ProfileFactCorrectionService::class)->ageChanged($personProfile); }
+        });
 
         return response()->json(new PersonProfileResource($personProfile->fresh()));
     }
@@ -67,6 +76,11 @@ class PersonProfileController extends Controller
             'permission_attested_at' => $request->boolean('has_ai_consent') ? now() : $personProfile->permission_attested_at,
             'consent_version' => $data['consent_version'] ?? $personProfile->consent_version,
         ]);
+        if ($request->boolean('has_ai_consent') && $request->user()->hasAiConsent()) {
+            $personProfile->documents()->where('status', 'uploaded')->limit(20)->pluck('id')->each(function ($id): void {
+                app(\App\Services\Documents\PrivateFileProcessingDispatcher::class)->dispatch(\App\Jobs\ProcessPersonDocumentJob::class, (int) $id);
+            });
+        }
 
         return response()->json(new PersonProfileResource($personProfile->fresh()));
     }
@@ -84,13 +98,18 @@ class PersonProfileController extends Controller
         $this->assertOwner($request, $personProfile);
         DB::transaction(function () use ($personProfile): void {
             $person = PersonProfile::whereKey($personProfile->id)->lockForUpdate()->firstOrFail();
-            $ids = $person->conversations()->withTrashed()->pluck('id');
+            $ids = $person->conversations()->withoutGlobalScope('unexpired')->withTrashed()->pluck('id');
+            app(\App\Services\AI\ChatUsageService::class)->retainDeletedUsage((int) $person->user_id, $ids->all());
+            foreach ($person->documents()->withTrashed()->lockForUpdate()->get() as $file) {
+                app(PrivateDocumentStorage::class)->delete($file);
+                $file->forceDelete();
+            }
             foreach (ChatAttachment::withTrashed()->whereIn('conversation_id', $ids)->where('user_id', $person->user_id)->lockForUpdate()->get() as $file) {
                 app(PrivateDocumentStorage::class)->delete($file);
                 $file->chunks()->delete();
                 $file->forceDelete();
             }
-            $person->conversations()->withTrashed()->forceDelete();
+            $person->conversations()->withoutGlobalScope('unexpired')->withTrashed()->forceDelete();
             $person->forceDelete();
         });
 

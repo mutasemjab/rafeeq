@@ -7,6 +7,7 @@ use App\Models\Child;
 use App\Models\ChildDocument;
 use App\Models\Conversation;
 use App\Models\User;
+use App\Models\PersonDocument;
 
 class CaseDocumentContextService
 {
@@ -101,16 +102,23 @@ class CaseDocumentContextService
             ];
         }
 
-        if ($childId === null) {
+        if ($childId === null && $conversation->person_profile_id === null) {
             return $context;
         }
 
-        $documents = ChildDocument::query()
+        $documents = $childId === null ? collect() : ChildDocument::query()
             ->where('user_id', $userId)
             ->where('child_id', $childId)
             ->latest('id')
             ->limit(self::MAX_FILES)
             ->get();
+        $documentGroup = 'child_documents';
+        if ($conversation->person_profile_id !== null) {
+            $documents = PersonDocument::where('user_id', $userId)->where('person_profile_id', $conversation->person_profile_id)
+                ->latest('id')->limit(self::MAX_FILES)->get()->concat($documents)->take(self::MAX_FILES);
+            $documentGroup = 'person_documents';
+            $context[$documentGroup] = [];
+        }
         $remaining = self::MAX_GROUP_CHARS;
         foreach ($documents as $document) {
             $metadata = is_array($document->metadata) ? $document->metadata : [];
@@ -134,7 +142,7 @@ class CaseDocumentContextService
                 }
             }
 
-            $context['child_documents'][] = [
+            $context[$documentGroup][] = [
                 'id' => (int) $document->id,
                 'name' => mb_substr((string) ($document->title ?: $document->original_name), 0, 200),
                 'category' => mb_substr((string) $document->category, 0, 100),

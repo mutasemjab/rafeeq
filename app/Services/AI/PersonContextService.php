@@ -10,7 +10,8 @@ class PersonContextService
     /** Fresh consent and ownership checks are shared by foreground and queued work. */
     public function canProcess(Conversation $conversation, int $userId): bool
     {
-        if ((int) $conversation->user_id !== $userId || $conversation->trashed()) {
+        if ((int) $conversation->user_id !== $userId || $conversation->trashed()
+            || ($conversation->expires_at !== null && $conversation->expires_at->lte(now()))) {
             return false;
         }
         if ($conversation->person_profile_id === null) {
@@ -33,9 +34,22 @@ class PersonContextService
     public function build(Conversation $conversation, int $userId): array
     {
         $this->assertCanProcess($conversation, $userId);
+        if ($conversation->is_temporary && $conversation->person_profile_id === null) {
+            $subject = (array) $conversation->temporary_subject;
+            $profile = [
+                'subject_type' => 'person', 'is_temporary' => true, 'consent_verified' => true,
+                'age_months' => $subject['age_months'] ?? null, 'relationship' => $subject['relationship'] ?? null,
+                'communication_preferences' => $subject['communication_preferences'] ?? null,
+                'diagnosis' => $subject['reported_diagnosis'] ?? null, 'diagnosis_source' => $subject['diagnosis_source'] ?? null,
+            ];
+            return ['profile' => $profile, 'memories' => [], 'summary' => null,
+                'case_brief' => CaseBriefService::build(['profile' => $profile], (array) $conversation->case_state)];
+        }
         $person = PersonProfile::whereKey($conversation->person_profile_id)->where('user_id', $userId)->firstOrFail();
         $profile = [
             'person_profile_id' => $person->id, 'age_months' => $person->effectiveAgeMonths(),
+            'subject_type' => 'person',
+            'age_updated_at' => $person->age_updated_at?->toISOString(),
             'age_group' => $person->ageGroup(), 'relationship' => $person->relationship,
             'preferred_language' => $person->preferred_language,
             'communication_preferences' => $person->communication_preferences,

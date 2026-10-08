@@ -20,7 +20,7 @@ class ValidateSupportPathwaysCommand extends Command
             'specialised_question_occurrences' => collect($package['pathways'])->sum(fn ($pathway): int => collect($pathway['nodes'])->filter(fn ($node): bool => str_starts_with($node['local_id'], 'D'))->count()),
             'clinical_evidence' => false,
             'release_ready' => false,
-            'pending' => ['clinical_pathway_review', 'age_matched_evidence_coverage', 'clinical_examples_review', 'mobile_person_profile_ui', 'ephemeral_conversations'],
+            'pending' => ['clinical_pathway_review', 'age_matched_evidence_coverage', 'clinical_examples_review'],
             'pathways' => $registry->catalogue(),
         ];
         if ($this->option('json')) {

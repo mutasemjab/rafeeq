@@ -4,6 +4,7 @@ namespace App\Services\Auth;
 
 use App\Models\ChatAttachment;
 use App\Models\ChildDocument;
+use App\Models\PersonDocument;
 use App\Models\PasswordOtp;
 use App\Models\User;
 use App\Services\Documents\PrivateDocumentStorage;
@@ -22,7 +23,7 @@ class AccountDeletionService
             $this->deleteFiles($this->collectFilePaths($user));
             $this->deleteAuthArtifacts($user);
             $this->deleteAncillaryArtifacts($user);
-            $user->conversations()->withTrashed()->whereNotNull('person_profile_id')->forceDelete();
+            $user->conversations()->withoutGlobalScope('unexpired')->withTrashed()->whereNotNull('person_profile_id')->forceDelete();
             $user->personProfiles()->withTrashed()->forceDelete();
             $user->delete();
         });
@@ -41,6 +42,7 @@ class AccountDeletionService
         }
 
         $documents = array_merge(
+            PersonDocument::withTrashed()->where('user_id', $user->id)->lockForUpdate()->get()->all(),
             ChildDocument::withTrashed()
                 ->where('user_id', $user->id)
                 ->lockForUpdate()

@@ -72,6 +72,11 @@ class User extends Authenticatable
         return $this->hasMany(PersonProfile::class);
     }
 
+    public function personDocuments()
+    {
+        return $this->hasMany(PersonDocument::class);
+    }
+
     public function conversations()
     {
         return $this->hasMany(Conversation::class);

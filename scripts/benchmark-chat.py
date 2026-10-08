@@ -94,7 +94,7 @@ def run_case(base, name):
         if "person_age_months" in case:
             status, person, _ = client.request("POST", "/person-profiles", {
                 "display_name": "Synthetic QA subject", "age_months": case["person_age_months"],
-                "relationship": "self" if case["person_age_months"] >= 216 else "caregiver",
+                "relationship": "self" if name == "adult_anxiety_en" else "caregiver",
                 "has_permission": True, "has_persistence_consent": True, "has_ai_consent": True,
                 "consent_version": "1.0", "preferred_language": case["language"],
             })

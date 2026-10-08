@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\KnowledgeDocumentController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\PersonProfileController;
+use App\Http\Controllers\Api\PersonDocumentController;
 use App\Http\Controllers\Api\SupportPathwayController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SpecialistController;
@@ -47,6 +48,8 @@ Route::prefix('v1')->group(function () {
         ->middleware('signed')->name('attachments.temporary-download');
     Route::get('/private-files/child-documents/{document}', [ChildDocumentController::class, 'downloadSigned'])
         ->middleware('signed')->name('child-documents.temporary-download');
+    Route::get('/private-files/person-documents/{document}', [PersonDocumentController::class, 'downloadSigned'])
+        ->middleware('signed')->name('person-documents.temporary-download');
 
     // ── Authenticated ────────────────────────────────────────────────────
     Route::middleware('auth:user-api')->group(function () {
@@ -64,6 +67,10 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('person-profiles', PersonProfileController::class)->parameters(['person-profiles' => 'personProfile']);
         Route::post('/person-profiles/{personProfile}/consent', [PersonProfileController::class, 'consent']);
         Route::get('/person-profiles/{personProfile}/memories', [PersonProfileController::class, 'memories']);
+        Route::get('/person-profiles/{personProfile}/documents', [PersonDocumentController::class, 'index']);
+        Route::post('/person-profiles/{personProfile}/documents', [PersonDocumentController::class, 'store']);
+        Route::post('/person-profiles/{personProfile}/documents/{document}/retry', [PersonDocumentController::class, 'retry'])->middleware('ai.consent');
+        Route::delete('/person-profiles/{personProfile}/documents/{document}', [PersonDocumentController::class, 'destroy']);
         Route::get('/support-pathways', [SupportPathwayController::class, 'index']);
 
         // Child documents

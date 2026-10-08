@@ -22,6 +22,7 @@ class Conversation extends Model
         'user_id',
         'child_id',
         'person_profile_id',
+        'is_temporary', 'expires_at', 'temporary_subject',
         'title',
         'summary',
         'active_domain',
@@ -38,7 +39,15 @@ class Conversation extends Model
         'last_message_at' => 'datetime',
         'last_planned_at' => 'datetime',
         'case_state' => 'array',
+        'is_temporary' => 'boolean', 'expires_at' => 'datetime', 'temporary_subject' => 'array',
     ];
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope('unexpired', fn ($query) => $query->where(function ($expiry) {
+            $expiry->whereNull('expires_at')->orWhere('expires_at', '>', now());
+        }));
+    }
 
     public static function acceptedInputSources(): array
     {

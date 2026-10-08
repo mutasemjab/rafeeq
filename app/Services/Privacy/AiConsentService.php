@@ -31,6 +31,11 @@ class AiConsentService
         ])->save();
 
         if (! $alreadyAccepted) {
+            $user->personDocuments()->where('status', 'uploaded')
+                ->whereHas('personProfile', fn ($query) => $query->where('user_id', $user->id)->whereNotNull('ai_consent_accepted_at'))
+                ->limit(20)->pluck('id')->each(function ($id): void {
+                    app(PrivateFileProcessingDispatcher::class)->dispatch(\App\Jobs\ProcessPersonDocumentJob::class, (int) $id);
+                });
             // Files may have been uploaded before opting in. Limit work on
             // this request, using a durable queue when configured. Old
             // accounts with more files can use the explicit backfill command.

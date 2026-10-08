@@ -25,6 +25,7 @@ class SummarizeConversationJob implements ShouldQueue
     {
         try {
             $conv = Conversation::findOrFail($this->conversationId);
+            if ($conv->is_temporary) { return; }
             if (! app(\App\Services\AI\PersonContextService::class)->canProcess($conv, (int) $conv->user_id)
                 || ! $conv->user?->hasAiConsent()) {
                 return;
@@ -75,6 +76,7 @@ PROMPT;
                 ['role' => 'system', 'content' => $systemPrompt],
                 ['role' => 'user', 'content' => json_encode([
                     'previous_summary' => $conv->summary,
+                    'current_profile' => $conv->person_profile_id !== null ? $conv->personProfile?->only(['age_months','birth_date','age_updated_at']) : $conv->child?->only(['age','birth_date','age_updated_at']),
                     'recent_messages' => $conversationData,
                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
             ], $this->summarySchema(), [

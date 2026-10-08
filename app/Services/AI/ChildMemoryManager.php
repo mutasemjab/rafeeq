@@ -84,6 +84,7 @@ class ChildMemoryManager
     {
         $memoryModel = $person ? PersonMemory::class : ChildMemory::class;
         $parentKey = $person ? 'person_profile_id' : 'child_id';
+        $parent = $person ? PersonProfile::find($childId) : Child::find($childId);
         $saved = 0;
         $minimumConfidence = (float) config('ai.memory_minimum_confidence', 0.78);
         $sourceMessage = $sourceMessageId === null ? null : Message::query()
@@ -123,6 +124,10 @@ class ChildMemoryManager
 
             $title = mb_substr(trim((string) ($candidate['title'] ?? $type)), 0, 160);
             $memoryKey = $this->memoryKey((string) ($candidate['key'] ?? ''), $type, $title, $content);
+            if (in_array($memoryKey, ['child.age','child.birth_date'], true) && $sourceMessage !== null
+                && $parent?->age_updated_at !== null && $sourceMessage->created_at->lte($parent->age_updated_at)) {
+                continue;
+            }
             $existing = $memoryModel::query()
                 ->where($parentKey, $childId)
                 ->where('user_id', $userId)

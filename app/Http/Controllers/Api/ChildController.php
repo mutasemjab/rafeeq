@@ -51,7 +51,13 @@ class ChildController extends Controller
             $data['avatar'] = $request->file('avatar')->store('children/avatars', 'public');
         }
 
-        $child->update($data);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($child, $data): void {
+            $child->fill($data);
+            $ageChanged = $child->isDirty(['birth_date', 'age']);
+            if ($ageChanged) { $child->age_updated_at = now(); }
+            $child->save();
+            if ($ageChanged) { app(\App\Services\AI\ProfileFactCorrectionService::class)->ageChanged($child); }
+        });
         return response()->json(new ChildResource($child->fresh()));
     }
 

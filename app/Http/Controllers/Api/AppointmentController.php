@@ -37,6 +37,9 @@ class AppointmentController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $this->validateStorePayload($request);
+        if (isset($data['person_profile_id'])) {
+            $request->user()->personProfiles()->findOrFail($data['person_profile_id']);
+        }
 
         if (array_key_exists('child_id', $data) && $data['child_id'] !== null) {
             $request->user()->children()->findOrFail($data['child_id']);
@@ -63,6 +66,7 @@ class AppointmentController extends Controller
             'user_id'          => $request->user()->id,
             'specialist_id'    => $data['specialist_id'],
             'child_id'         => $data['child_id'] ?? null,
+            'person_profile_id' => $data['person_profile_id'] ?? null,
             'appointment_type' => $data['appointment_type'] ?? 'general_consultation',
             'booking_reference'=> strtoupper(Str::random(10)),
             'scheduled_date'   => $data['scheduled_date'],
@@ -101,6 +105,12 @@ class AppointmentController extends Controller
         $this->authorize('update', $appointment);
 
         $data = $this->validateUpdatePayload($request);
+        if (isset($data['person_profile_id'])) {
+            $request->user()->personProfiles()->findOrFail($data['person_profile_id']);
+            $data['child_id'] = null;
+        } elseif (array_key_exists('child_id', $data) && $data['child_id'] !== null) {
+            $data['person_profile_id'] = null;
+        }
 
         if ($data === []) {
             throw ValidationException::withMessages([
@@ -116,7 +126,7 @@ class AppointmentController extends Controller
 
         $updates = [];
 
-        foreach (['child_id', 'appointment_type', 'scheduled_date', 'start_time', 'end_time', 'timezone', 'notes'] as $field) {
+        foreach (['child_id', 'person_profile_id', 'appointment_type', 'scheduled_date', 'start_time', 'end_time', 'timezone', 'notes'] as $field) {
             if (array_key_exists($field, $data)) {
                 $updates[$field] = $data[$field];
             }
@@ -161,7 +171,8 @@ class AppointmentController extends Controller
 
         return $request->validate([
             'specialist_id'    => 'required|exists:specialists,id',
-            'child_id'         => 'nullable|exists:children,id',
+            'child_id'         => 'nullable|exists:children,id|prohibits:person_profile_id',
+            'person_profile_id' => 'nullable|integer|exists:person_profiles,id|prohibits:child_id',
             'appointment_type' => 'nullable|string|max:100',
             'scheduled_date'   => 'required|date|after_or_equal:today',
             'start_time'       => ['required', 'string', $this->timeValidationRule()],
@@ -175,7 +186,8 @@ class AppointmentController extends Controller
     private function validateUpdatePayload(Request $request): array
     {
         return $request->validate([
-            'child_id'         => 'sometimes|nullable|exists:children,id',
+            'child_id'         => 'sometimes|nullable|exists:children,id|prohibits:person_profile_id',
+            'person_profile_id' => 'sometimes|nullable|integer|exists:person_profiles,id|prohibits:child_id',
             'appointment_type' => 'sometimes|nullable|string|max:100',
             'scheduled_date'   => 'sometimes|date|after_or_equal:today',
             'start_time'       => ['sometimes', 'string', $this->timeValidationRule()],

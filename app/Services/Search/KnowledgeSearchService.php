@@ -7,6 +7,24 @@ use App\Services\AI\Contracts\LlmProviderInterface;
 
 class KnowledgeSearchService
 {
+    public function hasEligibleSources(array $filters): bool
+    {
+        $query = \Illuminate\Support\Facades\DB::table('knowledge_documents as d')
+            ->join('knowledge_document_chunks as c','c.knowledge_document_id','=','d.id')
+            ->whereNull('d.deleted_at')->where('d.status','processed')->where('d.is_approved',true)
+            ->where('c.embedding_dimensions',(int)config('ai.embedding_dimensions'));
+        if (isset($filters['age_months'])) {
+            $query->where(fn($q)=>$q->whereNull('d.age_min_months')->orWhere('d.age_min_months','<=',$filters['age_months']))
+                ->where(fn($q)=>$q->whereNull('d.age_max_months')->orWhere('d.age_max_months','>=',$filters['age_months']));
+        }
+        if ($filters['require_age_scope'] ?? false) {
+            $query->where(function($q)use($filters){
+                $q->where(fn($scope)=>$scope->where('d.audience','all_ages')->whereNull('d.age_min_months')->whereNull('d.age_max_months'));
+                if(isset($filters['age_months']))$q->orWhere(fn($scope)=>$scope->whereNotNull('d.age_min_months')->orWhereNotNull('d.age_max_months'));
+            });
+        }
+        return $query->exists();
+    }
     public function __construct(
         private LlmProviderInterface $llm,
         private VectorSearchRepositoryInterface $repo

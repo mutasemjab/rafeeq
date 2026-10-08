@@ -14,12 +14,14 @@ class PersonProfile extends Model
         'relationship', 'preferred_language', 'communication_preferences',
         'reported_diagnosis', 'diagnosis_source', 'permission_attested_at',
         'ai_consent_accepted_at', 'persistence_consent_accepted_at', 'consent_version',
+        'age_updated_at',
     ];
 
     protected $casts = [
         'birth_date' => 'date', 'age_months' => 'integer',
         'permission_attested_at' => 'datetime', 'ai_consent_accepted_at' => 'datetime',
         'persistence_consent_accepted_at' => 'datetime',
+        'age_updated_at' => 'datetime',
     ];
 
     public function user() { return $this->belongsTo(User::class); }
@@ -29,6 +31,8 @@ class PersonProfile extends Model
     public function conversations() { return $this->hasMany(Conversation::class); }
 
     public function memories() { return $this->hasMany(PersonMemory::class); }
+
+    public function documents() { return $this->hasMany(PersonDocument::class); }
 
     public function effectiveAgeMonths(): ?int
     {

@@ -9,6 +9,7 @@ class PrivacySettingsService
         return [
             'policy_url' => config('privacy.policy_url'),
             'ai_consent_required' => true,
+            'temporary_conversation_retention_minutes' => (int) config('privacy.temporary_conversation_retention_minutes', 60),
             'ai_consent_version' => (string) config('privacy.ai_consent_version', '1.0'),
             'third_party_ai_provider' => (string) config('privacy.ai_provider_name', 'OpenAI'),
             'summary' => [

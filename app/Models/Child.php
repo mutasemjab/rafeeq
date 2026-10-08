@@ -28,10 +28,12 @@ class Child extends Model
         'behavior_notes',
         'general_notes',
         'status',
+        'age_updated_at',
     ];
 
     protected $casts = [
         'birth_date' => 'date',
+        'age_updated_at' => 'datetime',
     ];
 
     public function user()

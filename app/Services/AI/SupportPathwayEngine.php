@@ -67,7 +67,7 @@ class SupportPathwayEngine
         if (isset($profile['age_months']) || isset($profile['birth_date']) || isset($profile['age'])) {
             $knownGateway[] = 'gateway:G02';
         }
-        if (isset($profile['person_profile_id'])) {
+        if (isset($profile['person_profile_id']) || ($profile['consent_verified'] ?? false)) {
             $knownGateway[] = 'gateway:G01';
         }
 

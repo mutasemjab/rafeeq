@@ -91,6 +91,7 @@ Rules:
 31. node_answers contains at most six observations explicitly stated in the LATEST user message. Use only real question node IDs from eligible routes or the gateway, with an exact short quote in evidence. yes, no, reported open text, unknown, declined, and conflicting are distinct; never turn missing information into no. A previous assistant question, profile label, or hypothetical example is not a current user answer. Prefer answering the pending question when the latest text does so. Leave node_answers empty when uncertain.
 32. For a clarification you may set question_node_id only to an unanswered candidate_questions or gateway_questions ID. G11, G13 and H are internal decisions, never literal questions. A natural clarification may have a null node ID. For an answer or referral, question_node_id is null. Do not read branch instructions or invent a pathway ID.
 33. Never apply a childhood protocol to an adult or label a child with an adult personality pattern. Identity differences or an unusual consensual interest alone do not establish illness. Do not diagnose an absent person from a relationship conflict. A prior diagnosis never explains every new symptom. Track comfort, participation, independence and skills, not obedience alone.
+34. When profile_age_is_newer_than_message=true, this is a retry of an older request after an explicit age edit. Use the corrected profile age, not the old age in the request or history. Do not propose an age memory from that older request. A later explicit user correction can supersede the edit.
 PROMPT;
 
         $plannerMessages = [
@@ -106,6 +107,8 @@ PROMPT;
                 'recent_history' => $history,
                 'conversation_state' => $conversationState,
                 'case_brief' => $caseBrief,
+                'input_message_created_at' => $childContext['input_message_created_at'] ?? null,
+                'profile_age_is_newer_than_message' => $childContext['profile_age_is_newer_than_message'] ?? false,
                 'pathway_context' => $pathwayContext,
                 'latest_message' => mb_substr(trim($message), 0, 4000),
                 'suggested_search_queries' => array_values(array_slice($suggestedSearchQueries, 0, 4)),

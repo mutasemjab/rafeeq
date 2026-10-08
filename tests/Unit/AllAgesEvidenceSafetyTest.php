@@ -17,7 +17,7 @@ class AllAgesEvidenceSafetyTest extends TestCase
 
     public function test_adult_evidence_excludes_child_only_and_unscoped_legacy_documents(): void
     {
-        config(['ai.embedding_model' => 'test-model']);
+        config(['ai.embedding_model' => 'test-model','ai.embedding_dimensions'=>2]);
         foreach ([
             ['title' => 'Child-only', 'age_max_months' => 216],
             ['title' => 'Unscoped legacy'],
@@ -34,10 +34,15 @@ class AllAgesEvidenceSafetyTest extends TestCase
                 'metadata' => ['embedding_model' => 'test-model']]);
         }
         $repo = new MysqlVectorSearchRepository();
+        $search=app(\App\Services\Search\KnowledgeSearchService::class);
+        $this->assertTrue($search->hasEligibleSources(['age_months'=>480,'require_age_scope'=>true]));
+        $this->assertTrue($search->hasEligibleSources(['require_age_scope'=>true]));
         $results = $repo->searchKnowledge([1.0, 0.0], 10, 0, ['age_months' => 480, 'require_age_scope' => true]);
         $this->assertEqualsCanonicalizing(['Adult', 'All ages'], array_column($results, 'title'));
         $results = $repo->searchKnowledge([1.0, 0.0], 10, 0, ['require_age_scope' => true]);
         $this->assertSame(['All ages'], array_column($results, 'title'));
+        KnowledgeDocument::where('title','All ages')->update(['is_approved'=>false]);
+        $this->assertFalse($search->hasEligibleSources(['require_age_scope'=>true]));
     }
 
     /** @dataProvider adultSafetyCues */

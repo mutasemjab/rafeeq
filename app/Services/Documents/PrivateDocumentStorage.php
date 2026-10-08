@@ -4,6 +4,7 @@ namespace App\Services\Documents;
 
 use App\Models\ChatAttachment;
 use App\Models\ChildDocument;
+use App\Models\PersonDocument;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use RuntimeException;
@@ -11,7 +12,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PrivateDocumentStorage
 {
-    public function absolutePath(ChatAttachment|ChildDocument $document): string
+    public function absolutePath(ChatAttachment|ChildDocument|PersonDocument $document): string
     {
         $disk = $document->storage_disk ?: 'public';
         if (! in_array($disk, ['private', 'public'], true)) {
@@ -35,7 +36,7 @@ class PrivateDocumentStorage
         return $realPath;
     }
 
-    public function download(ChatAttachment|ChildDocument $document): BinaryFileResponse
+    public function download(ChatAttachment|ChildDocument|PersonDocument $document): BinaryFileResponse
     {
         try {
             $path = $this->absolutePath($document);
@@ -51,7 +52,7 @@ class PrivateDocumentStorage
         ]);
     }
 
-    public function temporaryUrl(ChatAttachment|ChildDocument $document): ?string
+    public function temporaryUrl(ChatAttachment|ChildDocument|PersonDocument $document): ?string
     {
         if (! $document->file_path) {
             return null;
@@ -59,13 +60,13 @@ class PrivateDocumentStorage
         $attachment = $document instanceof ChatAttachment;
 
         return URL::temporarySignedRoute(
-            $attachment ? 'attachments.temporary-download' : 'child-documents.temporary-download',
+            $attachment ? 'attachments.temporary-download' : ($document instanceof PersonDocument ? 'person-documents.temporary-download' : 'child-documents.temporary-download'),
             now()->addMinutes(5),
             [$attachment ? 'attachment' : 'document' => $document->id, 'owner' => $document->user_id]
         );
     }
 
-    public function delete(ChatAttachment|ChildDocument $document): void
+    public function delete(ChatAttachment|ChildDocument|PersonDocument $document): void
     {
         $disks = [$document->storage_disk ?: 'public'];
         if ($document->has_legacy_public_copy) {

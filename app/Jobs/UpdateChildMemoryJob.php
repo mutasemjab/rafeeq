@@ -33,6 +33,7 @@ class UpdateChildMemoryJob implements ShouldQueue
 
         try {
             $conversation = Conversation::with('messages')->findOrFail($this->conversationId);
+            if ($conversation->is_temporary) { return; }
             if (! app(\App\Services\AI\PersonContextService::class)->canProcess($conversation, (int) $conversation->user_id)
                 || ! $conversation->user?->hasAiConsent()) {
                 return;

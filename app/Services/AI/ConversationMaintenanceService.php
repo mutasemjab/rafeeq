@@ -12,6 +12,7 @@ class ConversationMaintenanceService
 {
     public function dispatch(Conversation $conversation, bool $alreadyResponded = false): void
     {
+        if ($conversation->is_temporary) { return; }
         if (! app(PersonContextService::class)->canProcess($conversation, (int) $conversation->user_id)) {
             return;
         }

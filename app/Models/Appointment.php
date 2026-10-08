@@ -12,6 +12,7 @@ class Appointment extends Model
     protected $fillable = [
         'user_id',
         'child_id',
+        'person_profile_id',
         'specialist_id',
         'payment_id',
         'appointment_type',
@@ -43,6 +44,8 @@ class Appointment extends Model
     {
         return $this->belongsTo(Child::class);
     }
+
+    public function personProfile() { return $this->belongsTo(PersonProfile::class); }
 
     public function specialist()
     {

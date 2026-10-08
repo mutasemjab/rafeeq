@@ -16,6 +16,7 @@ class ConversationController extends Controller
     {
         $conversations = $request->user()
             ->conversations()
+            ->where('is_temporary', false)
             ->orderByDesc('updated_at')->orderByDesc('id')
             ->paginate(20);
 
@@ -32,6 +33,9 @@ class ConversationController extends Controller
     public function store(StoreConversationRequest $request): JsonResponse
     {
         $data = $request->validated();
+        if (isset($data['temporary_subject'])) {
+            abort_unless($request->boolean('is_temporary') && $request->user()->hasAiConsent(), 422, 'Temporary subject data requires a temporary conversation and AI consent.');
+        }
 
         if (isset($data['child_id'])) {
             $child = $request->user()->children()->find($data['child_id']);
@@ -50,6 +54,9 @@ class ConversationController extends Controller
         $conversation = $request->user()->conversations()->create([
             'child_id' => $person?->legacy_child_id ?? ($data['child_id'] ?? null),
             'person_profile_id' => $person?->id,
+            'is_temporary' => $request->boolean('is_temporary'),
+            'expires_at' => $request->boolean('is_temporary') ? now()->addMinutes((int) config('privacy.temporary_conversation_retention_minutes', 60)) : null,
+            'temporary_subject' => $data['temporary_subject'] ?? null,
             'title' => $data['title'] ?? null,
             'source' => Conversation::normalizeSource($data['source'] ?? null),
             'status' => 'active',
