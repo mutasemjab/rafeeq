@@ -30,6 +30,19 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
             ->where('d.status', 'processed')
             ->whereNull('d.deleted_at')
             ->when(($filters['approved_only'] ?? true) === true, fn ($query) => $query->where('d.is_approved', true))
+            ->when(($filters['require_age_scope'] ?? false) === true, function ($query) use ($filters) {
+                // Unscoped legacy documents are not assumed valid for every age.
+                return $query->where(function ($scope) use ($filters) {
+                    $scope->where(function ($unbounded) {
+                        $unbounded->where('d.audience', 'all_ages')->whereNull('d.age_min_months')->whereNull('d.age_max_months');
+                    });
+                    if (isset($filters['age_months'])) {
+                        $scope->orWhere(function ($bounded) {
+                            $bounded->whereNotNull('d.age_min_months')->orWhereNotNull('d.age_max_months');
+                        });
+                    }
+                });
+            })
             ->when(isset($filters['age_months']), function ($query) use ($filters) {
                 $ageMonths = max(0, (int) $filters['age_months']);
 

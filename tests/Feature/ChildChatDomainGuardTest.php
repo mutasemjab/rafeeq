@@ -158,6 +158,8 @@ class ChildChatDomainGuardTest extends TestCase
 
     public function test_multiple_questions_are_embedded_in_one_batch_and_retrieved_separately(): void
     {
+        Config::set('ai.max_questions_per_message', 1);
+        Config::set('ai.max_retrieval_queries', 4);
         Config::set('ai.default_medical_sources', []);
         Config::set('ai.web_search_enabled', false);
         $user = User::factory()->create();

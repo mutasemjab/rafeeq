@@ -16,6 +16,7 @@ class ConversationStateService
                 'anchor' => $plan['question_anchor'] ?? null,
                 'decision_impact' => $plan['expected_answer_use'] ?? null,
                 'source' => 'clarification',
+                'node_id' => $plan['question_node_id'] ?? null,
                 'scope' => self::questionScope($plan),
                 'observation_round' => (int) ($previous['observation_round'] ?? 0),
             ]);
@@ -84,6 +85,17 @@ class ConversationStateService
                 ? (int) ($previous['consecutive_clarifications'] ?? 0) + 1 : 0,
             'updated_at' => now()->toISOString(),
         ]);
+        if (is_array($plan['pathway_state'] ?? null)) {
+            $state['pathway_state'] = $plan['pathway_state'];
+            if ($state['pathway_state']['decisions_invalidated'] ?? false) {
+                $state['progress']['status'] = 'needs_review_after_correction';
+            }
+            foreach ($state['pathway_state']['answers'] ?? [] as $id => $answer) {
+                if (($answer['source'] ?? null) === 'latest_user_message' && ! isset($answer['source_message_id'])) {
+                    $state['pathway_state']['answers'][$id]['source_message_id'] = $sourceMessageId;
+                }
+            }
+        }
         if (($plan['outcome_reported'] ?? false) === true && $latestMessage !== null) {
             $reports = (array) ($state['progress']['outcome_reports'] ?? []);
             $reports[] = ['content' => mb_substr($latestMessage, 0, 1200), 'source_message_id' => $sourceMessageId, 'reported_at' => now()->toISOString()];

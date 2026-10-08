@@ -35,6 +35,7 @@ class ChatAttachmentController extends Controller
         $this->authorize('view', $conversation);
 
         $user = $request->user();
+        app(\App\Services\AI\PersonContextService::class)->assertCanProcess($conversation, (int) $user->id);
 
         // Max 5 attachments per conversation
         $count = ChatAttachment::where('conversation_id', $conversationId)
@@ -83,6 +84,7 @@ class ChatAttachmentController extends Controller
         $this->authorize('view', $attachment);
         $this->requireActiveOwnerContext($attachment);
         abort_unless($request->user()->hasAiConsent(), 403, 'AI data-sharing consent is required.');
+        app(\App\Services\AI\PersonContextService::class)->assertCanProcess($attachment->conversation, (int) $request->user()->id);
         $claimed = ChatAttachment::query()->whereKey($attachment->id)->where('status', 'failed')->update([
             'status' => 'uploaded', 'processing_error' => null, 'processed_at' => null,
         ]);

@@ -12,6 +12,9 @@ class ConversationMaintenanceService
 {
     public function dispatch(Conversation $conversation, bool $alreadyResponded = false): void
     {
+        if (! app(PersonContextService::class)->canProcess($conversation, (int) $conversation->user_id)) {
+            return;
+        }
         $count = $conversation->fresh()?->message_count ?? 0;
         $jobs = [];
         if ($conversation->child_id && $count > 0 && $count % 5 === 0) {

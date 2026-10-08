@@ -22,6 +22,8 @@ class AccountDeletionService
             $this->deleteFiles($this->collectFilePaths($user));
             $this->deleteAuthArtifacts($user);
             $this->deleteAncillaryArtifacts($user);
+            $user->conversations()->withTrashed()->whereNotNull('person_profile_id')->forceDelete();
+            $user->personProfiles()->withTrashed()->forceDelete();
             $user->delete();
         });
 

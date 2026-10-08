@@ -11,6 +11,8 @@ use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\KnowledgeDocumentController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PlanController;
+use App\Http\Controllers\Api\PersonProfileController;
+use App\Http\Controllers\Api\SupportPathwayController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SpecialistController;
 use App\Http\Controllers\Api\SpecialistReviewController;
@@ -59,6 +61,10 @@ Route::prefix('v1')->group(function () {
 
         // Children
         Route::apiResource('children', ChildController::class);
+        Route::apiResource('person-profiles', PersonProfileController::class)->parameters(['person-profiles' => 'personProfile']);
+        Route::post('/person-profiles/{personProfile}/consent', [PersonProfileController::class, 'consent']);
+        Route::get('/person-profiles/{personProfile}/memories', [PersonProfileController::class, 'memories']);
+        Route::get('/support-pathways', [SupportPathwayController::class, 'index']);
 
         // Child documents
         Route::get( '/children/{child}/documents',        [ChildDocumentController::class, 'index']);

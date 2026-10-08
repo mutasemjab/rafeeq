@@ -6,6 +6,7 @@ use App\Repositories\Contracts\VectorSearchRepositoryInterface;
 use App\Repositories\MysqlVectorSearchRepository;
 use App\Services\AI\AiProviderManager;
 use App\Services\AI\Contracts\LlmProviderInterface;
+use App\Services\AI\SupportPathwayRegistry;
 use App\Services\Search\Contracts\WebSearchServiceInterface;
 use App\Services\Search\Providers\BraveSearchProvider;
 use Illuminate\Pagination\Paginator;
@@ -22,6 +23,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(VectorSearchRepositoryInterface::class, MysqlVectorSearchRepository::class);
 
         $this->app->singleton(WebSearchServiceInterface::class, BraveSearchProvider::class);
+        $this->app->singleton(SupportPathwayRegistry::class);
     }
 
     public function boot(): void

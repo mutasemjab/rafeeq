@@ -122,8 +122,10 @@ class ProcessChatAttachmentJob implements ShouldQueue
 
     private function canProcess(ChatAttachment $attachment): bool
     {
+        $conversation = $attachment->conversation()->where('user_id', $attachment->user_id)->first();
         return User::whereKey($attachment->user_id)->whereNotNull('ai_consent_accepted_at')->exists()
-            && $attachment->conversation()->where('user_id', $attachment->user_id)->exists()
+            && $conversation !== null
+            && app(\App\Services\AI\PersonContextService::class)->canProcess($conversation, (int) $attachment->user_id)
             && ($attachment->child_id === null || $attachment->child()->where('user_id', $attachment->user_id)->exists());
     }
 

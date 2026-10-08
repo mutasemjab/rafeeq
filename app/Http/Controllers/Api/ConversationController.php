@@ -38,8 +38,18 @@ class ConversationController extends Controller
             abort_unless($child, 403, 'Not your child.');
         }
 
+        $person = null;
+        if (isset($data['person_profile_id'])) {
+            $person = $request->user()->personProfiles()->find($data['person_profile_id']);
+            abort_unless($person && $person->hasProcessingConsent(), 403, 'Person consent or access is unavailable.');
+            if ($person->legacy_child_id !== null) {
+                abort_unless($request->user()->children()->whereKey($person->legacy_child_id)->exists(), 403);
+            }
+        }
+
         $conversation = $request->user()->conversations()->create([
-            'child_id' => $data['child_id'] ?? null,
+            'child_id' => $person?->legacy_child_id ?? ($data['child_id'] ?? null),
+            'person_profile_id' => $person?->id,
             'title' => $data['title'] ?? null,
             'source' => Conversation::normalizeSource($data['source'] ?? null),
             'status' => 'active',

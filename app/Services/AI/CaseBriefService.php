@@ -24,6 +24,7 @@ class CaseBriefService
                 ])->values()->all(),
             'current_facts' => array_slice((array) ($state['fact_index'] ?? $existing['current_facts'] ?? []), -30, null, true),
             'known_facts' => self::strings($state['known_facts'] ?? $existing['known_facts'] ?? [], 20, 300),
+            'pathway_state' => $state['pathway_state'] ?? [],
             'current_decision' => self::text($state['decision_to_make'] ?? $existing['current_decision'] ?? null, 400),
             'progress' => self::progress($state['progress'] ?? $existing['progress'] ?? []),
             'previous_progress' => collect($context['previous_progress'] ?? $existing['previous_progress'] ?? [])

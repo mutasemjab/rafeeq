@@ -31,6 +31,9 @@ class CaseDocumentContextService
         if (! User::query()->whereKey($userId)->whereNotNull('ai_consent_accepted_at')->exists()) {
             return $context;
         }
+        if (! app(PersonContextService::class)->canProcess($conversation, $userId)) {
+            return $context;
+        }
         $childId = $childId ?? $conversation->child_id;
 
         if (! Conversation::query()

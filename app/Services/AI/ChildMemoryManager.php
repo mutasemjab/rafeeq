@@ -5,6 +5,8 @@ namespace App\Services\AI;
 use App\Models\ChildMemory;
 use App\Models\Child;
 use App\Models\Message;
+use App\Models\PersonProfile;
+use App\Models\PersonMemory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -15,6 +17,8 @@ class ChildMemoryManager
         'child.age_years' => 'child.age', 'child.age_months' => 'child.age',
         'profile.age' => 'child.age', 'development.age' => 'child.age',
         'birth_date' => 'child.birth_date', 'profile.birth_date' => 'child.birth_date',
+        'person.age' => 'child.age', 'person.age_months' => 'child.age', 'person.age_years' => 'child.age',
+        'person.birth_date' => 'child.birth_date',
         'primary_language' => 'communication.primary_language',
         'language.primary' => 'communication.primary_language',
     ];
@@ -60,13 +64,33 @@ class ChildMemoryManager
         });
     }
 
-    private function persistCandidates(int $childId, int $userId, ?int $sourceMessageId, array $candidates): int
+    public function applyPersonCandidates(int $personId, int $userId, int $sourceMessageId, array $candidates): int
     {
+        if ($candidates === []) {
+            return 0;
+        }
 
+        return DB::transaction(function () use ($personId, $userId, $sourceMessageId, $candidates): int {
+            $person = PersonProfile::whereKey($personId)->where('user_id', $userId)->lockForUpdate()->first();
+            if (! $person || ! $person->hasProcessingConsent() || ! $person->user?->hasAiConsent()) {
+                return 0;
+            }
+
+            return $this->persistCandidates($personId, $userId, $sourceMessageId, $candidates, true);
+        });
+    }
+
+    private function persistCandidates(int $childId, int $userId, ?int $sourceMessageId, array $candidates, bool $person = false): int
+    {
+        $memoryModel = $person ? PersonMemory::class : ChildMemory::class;
+        $parentKey = $person ? 'person_profile_id' : 'child_id';
         $saved = 0;
         $minimumConfidence = (float) config('ai.memory_minimum_confidence', 0.78);
         $sourceMessage = $sourceMessageId === null ? null : Message::query()
-            ->whereKey($sourceMessageId)->where('user_id', $userId)->where('child_id', $childId)
+            ->whereKey($sourceMessageId)->where('user_id', $userId)
+            ->when($person,
+                fn ($query) => $query->whereHas('conversation', fn ($conversation) => $conversation->where('person_profile_id', $childId)->where('user_id', $userId)),
+                fn ($query) => $query->where('child_id', $childId))
             ->where('role', 'user')->first();
         if ($sourceMessageId !== null && $sourceMessage === null) {
             return 0;
@@ -99,8 +123,8 @@ class ChildMemoryManager
 
             $title = mb_substr(trim((string) ($candidate['title'] ?? $type)), 0, 160);
             $memoryKey = $this->memoryKey((string) ($candidate['key'] ?? ''), $type, $title, $content);
-            $existing = ChildMemory::query()
-                ->where('child_id', $childId)
+            $existing = $memoryModel::query()
+                ->where($parentKey, $childId)
                 ->where('user_id', $userId)
                 ->whereIn('memory_key', self::aliasesFor($memoryKey))
                 ->where('status', 'active')->orderByDesc('source_message_id')->latest('updated_at')
@@ -137,7 +161,7 @@ class ChildMemoryManager
             }
 
             $identity = [
-                    'child_id' => $childId,
+                    $parentKey => $childId,
                     'user_id' => $userId,
                     'memory_key' => $memoryKey,
                 ];
@@ -147,14 +171,14 @@ class ChildMemoryManager
                     'content' => mb_substr($content, 0, 4000),
                     'status' => 'active',
                     'confidence' => $confidence,
-                    'source' => 'caregiver_conversation',
+                    'source' => $person ? 'person_conversation' : 'caregiver_conversation',
                     'source_message_id' => $sourceMessageId,
                     'last_confirmed_at' => now(),
                     'metadata' => $metadata,
                 ];
-            $memory = $existing ?? new ChildMemory();
+            $memory = $existing ?? new $memoryModel();
             $memory->fill(array_merge($identity, $values))->save();
-            ChildMemory::query()->where('child_id', $childId)->where('user_id', $userId)
+            $memoryModel::query()->where($parentKey, $childId)->where('user_id', $userId)
                 ->whereIn('memory_key', self::aliasesFor($memoryKey))->where('id', '!=', $memory->id)
                 ->where('status', 'active')->update(['status' => 'superseded']);
             $saved++;

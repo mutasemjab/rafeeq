@@ -21,6 +21,7 @@ class Conversation extends Model
     protected $fillable = [
         'user_id',
         'child_id',
+        'person_profile_id',
         'title',
         'summary',
         'active_domain',
@@ -61,6 +62,11 @@ class Conversation extends Model
     public function child()
     {
         return $this->belongsTo(Child::class);
+    }
+
+    public function personProfile()
+    {
+        return $this->belongsTo(PersonProfile::class);
     }
 
     public function messages()

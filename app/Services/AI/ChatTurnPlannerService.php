@@ -26,6 +26,9 @@ class ChatTurnPlannerService
     ): array {
         $model = (string) config('ai.turn_planner_model', config('ai.chat_model'));
         $caseBrief = CaseBriefService::build($childContext, $conversationState);
+        $pathways = app(SupportPathwayEngine::class);
+        $pathwayContext = $pathways->plannerContext($conversationState, $domainHint,
+            preg_match('/\p{Arabic}/u', $message) === 1 ? 'ar' : 'en', $childContext);
         $outcomeState = $conversationState;
         if (! isset($outcomeState['follow_up_needed'])) {
             $outcomeState['follow_up_needed'] = collect($caseBrief['previous_progress'] ?? [])
@@ -47,7 +50,7 @@ class ChatTurnPlannerService
             ->all();
 
         $systemPrompt = <<<'PROMPT'
-You are the clinical-conversation planner for Rafiq, a child-development support assistant. Think like a careful child-development specialist while staying within a non-diagnostic support role. Do not answer the caregiver's question. Return only the structured decision.
+You are the conversation planner for Rafiq, a non-diagnostic support assistant for children, adolescents, adults and older adults. Use age-appropriate observations and respect the person's autonomy and consent. Do not answer the user's question. Return only the structured decision.
 
 Choose exactly one action:
 - answer: enough information exists for a safe, useful response, or the user asks a general educational question that does not require a child-specific assessment.
@@ -84,6 +87,10 @@ Rules:
 27. A follow-up report deserves interpretation before another optional question, but new injury, deterioration, or danger overrides that conversational preference. Match the caregiver's register, avoid assumed caregiver gender, and sound attentive without claiming to be a clinician.
 28. Read case_brief before deciding to ask: it contains earlier summaries and proposed steps, not proof those steps were tried. Use the latest explicit caregiver correction for the same field over old profile values or summaries. known_facts is the complete CURRENT relevant snapshot, never a list that preserves superseded values. Use the existing stable memory key when updating a fact; use child.age for any reported age (state its units in content), child.birth_date for birth date, and communication.primary_language for primary language. Never guess that distinct diagnoses are the same field. Preserve exact caregiver evidence for corrections.
 29. Separate repeated intake questions from a NEW observation after a trial or a different problem. question history includes scope and observation_round; a previous measurement does not prohibit checking a later result. If the caregiver cannot apply the proposed step, address that barrier before adding another step. If an old outcome is ambiguous across several prior plans, ask which step they mean rather than pretending it is known.
+30. Use pathway_context only to organize exploration, never to diagnose or as evidence for treatment. Choose at most four pathway_ids from its catalogue using reported needs, not a diagnostic keyword alone. Several routes may coexist. No route must complete all its questions. Questions whose answers cannot change the next useful step should be skipped.
+31. node_answers contains at most six observations explicitly stated in the LATEST user message. Use only real question node IDs from eligible routes or the gateway, with an exact short quote in evidence. yes, no, reported open text, unknown, declined, and conflicting are distinct; never turn missing information into no. A previous assistant question, profile label, or hypothetical example is not a current user answer. Prefer answering the pending question when the latest text does so. Leave node_answers empty when uncertain.
+32. For a clarification you may set question_node_id only to an unanswered candidate_questions or gateway_questions ID. G11, G13 and H are internal decisions, never literal questions. A natural clarification may have a null node ID. For an answer or referral, question_node_id is null. Do not read branch instructions or invent a pathway ID.
+33. Never apply a childhood protocol to an adult or label a child with an adult personality pattern. Identity differences or an unusual consensual interest alone do not establish illness. Do not diagnose an absent person from a relationship conflict. A prior diagnosis never explains every new symptom. Track comfort, participation, independence and skills, not obedience alone.
 PROMPT;
 
         $plannerMessages = [
@@ -99,6 +106,7 @@ PROMPT;
                 'recent_history' => $history,
                 'conversation_state' => $conversationState,
                 'case_brief' => $caseBrief,
+                'pathway_context' => $pathwayContext,
                 'latest_message' => mb_substr(trim($message), 0, 4000),
                 'suggested_search_queries' => array_values(array_slice($suggestedSearchQueries, 0, 4)),
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
@@ -205,8 +213,17 @@ PROMPT;
             throw new RuntimeException('Turn planner marked an answer as information-insufficient.');
         }
 
+        $pathwaySelection = [
+            'pathway_ids' => $result['pathway_ids'] ?? [],
+            'node_answers' => $result['node_answers'] ?? [],
+            'question_node_id' => $action === 'ask_clarification' ? ($result['question_node_id'] ?? null) : null,
+        ];
+        $pathwayState = $pathways->apply($pathwaySelection, $conversationState, $message, $pathwayContext);
+
         return [
             'action' => $action,
+            'pathway_state' => $pathwayState,
+            'question_node_id' => $pathwaySelection['question_node_id'],
             'domain' => mb_substr((string) ($result['domain'] ?? $domainHint ?? 'general'), 0, 80),
             'case_specific' => ($result['case_specific'] ?? null) === true,
             'information_sufficient' => $informationSufficient,
@@ -242,6 +259,17 @@ PROMPT;
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
                 'domain' => ['type' => 'string'],
+                'pathway_ids' => ['type' => 'array', 'items' => ['type' => 'string']],
+                'question_node_id' => ['type' => ['string', 'null']],
+                'node_answers' => [
+                    'type' => 'array', 'items' => [
+                        'type' => 'object', 'properties' => [
+                            'node_id' => ['type' => 'string'],
+                            'status' => ['type' => 'string', 'enum' => ['yes', 'no', 'reported', 'unknown', 'declined', 'conflicting']],
+                            'value' => ['type' => 'string'], 'evidence' => ['type' => 'string'],
+                        ], 'required' => ['node_id', 'status', 'value', 'evidence'], 'additionalProperties' => false,
+                    ],
+                ],
                 'case_specific' => ['type' => 'boolean'],
                 'information_sufficient' => ['type' => 'boolean'],
                 'reason' => ['type' => 'string'],
@@ -291,6 +319,9 @@ PROMPT;
             'required' => [
                 'action',
                 'domain',
+                'pathway_ids',
+                'question_node_id',
+                'node_answers',
                 'case_specific',
                 'information_sufficient',
                 'reason',

@@ -13,7 +13,8 @@ class StoreConversationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'child_id' => 'nullable|exists:children,id',
+            'child_id' => 'nullable|exists:children,id|prohibits:person_profile_id',
+            'person_profile_id' => 'nullable|integer|exists:person_profiles,id|prohibits:child_id',
             'title'    => 'nullable|string|max:255',
             'source'   => ['nullable', Rule::in(Conversation::acceptedInputSources())],
         ];

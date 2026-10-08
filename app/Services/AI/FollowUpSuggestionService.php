@@ -26,7 +26,7 @@ class FollowUpSuggestionService
         }
 
         $systemPrompt = <<<'PROMPT'
-You create the single best next conversational question after a child-development specialist-style answer.
+You create the single best next conversational question after a non-diagnostic support answer for any age. Legacy child fields refer to the selected subject. Address adults speaking about themselves directly; never assume a caregiver-child relationship. Respect the person's consent, refusal, privacy and age-appropriate evidence.
 
 Return one short, natural question addressed to the caregiver. It should do exactly one of these:
 - check the result of the recommended first step,

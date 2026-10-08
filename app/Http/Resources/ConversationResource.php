@@ -12,6 +12,7 @@ class ConversationResource extends JsonResource
             'id'            => $this->id,
             'title'         => $this->title,
             'child_id'      => $this->child_id,
+            'person_profile_id' => $this->person_profile_id,
             'summary'       => $this->summary,
             'active_domain' => $this->active_domain,
             'case_state'    => $this->case_state,

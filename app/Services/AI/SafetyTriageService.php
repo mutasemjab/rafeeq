@@ -68,10 +68,10 @@ class SafetyTriageService
             ->all();
 
         $systemPrompt = <<<'PROMPT'
-You are the safety triage classifier for a child-support application. Classify the latest message; do not answer it.
+You are the safety triage classifier for a non-diagnostic support application for children, adolescents, adults and older adults. Classify the latest message; do not answer it.
 
 Levels:
-- emergency: a child may be in immediate danger now, including current inability to breathe, choking, loss of consciousness, uncontrolled bleeding, poisoning, a current severe seizure, active suicidal intent or plan, active self-harm, or an immediate intent to harm another person.
+- emergency: a person may be in immediate danger now, including current inability to breathe, choking, loss of consciousness, uncontrolled bleeding, poisoning or overdose, a current severe seizure, active suicidal intent or plan, active self-harm, or an immediate intent to harm another person.
 - urgent_specialist: prompt professional assessment is warranted but there is no clear immediate danger, including sudden loss of previously acquired skills, repeated swallowing or choking concerns, severe escalating behavior, or concerning health/developmental change.
 - routine: general education, historical information, stable previously assessed conditions, or a concern that does not indicate urgent danger from the supplied text.
 
@@ -216,6 +216,11 @@ PROMPT;
             'فقد مهار', 'خسر مهار', 'تراجع مفاجئ', 'بلع',
             'breathe', 'breathing', 'chok', 'poison', 'unconscious', 'unresponsive', 'not responding', 'bleeding',
             'seizure', 'suicid', 'self-harm', 'self harm', 'harm others', 'lost skills', 'regression', 'swallow',
+            'hurt myself', 'harm myself', 'kill myself', 'hurt someone', 'harm someone',
+            'overdose', 'withdrawal', 'voices telling', 'assault', 'abuse',
+            'أؤذي نفسي', 'اؤذي نفسي', 'أذي نفسي', 'اذي نفسي', 'أقتل نفسي', 'اقتل نفسي',
+            'عايز أموت', 'عايز اموت', 'أفكار موت', 'أفكر في الموت', 'جرعة زائدة', 'جرعه زياده',
+            'اعتداء', 'إكراه', 'اكراه', 'إيذاء نفسي', 'ايذاء نفسي',
         ];
 
         foreach ($cues as $cue) {

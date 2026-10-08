@@ -26,6 +26,7 @@ class ChatTurnService
             User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             $conversation = Conversation::whereKey($conversation->id)->lockForUpdate()->firstOrFail();
             abort_unless((int) $conversation->user_id === (int) $user->id, 403);
+            app(PersonContextService::class)->assertCanProcess($conversation, (int) $user->id);
             $hash = hash('sha256', json_encode([$message, $language], JSON_UNESCAPED_UNICODE));
             $existing = ChatTurn::where('conversation_id', $conversation->id)->where('client_message_id', $clientId)->first();
             if ($existing) {
@@ -129,7 +130,8 @@ class ChatTurnService
             $conversation = $turn->conversation;
             $user = User::find($turn->user_id);
             if (! $conversation || ! $user || ! $user->hasAiConsent() || $conversation->status !== 'active'
-                || (int) $conversation->user_id !== (int) $turn->user_id || ! $turn->userMessage) {
+                || (int) $conversation->user_id !== (int) $turn->user_id || ! $turn->userMessage
+                || ! app(PersonContextService::class)->canProcess($conversation, (int) $turn->user_id)) {
                 $this->fail($turn, 'unavailable', $turn->language === 'ar' ? 'تعذر استكمال المحادثة. راجع موافقة الذكاء الاصطناعي وحالة المحادثة.' : 'Unable to continue. Check AI consent and conversation status.');
 
                 return;
@@ -137,8 +139,10 @@ class ChatTurnService
             $reply = $chat->ask($conversation, $turn->message, (int) $turn->user_id,
                 $conversation->child_id, $turn->language, $turn->userMessage,
                 function (string $stage) use ($turn, $attempt): void {
+                    $currentConversation = Conversation::find($turn->conversation_id);
                     if (! User::find($turn->user_id)?->hasAiConsent()
-                        || ! Conversation::whereKey($turn->conversation_id)->where('user_id', $turn->user_id)->where('status', 'active')->exists()) {
+                        || ! $currentConversation || $currentConversation->status !== 'active'
+                        || ! app(PersonContextService::class)->canProcess($currentConversation, (int) $turn->user_id)) {
                         throw new RuntimeException('Chat consent or conversation availability changed.');
                     }
                     if (ChatTurn::whereKey($turn->id)->where('attempt', $attempt)->where('status', 'processing')

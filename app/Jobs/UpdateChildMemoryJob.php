@@ -33,6 +33,10 @@ class UpdateChildMemoryJob implements ShouldQueue
 
         try {
             $conversation = Conversation::with('messages')->findOrFail($this->conversationId);
+            if (! app(\App\Services\AI\PersonContextService::class)->canProcess($conversation, (int) $conversation->user_id)
+                || ! $conversation->user?->hasAiConsent()) {
+                return;
+            }
 
             // Only caregiver messages may create child facts. Assistant output is
             // intentionally excluded so generated text cannot become memory.
@@ -110,6 +114,11 @@ PROMPT;
             }
 
             foreach ($memories as $memory) {
+                $current = $conversation->fresh();
+                if (! $current || ! app(\App\Services\AI\PersonContextService::class)->canProcess($current, (int) $current->user_id)
+                    || ! $current->user?->hasAiConsent()) {
+                    return;
+                }
                 $evidence = is_string($memory['evidence'] ?? null) ? trim($memory['evidence']) : '';
                 $source = $evidence === '' ? null : $recentMessages->reverse()->first(
                     fn (Message $message): bool => mb_strpos($message->content, $evidence) !== false

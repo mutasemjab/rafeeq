@@ -25,6 +25,10 @@ class SummarizeConversationJob implements ShouldQueue
     {
         try {
             $conv = Conversation::findOrFail($this->conversationId);
+            if (! app(\App\Services\AI\PersonContextService::class)->canProcess($conv, (int) $conv->user_id)
+                || ! $conv->user?->hasAiConsent()) {
+                return;
+            }
 
             $msgCount = Message::where('conversation_id', $this->conversationId)->count();
 
@@ -55,7 +59,7 @@ class SummarizeConversationJob implements ShouldQueue
             ])->all();
 
             $systemPrompt = <<<'PROMPT'
-You maintain a compact longitudinal case summary for a child-development support conversation. Return only the requested structured data.
+You maintain a compact longitudinal case summary for a non-diagnostic support conversation for any age. Legacy keys containing child refer to the selected subject, never assume they imply a child. Return only the requested structured data.
 
 Rules:
 - Use only facts explicitly reported by the caregiver. Never turn an assistant inference into a child fact.
@@ -80,6 +84,11 @@ PROMPT;
                 'max_completion_tokens' => 1200,
             ]);
 
+            $conv = $conv->fresh();
+            if (! $conv || ! app(\App\Services\AI\PersonContextService::class)->canProcess($conv, (int) $conv->user_id)
+                || ! $conv->user?->hasAiConsent()) {
+                return;
+            }
             $conv->update(['summary' => json_encode(
                 $summary,
                 JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES

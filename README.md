@@ -2,6 +2,8 @@
 
 A Laravel 9 backend for **Rafiq**, an AI-powered application supporting caregivers of children with special needs. Features an RAG-based AI chat system, specialist booking, subscription plans, and a full admin panel.
 
+The first all-ages backend milestone adds owned person profiles, consent-aware conversations and memories, and bilingual draft support-pathway routing alongside the existing child APIs. See [All ages support implementation](docs/ALL_AGES_SUPPORT.md) for the API contract, verification, migration and remaining release work. Draft pathways are question/navigation data, not approved treatment evidence.
+
 ---
 
 ## Tech Stack
