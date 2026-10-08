@@ -12,6 +12,7 @@ class AnswerModelPolicyTest extends TestCase
         config(['ai.routine_answer_model'=>'gpt-6-sol']);
         $policy=new AnswerModelPolicy();
         $this->assertSame([], $policy->options(['risk_level'=>'high'],'Help'));
+        $this->assertSame([], $policy->options(['risk_level'=>'low','after_referral'=>true],'Explain available support.'));
         $this->assertSame([], $policy->options(['risk_level'=>'moderate','pathway_state'=>['active_pathways'=>['psychosis']]],'Help'));
         $this->assertSame([], $policy->options(['risk_level'=>'low'],'هل أغير جرعة الدواء؟'));
         $this->assertSame(['model'=>'gpt-6-sol'], $policy->options(['risk_level'=>'low','action'=>'answer'],'How can I use the app?'));

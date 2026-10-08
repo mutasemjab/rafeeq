@@ -8,7 +8,7 @@ class AnswerModelPolicy
     public function options(array $plan, string $message): array
     {
         $routine = trim((string) config('ai.routine_answer_model', ''));
-        if ($routine === '' || ($plan['risk_level'] ?? 'high') === 'high' || ($plan['action'] ?? '') === 'refer_to_specialist') {
+        if ($routine === '' || ($plan['risk_level'] ?? 'high') === 'high' || ($plan['action'] ?? '') === 'refer_to_specialist' || ($plan['after_referral'] ?? false)) {
             return [];
         }
         if (preg_match('/\b(?:medicat|medicine|dose|dosage|withdraw|overdose|drug)\w*\b|دواء|دوائي|جرع|انسحاب|مخدر/iu', $message)) {

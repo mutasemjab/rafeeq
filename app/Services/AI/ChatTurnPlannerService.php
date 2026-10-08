@@ -229,6 +229,7 @@ PROMPT;
 
         return [
             'action' => $action,
+            'after_referral' => !empty($conversationState['last_referral_at']),
             'pathway_state' => $pathwayState,
             'question_node_id' => $pathwaySelection['question_node_id'],
             'domain' => mb_substr((string) ($result['domain'] ?? $domainHint ?? 'general'), 0, 80),
