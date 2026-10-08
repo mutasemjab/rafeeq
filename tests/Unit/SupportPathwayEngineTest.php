@@ -125,6 +125,21 @@ class SupportPathwayEngineTest extends TestCase
         $this->assertSame(8, $state['corrections'][0]['previous']['source_message_id']);
     }
 
+    public function test_invalid_optional_annotations_are_discarded_without_inventing_answers(): void
+    {
+        $engine = $this->engine();
+        $context = $engine->plannerContext([], 'language', 'en');
+        $selection = $engine->sanitiseSelection(['pathway_ids'=>['language','made_up'], 'node_answers'=>[
+            ['node_id'=>'language:D01','status'=>'unknown','value'=>'Unknown','evidence'=>"I don't know"],
+            ['node_id'=>'language:D02','status'=>'yes','value'=>'Invented','evidence'=>'Never stated'],
+        ],'question_node_id'=>'gateway:G11'], [], "I don't know.", $context);
+        $state = $engine->apply($selection, [], "I don't know.", $context);
+        $this->assertSame(['language'], $state['active_pathways']);
+        $this->assertCount(1, $state['answers']);
+        $this->assertNull($state['pending_question_id']);
+        $this->assertSame(3, $selection['rejected_annotation_count']);
+    }
+
     private function engine(): SupportPathwayEngine
     {
         return new SupportPathwayEngine(new SupportPathwayRegistry());

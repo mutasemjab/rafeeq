@@ -8,6 +8,35 @@ class SupportPathwayEngine
 {
     public function __construct(private SupportPathwayRegistry $registry) {}
 
+    /** Model annotations are optional. Discard invalid ones rather than storing
+     * invented evidence or failing an otherwise useful support conversation. */
+    public function sanitiseSelection(array $selection, array $previous, string $message, array $context): array
+    {
+        $clean = ['pathway_ids' => [], 'node_answers' => [], 'question_node_id' => null];
+        $rejected = 0;
+        foreach (array_slice(is_array($selection['pathway_ids'] ?? null) ? $selection['pathway_ids'] : [], 0, 4) as $id) {
+            if (is_string($id) && $this->registry->pathway($id) !== null) {
+                $clean['pathway_ids'][] = $id;
+            } else { $rejected++; }
+        }
+        foreach (array_slice(is_array($selection['node_answers'] ?? null) ? $selection['node_answers'] : [], 0, 6) as $answer) {
+            try {
+                $this->apply(['pathway_ids' => $clean['pathway_ids'], 'node_answers' => [$answer]], $previous, $message, $context);
+                $clean['node_answers'][] = $answer;
+            } catch (\InvalidArgumentException|\TypeError $error) { $rejected++; }
+        }
+        $id = $selection['question_node_id'] ?? null;
+        if ($id !== null) {
+            try {
+                $this->apply(array_merge($clean, ['question_node_id' => $id]), $previous, $message, $context);
+                $clean['question_node_id'] = $id;
+            } catch (\InvalidArgumentException|\TypeError $error) { $rejected++; }
+        }
+        $clean['rejected_annotation_count'] = $rejected;
+
+        return $clean;
+    }
+
     public function plannerContext(array $state, ?string $domain, string $language, array $caseContext = []): array
     {
         $active = (array) data_get($state, 'pathway_state.active_pathways', []);

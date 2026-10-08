@@ -218,6 +218,10 @@ PROMPT;
             'node_answers' => $result['node_answers'] ?? [],
             'question_node_id' => $action === 'ask_clarification' ? ($result['question_node_id'] ?? null) : null,
         ];
+        $pathwaySelection = $pathways->sanitiseSelection($pathwaySelection, $conversationState, $message, $pathwayContext);
+        if ($pathwaySelection['rejected_annotation_count'] > 0) {
+            \Illuminate\Support\Facades\Log::warning('ai.pathway.annotations_discarded', ['count' => $pathwaySelection['rejected_annotation_count']]);
+        }
         $pathwayState = $pathways->apply($pathwaySelection, $conversationState, $message, $pathwayContext);
 
         return [
