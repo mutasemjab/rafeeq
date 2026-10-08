@@ -10,6 +10,17 @@ use Tests\TestCase;
 
 class AnswerQualityServiceTest extends TestCase
 {
+    public function test_follow_up_is_returned_in_the_same_quality_review_request(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $question = ['question' => 'Did a word appear spontaneously?', 'purpose' => 'communication_mode',
+            'wait_for_observation' => false, 'anchor' => 'new communication attempts', 'decision_impact' => 'Choose the next appropriate observation.'];
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($messages, $schema): bool => isset($schema['properties']['follow_up']))
+            ->andReturn(['action' => 'approve', 'follow_up' => $question]);
+        $result = (new AnswerQualityService($llm))->review('More attempts.', 'Build on those attempts.', ['evidence_required'=>false], [], '', 'en');
+        $this->assertTrue($result['follow_up_reviewed']);
+        $this->assertSame($question, $result['follow_up']);
+    }
     public function test_unavailable_review_is_not_reported_as_approved_or_delivered_for_clinical_advice(): void
     {
         $llm = Mockery::mock(LlmProviderInterface::class);

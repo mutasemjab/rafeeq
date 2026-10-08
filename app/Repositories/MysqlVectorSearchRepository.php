@@ -430,13 +430,16 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
         }
 
         // Validate that every element is numeric.
-        foreach ($decoded as $value) {
+        foreach ($decoded as $index => $value) {
             if (! is_numeric($value)) {
                 return null;
             }
+            if (! is_float($value)) {
+                $decoded[$index] = (float) $value;
+            }
         }
 
-        return array_map('floatval', $decoded);
+        return $decoded;
     }
 
     private function decodeStringList(mixed $value): array

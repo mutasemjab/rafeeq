@@ -32,7 +32,7 @@ class AnswerQualityService
 
         $model = (string) config('ai.answer_quality_model', config('ai.answer_model'));
         $systemPrompt = <<<'PROMPT'
-You are the final clinical-quality editor for Rafiq, a non-diagnostic child-development support assistant. Review the draft answer, not the caregiver. Return only the structured result.
+You are the final clinical-quality editor for Rafiq, a non-diagnostic support assistant for all ages. Review the draft answer, not the user. Return only the structured result.
 
 Approve the answer only when all of these are true:
 1. It responds to this caregiver's exact concern and reflects at least one relevant known fact when child-specific facts exist.
@@ -50,6 +50,7 @@ Approve the answer only when all of these are true:
 13. Check every NEW clinical monitoring period, review deadline, numerical target, or required repetition count against the supplied evidence or an explicitly reported/agreed plan. For example, a caregiver reporting improvement from six episodes to two over five days does not justify prescribing another week or a target of two or fewer. Preserve reported baseline/outcome numbers and meaningful comparisons; do not ban numbers. Clearly illustrative dialogue or a family-chosen routine is different from a required clinical schedule or success criterion. Repair unsupported schedules/targets into one concrete observation across comparable ordinary opportunities, not a refusal or vague reassurance.
 14. A failed or impractical prior step must not trigger a disguised multi-field questionnaire. Look for requests embedded in prose or homework, such as recording warning timing, activity clarity, episode duration, consequences, and device return in the same reply. Even without question marks, that requests multiple answer fields. Retain ONE observation that materially changes the next decision, explain briefly why it matters, and remove the other data requests. The application handles the follow-up question separately. Do not remove necessary safety guidance or useful practical actions merely to make the response shorter.
 15. Rafiq supports all ages. Legacy child keys describe the selected person, not proof that they are a child. Adult self-support must address the adult directly. Check age-matched evidence, autonomy and consent; do not apply child protocols to adults, diagnose an absent person, or pathologise identity differences. Draft pathways organize questions and are never treatment evidence. Proposed support must respect comfort, participation and skills rather than obedience alone.
+16. Also provide follow_up in this same review: one optional atomic question, or question=null if no decision-changing observation is needed. It must fit the FINAL answer and the user's current stage. Include purpose, anchor, decision_impact and wait_for_observation. Do not repeat an earlier question with a new wording. If the user already tried a step and reported an outcome, ask only about a specific missing part of that outcome now; do not ask them to try the same step again before answering. Never infer the user's gender: use neutral Arabic such as «بعد تجربة الخطوة، هل ظهرت…؟» or «هل استخدم كلمة من نفسه؟». Do not add clinical claims, treatment doses, deadlines or several measurements to the question. Set question=null when turn_plan.follow_up_needed=false. Keep each metadata field short.
 
 Use action=approve when no material change is needed. Use action=revise when the answer can be repaired using only supplied evidence, and return the complete revised answer. Use action=reject only when a safe grounded answer cannot be produced from the supplied evidence. When revising, preserve valid citations and never create a source label or URL that is absent from the draft or supplied evidence. Keep the answer concise and natural.
 
@@ -86,6 +87,7 @@ PROMPT;
             $revised = is_string($result['revised_answer'] ?? null)
                 ? trim((string) $result['revised_answer'])
                 : '';
+            $reviewedFollowUp = is_array($result['follow_up'] ?? null) ? $result['follow_up'] : null;
 
             if (
                 $action === 'revise'
@@ -105,8 +107,9 @@ PROMPT;
                 // not the editor's verdict. Never call a self-scored rewrite verified.
                 $verificationPayload = json_decode($messages[1]['content'], true);
                 $verificationPayload['draft_answer'] = mb_substr($revised, 0, 10000);
+                $verificationPayload['draft_follow_up'] = $reviewedFollowUp;
                 $verificationMessages = [
-                    ['role' => 'system', 'content' => $systemPrompt."\nThis is an independent verification of the FINAL answer. Return approve only if the answer itself satisfies every rule. Otherwise return reject. Do not rewrite or repair it; set revised_answer=null. Grade only this supplied final answer."],
+                    ['role' => 'system', 'content' => $systemPrompt."\nThis is an independent verification of the FINAL answer and draft_follow_up. Return approve only if the answer itself satisfies every rule. Otherwise return reject. Do not rewrite or repair it; set revised_answer=null. Grade only this supplied final answer. Retain draft_follow_up only if it satisfies the rules; otherwise return a null follow-up question. Do not invent a different question."],
                     ['role' => 'user', 'content' => json_encode($verificationPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
                 ];
                 $verification = $this->llm->chatJson($verificationMessages, $this->schema(), array_merge($options, [
@@ -114,6 +117,9 @@ PROMPT;
                     'model' => (string) config('ai.answer_quality_verifier_model', $model),
                 ]));
                 $revisionVerified = ($verification['action'] ?? null) === 'approve';
+                if ($reviewedFollowUp !== null && ($verification['follow_up']['question'] ?? null) !== ($reviewedFollowUp['question'] ?? null)) {
+                    $reviewedFollowUp = ['question' => null];
+                }
                 if (! $revisionVerified) {
                     $action = 'reject';
                 }
@@ -132,6 +138,8 @@ PROMPT;
                 'strengths' => $this->boundedStrings($result['strengths'] ?? [], 6, 240),
                 'scores' => $this->scores($result['scores'] ?? []),
                 'model' => $model,
+                'follow_up_reviewed' => $reviewedFollowUp !== null,
+                'follow_up' => $reviewedFollowUp,
             ];
         } catch (Throwable $exception) {
             Log::warning('ai.answer_quality.unavailable', [
@@ -169,9 +177,10 @@ PROMPT;
                     'required' => array_keys($scoreProperties),
                     'additionalProperties' => false,
                 ],
-                'revised_answer' => ['type' => ['string', 'null']],
+                    'revised_answer' => ['type' => ['string', 'null']],
+                    'follow_up' => FollowUpSuggestionService::schema(),
             ],
-            'required' => ['action', 'issues', 'strengths', 'scores', 'revised_answer'],
+            'required' => ['action', 'issues', 'strengths', 'scores', 'revised_answer', 'follow_up'],
             'additionalProperties' => false,
         ];
     }

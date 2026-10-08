@@ -14,6 +14,9 @@ class SupportPathwayEngine
         $aliases = [
             'speech' => ['speech', 'language', 'hearing'], 'communication' => ['communication', 'language', 'hearing'],
             'expressive_language' => ['language', 'hearing'], 'behavior' => ['disruptive', 'autism'],
+            'speech_language_development' => ['language', 'hearing', 'communication'],
+            'speech_language' => ['language', 'hearing', 'speech'],
+            'developmental_concern' => ['neurodevelopment', 'other_neuro'],
             'development' => ['neurodevelopment', 'other_neuro'], 'feeding' => ['eating'],
             'mental_health' => ['depression', 'anxiety'], 'learning' => ['learning', 'adhd'],
             'down_syndrome' => ['down_syndrome_support'], 'cognition' => ['cognition'],

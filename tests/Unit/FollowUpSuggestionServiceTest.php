@@ -9,6 +9,19 @@ use Tests\TestCase;
 
 class FollowUpSuggestionServiceTest extends TestCase
 {
+    public function test_reviewed_follow_up_needs_no_extra_model_call_and_rejects_assumed_gender(): void
+    {
+        $llm = \Mockery::mock(\App\Services\AI\Contracts\LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->never();
+        $service = new \App\Services\AI\FollowUpSuggestionService($llm);
+        $result = ['question'=>'بعد ما تجرّبي الخطوة، هل ظهرت كلمة؟','anchor'=>'الخطوة','decision_impact'=>'مراجعة الخطوة','wait_for_observation'=>true];
+        $this->assertNull($service->validateResult($result, [], [], [])['question']);
+        $result['question']='هل استخدم كلمة من نفسه؟';
+        $result['wait_for_observation']=false;
+        $this->assertSame($result['question'], $service->validateResult($result, [], [], ['outcome_reported'=>true])['question']);
+        $result['wait_for_observation']=true;
+        $this->assertNull($service->validateResult($result, [], [], ['outcome_reported'=>true])['question']);
+    }
     public function test_it_returns_one_structured_next_question_in_the_requested_language(): void
     {
         $llm = Mockery::mock(LlmProviderInterface::class);

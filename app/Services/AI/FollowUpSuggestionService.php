@@ -69,31 +69,7 @@ PROMPT;
                 'max_completion_tokens' => (int) config('ai.follow_up_max_completion_tokens', 320),
             ];
             $result = $this->llm->chatJson($messages, $this->schema(), $options);
-
-            $question = is_string($result['question'] ?? null)
-                ? $this->atomicQuestion(trim((string) $result['question']))
-                : null;
-            $anchor = $this->nullableString($result['anchor'] ?? null, 300);
-            $decisionImpact = $this->nullableString($result['decision_impact'] ?? null, 400);
-
-            // Follow-up is optional: never add another serial model request to
-            // repair it, or repeat an already-asked question after truncation.
-            if (
-                $question === null || $question === '' || mb_strlen($question) > 400
-                || $anchor === null || $decisionImpact === null
-                || $this->wasAlreadyAsked($question, $conversationState, $recentHistory, $turnPlan)
-            ) {
-                return $this->none();
-            }
-
-            return [
-                'question' => $question,
-                'purpose' => mb_substr((string) ($result['purpose'] ?? ''), 0, 160) ?: null,
-                'wait_for_observation' => ($result['wait_for_observation'] ?? null) === true,
-                'anchor' => $anchor,
-                'decision_impact' => $decisionImpact,
-                'response_timing' => ($result['wait_for_observation'] ?? null) === true ? 'after_observation' : 'now',
-            ];
+            return $this->validateResult($result, $conversationState, $recentHistory, $turnPlan);
         } catch (Throwable $exception) {
             Log::warning('ai.follow_up.failed', [
                 'exception' => $exception::class,
@@ -104,7 +80,7 @@ PROMPT;
         }
     }
 
-    private function schema(): array
+    public static function schema(): array
     {
         return [
             'type' => 'object',
@@ -138,6 +114,30 @@ PROMPT;
             'anchor' => null,
             'decision_impact' => null,
             'response_timing' => null,
+        ];
+    }
+
+    /** Reuse question checks without another provider call after quality review. */
+    public function validateResult(array $result, array $conversationState, array $recentHistory, array $turnPlan): array
+    {
+        if (! config('ai.follow_up_suggestions_enabled', true) || ($turnPlan['follow_up_needed'] ?? null) === false) {
+            return $this->none();
+        }
+        $question = is_string($result['question'] ?? null) ? $this->atomicQuestion(trim($result['question'])) : null;
+        $anchor = $this->nullableString($result['anchor'] ?? null, 300);
+        $impact = $this->nullableString($result['decision_impact'] ?? null, 400);
+        if ($question === null || $question === '' || mb_strlen($question) > 400 || $anchor === null || $impact === null
+            || $this->wasAlreadyAsked($question, $conversationState, $recentHistory, $turnPlan)
+            || preg_match('/(?:تجرّبي|تجربي|تتركي|تقولي|تستني|تعملي|لاحظتي|أخبريني|اخبريني)/u', $question) === 1
+            || (($turnPlan['outcome_reported'] ?? false) && ($result['wait_for_observation'] ?? false))) {
+            return $this->none();
+        }
+
+        return [
+            'question' => $question, 'purpose' => mb_substr((string) ($result['purpose'] ?? ''), 0, 160) ?: null,
+            'wait_for_observation' => ($result['wait_for_observation'] ?? null) === true,
+            'anchor' => $anchor, 'decision_impact' => $impact,
+            'response_timing' => ($result['wait_for_observation'] ?? null) === true ? 'after_observation' : 'now',
         ];
     }
 

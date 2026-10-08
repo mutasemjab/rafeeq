@@ -328,7 +328,6 @@ class ChildChatService
                         'source_label' => $chunk['source_label'] ?? null,
                         'document_id' => $chunk['knowledge_document_id'] ?? null,
                         'similarity' => round($chunk['similarity'] ?? 0, 4),
-                        'content_preview' => mb_substr($chunk['content'] ?? '', 0, 200),
                     ]);
                 }
 
@@ -405,6 +404,7 @@ class ChildChatService
         // 13. Build LLM messages array. Child and source data are deliberately
         // passed as an untrusted user-role data block, never as system instructions.
         $systemPrompt = config('ai.system_prompt', '');
+        $systemPrompt .= "\nKeep the answer focused: normally 120–200 words, one practical priority, a short reason, and only essential safety or referral detail. Use up to three short paragraphs. Longer detail is appropriate only when the user's request or safety requires it. Do not omit source citations or a material limit merely to shorten the reply.";
         if ($language === 'ar') {
             $systemPrompt .= "\n\nRespond in Arabic.";
         }
@@ -542,7 +542,10 @@ class ChildChatService
         $reply = trim((string) ($quality['content'] ?? $reply));
         $usedSources = $this->sourcesUsedInReply($allSources, $reply, $evidenceRequired && ! $referralRequested);
 
-        $followUp = $this->followUpSuggestions?->suggest(
+        $followUp = ($quality['follow_up_reviewed'] ?? false) === true
+            ? ($this->followUpSuggestions ?? app(FollowUpSuggestionService::class))->validateResult(
+                (array) $quality['follow_up'], (array) $conversation->case_state, $guardHistory, $turnPlan)
+            : $this->followUpSuggestions?->suggest(
             $userMessage,
             $reply,
             $turnPlan,

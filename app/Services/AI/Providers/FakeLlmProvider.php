@@ -56,6 +56,7 @@ class FakeLlmProvider implements LlmProviderInterface
                     'calibration' => 1.0,
                 ],
                 'revised_answer' => null,
+                'follow_up' => ['question' => null, 'purpose' => null, 'wait_for_observation' => false, 'anchor' => null, 'decision_impact' => null],
             ];
         }
 
