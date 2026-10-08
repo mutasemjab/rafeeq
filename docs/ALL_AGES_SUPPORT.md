@@ -2,7 +2,7 @@
 
 The backend now supports owned person profiles for children, adolescents, adults and older adults alongside the existing child APIs. Conversations can select a person profile, use source-bound person memories, and plan questions against the supplied bilingual gateway and 39 draft pathways. Two additional **authored intake** pathways cover hearing and reported Down syndrome support needs. These additions are not supplied clinical protocols.
 
-This is the first backend implementation milestone. The registry is **draft routing content**, not approved treatment evidence. No draft yes/no branch automatically executes a therapy. The mobile person-selection interface, ephemeral conversation mode, standalone person-document library, person-linked appointment flow, and clinical content review are still outstanding. Existing conversation attachments work with person conversations through their conversation ownership and consent checks. No production migration, deployment, or store release has been performed.
+The backend and Flutter client now implement person selection, profile editing, separate consent choices, temporary conversations, private person documents, and person-linked appointments. The backend migrations and queue configuration were deployed and verified on https://rafeequae.com on 2026-10-08. Android 1.1.0+5 was built locally. Flutter source upload remains blocked by GitHub repository access; no store release was performed. The registry remains **draft routing content**, not approved treatment evidence. No draft yes/no branch automatically executes a therapy.
 
 ## API contract
 
@@ -38,7 +38,7 @@ Profile creation accepts:
 
 `reported_diagnosis` and `diagnosis_source` (`self_report`, `caregiver_report`, `professional_report`) preserve attribution. They do not confirm a diagnosis. Optional `communication_preferences` supports the person's preferred way of communicating.
 
-This persistent-profile API requires storage consent. A rejected storage choice returns 422 without creating a profile; it does **not** silently create a temporary session. Temporary conversations require a separate retention-aware implementation. Deleting the profile is the implemented way to remove its stored person data. Revoking AI processing consent preserves owned history for viewing but blocks new processing. Existing child data linked through `legacy_child_id` remains controlled by the existing child APIs and is not deleted when the additional person profile is deleted.
+This persistent-profile API requires storage consent. A rejected storage choice returns 422 without creating a profile; it does **not** silently create a temporary session. Temporary conversations use the separate retention-aware API described below. Deleting the profile is the implemented way to remove its stored person data. Revoking AI processing consent preserves owned history for viewing but blocks new processing. Existing child data linked through `legacy_child_id` remains controlled by the existing child APIs and is not deleted when the additional person profile is deleted.
 
 To create a conversation:
 
@@ -80,7 +80,7 @@ Person memories are separate from `child_memories`. The existing source-validati
 
 Legacy stable keys such as `child.age` remain canonical internally for compatibility; `person.age` aliases map to the same field **inside that person's memory store**. The key does not move information between people or imply the subject is a child.
 
-Person evidence retrieval requires an approved document with explicit age scope. Numeric age bounds filter applicable documents. Unscoped legacy documents are excluded from person retrieval. With unknown or corrected-but-untyped age, only explicitly `audience=all_ages` documents with no age bounds are eligible; no child protocol is inferred valid for an adult. Age fields must still be reviewed accurately by knowledge administrators. Authoritative web retrieval remains the existing evidence fallback, with model and answer quality checks enforcing age and source matching.
+`AI_REQUIRE_AGE_SCOPED_EVIDENCE=true` requires an approved document with explicit age scope across chat retrieval, including legacy child conversations. Numeric age bounds filter applicable documents. Unscoped legacy documents are excluded from person retrieval. With unknown or corrected-but-untyped age, only explicitly `audience=all_ages` documents with no age bounds are eligible; no child protocol is inferred valid for an adult. Age fields must still be reviewed accurately by knowledge administrators. Authoritative web retrieval remains the existing evidence fallback, with model and answer quality checks enforcing age and source matching.
 
 ## Source regeneration and verification
 
@@ -99,10 +99,32 @@ php vendor/bin/phpunit
 
 The importer uses only Python's standard library and treats source Word content as data. The registry validates IDs, bilingual text and draft status; it does not approve clinical transitions or sources. `support:validate` explicitly reports `release_ready=false` and the outstanding review/product items.
 
-Tests cover profile ownership, all age groups, separate consent choices, deletion/account cleanup, source-bound memory corrections, first-person safety cues, age-filtered evidence, the real two-turn chat graph with a fake provider, and revocation between acceptance and queued execution. The routing matrix exercises all 41 catalogue routes over four age groups and two languages. These are technical regression tests; they are not live provider testing or clinical validation.
+Tests cover profile ownership, all age groups, separate consent choices, deletion/account cleanup, source-bound memory corrections, first-person safety cues, age-filtered evidence, the real two-turn chat graph with a fake provider, and revocation between acceptance and queued execution. The routing matrix exercises all 41 catalogue routes over four age groups and two languages. These are technical regression tests. Separate live synthetic provider scenarios and deployment checks are recorded in `QA_RELEASE_REPORT_2026_10_08_AR.md`; neither establishes clinical validation.
 
-## Deployment and remaining work
+## Temporary conversations, documents and appointments
 
-Before deploying this code, back up the database and test the new `2026_10_08_000001_add_person_profiles.php` migration in staging. Deploy compatible files, apply migrations, refresh configuration and restart queue workers using the existing deployment process. The old child API remains available; no automatic child-profile backfill is performed. A client may explicitly create an owned legacy child link.
+`POST /api/v1/conversations` accepts `is_temporary=true` and an optional `temporary_subject` with age, relationship, communication preferences, attributed reported diagnosis and explicit permission/AI consent. It cannot also select a persistent person or child. It creates no person profile. Persistent storage consent is not required for this temporary subject; the UI explains the one-hour server retention before creation. Temporary conversations are hidden from history. Their drafts are not persisted by Flutter. They cannot write durable person/child memories or summaries.
 
-Next product work includes the actual mobile person-profile UI and its consent flow, ephemeral conversations and expiry across messages/queues/logs, standalone person documents, and person-linked appointments. Clinical reviewers must verify all supplied and authored questions, resolve draft transition ambiguity, and build an age-matched evidence coverage inventory before treating the full product as release-ready. A full release also needs the live model scenario evaluation, privacy review for the operating countries and post-deployment checks.
+`expires_at` immediately prevents chat, polling, attachment access and signed downloads at expiry. `php artisan conversations:purge-expired` physically deletes expired conversations, messages, turns, files and chunks. The chat worker script invokes this command every minute, before acquiring its worker lock. A separate short-lived daily usage counter preserves the free quota after content deletion; it stores no message text and is removed after two days. Expiry is not a promise to retract data already transmitted to an AI provider. Infrastructure logs and provider retention remain governed by their respective policies.
+
+Person document endpoints under `/api/v1/person-profiles/{id}/documents` support GET/list, POST/upload, DELETE/{document}, and POST/{document}/retry. Ownership applies throughout. Files live on private storage, use five-minute signed URLs, and have bounded extracted context. Uploading without AI consent does not start extraction. Restoring consent schedules pending documents; jobs recheck consent before and after extraction and avoid reprocessing an already completed document. Person/account deletion removes their files and caches. A reported diagnosis in a document remains attributed, not independently confirmed.
+
+Appointment create/update accepts an owned `person_profile_id`. Simultaneous non-null person and child IDs are rejected. Selecting one clears the other; explicit null supports clearing the subject. Flutter carries the selected person through booking, payment and appointment editing.
+
+Changing an age invalidates stale age facts, summaries and affected conversation decisions, and cancels queued/processing turns with `CASE_CONTEXT_CHANGED`. Prior affected replies stay visibly marked as superseded history. Old queued messages cannot overwrite the corrected profile age.
+
+## Latency and review controls
+
+The final answer review also produces the optional follow-up, eliminating a separate sequential model request on the normal path. Revised answers still undergo independent verification. A revision with an unknown citation gets at most one constrained citation repair, then the same exact URL/source checks and verifier. Another invalid citation, a rejected repair or a failed verification cannot be delivered as a verified answer.
+
+`AI_ROUTINE_ANSWER_MODEL` may choose a faster configured answer model for routine turns. High-risk, medication, complex psychiatric, referral and post-referral turns keep the primary answer model. `AI_SKIP_EMPTY_RETRIEVAL_EMBEDDINGS=true` skips embedding calls only when no eligible internal documents or processed conversation attachments exist; it does not skip the internal eligibility check, web evidence requirement or answer review. Logs record provider duration and model, not retrieved evidence excerpts.
+
+## Deployment and remaining review
+
+A database, code and environment backup was created outside the web root before migrations. Three all-ages migrations ran successfully. Deployment uses `scripts/post-deploy.sh` to migrate, cache config and restart queues. The existing Hostinger cron starts both the default document worker and dedicated chat worker. Production `QUEUE_RETRY_AFTER=1020` exceeds the existing default worker timeout of 900 seconds.
+
+The old child API remains available; no automatic child-profile backfill is performed. A client may explicitly create an owned legacy child link. Preserve unrelated server folders during deployment.
+
+`support:validate` continues to report `release_ready=false` for clinical pathway review, age-matched evidence coverage and clinical example review. At deployment, the 709 processed knowledge documents had no reviewed age scope, so these legacy documents were excluded from clinical chat evidence. Authoritative hosted web sources remain the fallback. Do not automatically approve documents or label age ranges simply to increase retrieval coverage.
+
+Live QA uses disposable synthetic accounts and deletes only those accounts. It checks response completion, multi-turn behavior, timing, consent and private document processing. Clinical specialists must review the supplied/authored pathways and examples before treating the assistant as clinically validated. The Flutter repository access blocker and platform build limits are documented in the release report.

@@ -15,3 +15,6 @@ yarn-error.log
 /.vscode
 .env
 /.enve
+
+# Local Python tooling cache
+__pycache__/
