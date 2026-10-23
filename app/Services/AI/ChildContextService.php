@@ -69,6 +69,9 @@ class ChildContextService
         $context = [
             'profile'  => $profile,
             'memories' => $memories->toArray(),
+            'intake_memories' => ChildMemory::where('child_id', $childId)->where('user_id', $userId)
+                ->where('status', 'active')->whereIn('memory_key', app(ConversationGuidanceService::class)->memoryKeys())
+                ->orderBy('source_message_id')->limit(80)->get()->toArray(),
             'summary'  => $longitudinalSummary !== '' ? $longitudinalSummary : null,
             'previous_progress' => $previousProgress,
         ];

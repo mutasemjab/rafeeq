@@ -26,6 +26,9 @@ class ChatTurnPlannerService
     ): array {
         $model = (string) config('ai.turn_planner_model', config('ai.chat_model'));
         $caseBrief = CaseBriefService::build($childContext, $conversationState);
+        $guidance = app(ConversationGuidanceService::class);
+        $guidanceContext = $guidance->context($childContext, $conversationState, $domainHint,
+            preg_match('/\p{Arabic}/u', $message) === 1 ? 'ar' : 'en');
         $pathways = app(SupportPathwayEngine::class);
         $pathwayContext = $pathways->plannerContext($conversationState, $domainHint,
             preg_match('/\p{Arabic}/u', $message) === 1 ? 'ar' : 'en', $childContext);
@@ -80,9 +83,9 @@ Rules:
 20. Set web_search_needed=true when current guidance matters, internal evidence may be insufficient, or a high-risk factual claim needs corroboration. Web search never replaces professional assessment.
 21. Extract memory_candidates only for durable facts explicitly stated by the caregiver in the latest message. Never store an inferred diagnosis, temporary small talk, instructions, or assistant-generated content. Evidence must be a short excerpt from the latest message.
 22. risk_level is low, moderate, or high. High does not mean emergency; emergencies are handled by a separate safety layer.
-23. Keep the structured result concise so it is never truncated: known_facts at most 12 short items, missing_fields at most 6, memory_candidates at most 4, and search_queries at most 3. Do not repeat the same fact across fields.
+23. Keep the structured result concise so it is never truncated: known_facts at most 12 short items, missing_fields at most 6, memory_candidates at most 8, and search_queries at most 3. Do not repeat the same fact across fields.
 24. Respond to the CURRENT intent, not only an earlier diagnosis request. After a referral, practical support remains possible. If the caregiver says “Can you answer anything?” or complains about repeated referral, plan answer that acknowledges the frustration and concretely explains available help. A purely conversational capability reply requires no evidence or web search. If that message also asks for behavioral or clinical advice, keep evidence_required=true and assess the actual risk.
-25. Avoid an intake loop. After two consecutive clarification-only turns, prefer useful limited initial support using known facts and explicitly state the uncertainty; information_sufficient means sufficient for that limited response, not a complete clinical history. Ask again only for a new, indispensable safety-critical observation. A complete ABC history is not a prerequisite to all general first steps; never infer a behavior function or prescribe an individualized treatment from sparse facts.
+25. Avoid an intake loop. After two consecutive clarification-only turns, prefer useful limited initial support using known facts and explicitly state the uncertainty; information_sufficient means sufficient for that limited response, not a complete clinical history. A genuinely indispensable remaining observation can still require clarification: set critical_gap and explain its decision impact. A complete ABC history is not a prerequisite to all general first steps; never infer a behavior function or prescribe an individualized treatment from sparse facts.
 26. Hitting or self-injury requires attention to current safety, but its mere mention does not make every subsequent turn a referral. Ask about injury only if that observation changes immediate action, briefly explain why, then return to the caregiver's practical request. Do not infer emergency severity or safety from absence of detail.
 27. A follow-up report deserves interpretation before another optional question, but new injury, deterioration, or danger overrides that conversational preference. Match the caregiver's register, avoid assumed caregiver gender, and sound attentive without claiming to be a clinician.
 28. Read case_brief before deciding to ask: it contains earlier summaries and proposed steps, not proof those steps were tried. Use the latest explicit caregiver correction for the same field over old profile values or summaries. known_facts is the complete CURRENT relevant snapshot, never a list that preserves superseded values. Use the existing stable memory key when updating a fact; use child.age for any reported age (state its units in content), child.birth_date for birth date, and communication.primary_language for primary language. Never guess that distinct diagnoses are the same field. Preserve exact caregiver evidence for corrections.
@@ -91,8 +94,14 @@ Rules:
 31. node_answers contains at most six observations explicitly stated in the LATEST user message. Use only real question node IDs from eligible routes or the gateway, with an exact short quote in evidence. yes, no, reported open text, unknown, declined, and conflicting are distinct; never turn missing information into no. A previous assistant question, profile label, or hypothetical example is not a current user answer. Prefer answering the pending question when the latest text does so. Leave node_answers empty when uncertain.
 32. For a clarification you may set question_node_id only to an unanswered candidate_questions or gateway_questions ID. G11, G13 and H are internal decisions, never literal questions. A natural clarification may have a null node ID. For an answer or referral, question_node_id is null. Do not read branch instructions or invent a pathway ID.
 33. Never apply a childhood protocol to an adult or label a child with an adult personality pattern. Identity differences or an unusual consensual interest alone do not establish illness. Do not diagnose an absent person from a relationship conflict. A prior diagnosis never explains every new symptom. Track comfort, participation, independence and skills, not obedience alone.
-34. When profile_age_is_newer_than_message=true, this is a retry of an older request after an explicit age edit. Use the corrected profile age, not the old age in the request or history. Do not propose an age memory from that older request. A later explicit user correction can supersede the edit.
+34. For a newly introduced case with no specific concern yet, choose one warm opening question about what help the user wants, optionally naming concrete support available. Do not respond only by reciting a diagnosis or asking for profile facts already supplied. A specific request about a recorded diagnosis still deserves a faithful answer before offering further help.
+35. When profile_age_is_newer_than_message=true, this is a retry of an older request after an explicit age edit. Use the corrected profile age, not the old age in the request or history. Do not propose an age memory from that older request. A later explicit user correction can supersede the edit.
+36. When case history would change the next useful support step, consider relevant reported events such as a fall or head injury, ear symptoms/hearing, and eye symptoms/vision. Use information already explicitly supplied in the profile, readable reports, or caregiver messages before asking one missing question. Never infer an injury, infection, its absence, or a causal diagnosis from silence or an unrelated symptom. Keep unknown history unknown; do not turn this into a mandatory intake checklist before helping.
+37. Use conversation_guidance to reuse known case-history answers and select optional relevant fields. A single free-form message may answer several fields: propose a separate memory_candidate for each explicit fact, with its exact evidence quote and stable field key. Use goal.current for an explicit current family goal and family.constraints for practical constraints. answer_status distinguishes reported, explicitly denied, unknown, declined, and conflicting; silence is never denied. A blank form, a question, or an assistant example is not an answer. Do not copy case-form questions for an adult.
+38. Classify the latest intent and up to three exploration_domains from the supplied catalogue. These are support domains, never diagnoses. An implementation_barrier or stop_plan is not an observed treatment failure. Another activity must differ from the prior proposed step. Explain a changed recommendation using new facts; disagreement alone is not evidence. Set critical_gap=true only if the missing observation is indispensable even for limited support, and explain its decision impact. Question count alone cannot establish sufficient clinical information.
+39. When reply_feedback exists, the current task is to repair the specific earlier answer using its original question, the reason, and any explicit correction. Use the original subject to select evidence and preserve necessary safety/referral guidance; asking for shorter wording is not evidence that a risk resolved. Original assistant text is not independent evidence. Do not save stylistic feedback or quoted assistant statements as case facts. Prefer a corrected answer when no indispensable new fact is needed.
 PROMPT;
+        $systemPrompt .= $guidance->instructions();
 
         $plannerMessages = [
             ['role' => 'system', 'content' => $systemPrompt],
@@ -110,6 +119,8 @@ PROMPT;
                 'input_message_created_at' => $childContext['input_message_created_at'] ?? null,
                 'profile_age_is_newer_than_message' => $childContext['profile_age_is_newer_than_message'] ?? false,
                 'pathway_context' => $pathwayContext,
+                'conversation_guidance' => $guidanceContext,
+                'reply_feedback' => $childContext['reply_feedback'] ?? null,
                 'latest_message' => mb_substr(trim($message), 0, 4000),
                 'suggested_search_queries' => array_values(array_slice($suggestedSearchQueries, 0, 4)),
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
@@ -189,6 +200,7 @@ PROMPT;
             $result['reason'] = 'The clarification still repeats an already-asked non-safety topic after one revision. Acknowledge the available facts and uncertainty and provide only safe limited initial support; do not infer a diagnosis or a behavior function, prescribe a complete treatment plan, or repeat the question.';
         }
         if ($action === 'ask_clarification' && (int) ($conversationState['consecutive_clarifications'] ?? 0) >= 2
+            && ! (($result['critical_gap'] ?? false) === true && ! empty($result['expected_answer_use']))
             && ! $this->requiresSafetyClarification($result)) {
             $action = 'answer';
             $result['information_sufficient'] = true;
@@ -227,8 +239,13 @@ PROMPT;
         }
         $pathwayState = $pathways->apply($pathwaySelection, $conversationState, $message, $pathwayContext);
 
-        return [
+        $intent = in_array($result['intent'] ?? '', ConversationGuidanceService::INTENTS, true)
+            ? $result['intent'] : ($outcomeReported ? 'outcome_report' : 'question');
+        $plan = [
             'action' => $action,
+            'intent' => $intent,
+            'critical_gap' => ($result['critical_gap'] ?? false) === true,
+            'exploration_domains' => array_values(array_intersect(array_slice((array) ($result['exploration_domains'] ?? []), 0, 3), ConversationGuidanceService::DOMAINS)),
             'after_referral' => !empty($conversationState['last_referral_at']),
             'pathway_state' => $pathwayState,
             'question_node_id' => $pathwaySelection['question_node_id'],
@@ -252,12 +269,15 @@ PROMPT;
             'evidence_required' => ($result['evidence_required'] ?? null) !== false,
             'web_search_needed' => ($result['web_search_needed'] ?? null) === true,
             'memory_candidates' => $this->memoryCandidates($result['memory_candidates'] ?? [], $message),
-            'outcome_reported' => $outcomeReported,
+            'outcome_reported' => ! in_array($intent, ['implementation_barrier', 'stop_plan'], true) && ($outcomeReported || $intent === 'outcome_report'),
             'confidence' => is_numeric($result['confidence'] ?? null)
                 ? max(0.0, min(1.0, (float) $result['confidence']))
                 : 0.0,
             'model' => $model,
         ];
+        $plan['dialogue_route'] = $guidance->route($plan);
+        if ($intent === 'stop_plan') $plan['follow_up_needed'] = false;
+        return $plan;
     }
 
     private function schema(): array
@@ -266,6 +286,9 @@ PROMPT;
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
+                'intent' => ['type' => 'string', 'enum' => ConversationGuidanceService::INTENTS],
+                'critical_gap' => ['type' => 'boolean'],
+                'exploration_domains' => ['type' => 'array', 'items' => ['type' => 'string', 'enum' => ConversationGuidanceService::DOMAINS]],
                 'domain' => ['type' => 'string'],
                 'pathway_ids' => ['type' => 'array', 'items' => ['type' => 'string']],
                 'question_node_id' => ['type' => ['string', 'null']],
@@ -305,6 +328,7 @@ PROMPT;
                             'content' => ['type' => 'string'],
                             'confidence' => ['type' => 'number'],
                             'evidence' => ['type' => 'string'],
+                            'answer_status' => ['type' => 'string', 'enum' => ConversationGuidanceService::ANSWER_STATUSES],
                             'fact_status' => [
                                 'type' => 'string',
                                 'enum' => ['confirmed_by_caregiver', 'reported_concern', 'goal', 'preference'],
@@ -317,6 +341,7 @@ PROMPT;
                             'content',
                             'confidence',
                             'evidence',
+                            'answer_status',
                             'fact_status',
                         ],
                         'additionalProperties' => false,
@@ -326,6 +351,9 @@ PROMPT;
             ],
             'required' => [
                 'action',
+                'intent',
+                'critical_gap',
+                'exploration_domains',
                 'domain',
                 'pathway_ids',
                 'question_node_id',
@@ -427,6 +455,8 @@ PROMPT;
                         ? max(0.0, min(1.0, (float) $value['confidence']))
                         : 0.0,
                     'evidence' => mb_substr(trim((string) ($value['evidence'] ?? '')), 0, 500),
+                    'answer_status' => in_array($value['answer_status'] ?? '', ConversationGuidanceService::ANSWER_STATUSES, true)
+                        ? $value['answer_status'] : 'reported',
                     'fact_status' => in_array(
                         $value['fact_status'] ?? null,
                         ['confirmed_by_caregiver', 'reported_concern', 'goal', 'preference'],

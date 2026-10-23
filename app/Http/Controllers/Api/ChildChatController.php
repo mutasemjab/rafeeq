@@ -33,7 +33,7 @@ class ChildChatController extends Controller
         $user = $request->user();
         $language = $request->input('language', $user->preferred_language ?? 'en') ?: 'en';
         [$turn, $dispatch] = $this->turns->accept($conversation, $user,
-            $request->input('client_message_id') ?: (string) Str::uuid(), $request->input('message'), $language);
+            $request->input('client_message_id') ?: (string) Str::uuid(), $request->input('message'), $language, $request->input('feedback'));
         if ($request->boolean('async')) {
             if ($dispatch) {
                 try {
@@ -85,16 +85,8 @@ class ChildChatController extends Controller
     {
         $this->authorize('view', $conversation);
         $turn = ChatTurn::where('conversation_id', $conversation->id)->where('client_message_id', $clientMessageId)->firstOrFail();
-        $cancelled = ChatTurn::whereKey($turn->id)->where('status', 'queued')->update([
-            'status' => 'cancelled', 'stage' => 'cancelled', 'completed_at' => now(), 'updated_at' => now(),
-        ]);
-        abort_unless($cancelled || $turn->status === 'cancelled', 409,
-            $turn->language === 'ar' ? 'بدأ تجهيز الرد بالفعل؛ يمكنك الرجوع إليه لاحقًا.' : 'Reply preparation has already started; you can return to it later.');
-        if ($message = $turn->userMessage) {
-            $message->update(['metadata' => array_merge($message->metadata ?? [], ['delivery_status' => 'cancelled'])]);
-        }
+        return $this->turnResponse($this->turns->cancel($turn));
 
-        return $this->turnResponse($turn->fresh());
     }
 
     private function turnResponse(ChatTurn $turn): JsonResponse

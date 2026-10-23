@@ -52,6 +52,8 @@ class ConversationStateService
                 'content' => mb_substr($content, 0, 600), 'evidence' => mb_substr($evidence, 0, 500),
                 'source_message_id' => $sourceMessageId, 'reported_at' => now()->toISOString(),
                 'fact_status' => $candidate['fact_status'] ?? 'reported_concern',
+                'answer_status' => in_array($candidate['answer_status'] ?? '', ConversationGuidanceService::ANSWER_STATUSES, true)
+                    ? $candidate['answer_status'] : 'reported',
             ];
         }
         $supersededContents = array_diff(array_column($superseded, 'content'), array_column($facts, 'content'));
@@ -84,6 +86,8 @@ class ConversationStateService
             'consecutive_clarifications' => ($plan['action'] ?? null) === 'ask_clarification'
                 ? (int) ($previous['consecutive_clarifications'] ?? 0) + 1 : 0,
             'updated_at' => now()->toISOString(),
+            'dialogue_route' => app(ConversationGuidanceService::class)->route($plan, $safety),
+            'exploration_domains' => array_values(array_intersect((array) ($plan['exploration_domains'] ?? []), ConversationGuidanceService::DOMAINS)),
         ]);
         if (is_array($plan['pathway_state'] ?? null)) {
             $state['pathway_state'] = $plan['pathway_state'];
@@ -102,6 +106,13 @@ class ConversationStateService
             $state['progress']['outcome_reports'] = array_slice($reports, -5);
             $state['progress']['status'] = 'outcome_reported';
             $state['observation_round'] = (int) ($previous['observation_round'] ?? 0) + 1;
+        }
+        if (in_array($plan['intent'] ?? '', ['implementation_barrier', 'stop_plan'], true)) {
+            $state['progress']['status'] = $plan['intent'] === 'stop_plan' ? 'stopped' : 'not_tried';
+            $state['progress']['attempt_note'] = mb_substr((string) $latestMessage, 0, 1200);
+            $state['progress']['attempt_source_message_id'] = $sourceMessageId;
+            $state['progress']['waiting_for'] = null;
+            if ($plan['intent'] === 'stop_plan') $state['follow_up_needed'] = false;
         }
 
         $conversation->forceFill([
@@ -125,7 +136,8 @@ class ConversationStateService
         $state['follow_up_needed'] = $nextQuestion !== null;
         $state['consecutive_clarifications'] = 0;
         if ($answerText !== null && trim($answerText) !== '' && $action !== 'refer_to_specialist'
-            && ($state['case_specific'] ?? false) === true) {
+            && ($state['case_specific'] ?? false) === true
+            && data_get($state, 'dialogue_route.intent') !== 'stop_plan') {
             $previousSteps = (array) ($state['progress']['previous_steps'] ?? []);
             if (! empty($state['progress']['recommended_step']) && $state['progress']['recommended_step'] !== trim($answerText)) {
                 $previousSteps[] = [

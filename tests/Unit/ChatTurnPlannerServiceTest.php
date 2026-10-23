@@ -11,6 +11,32 @@ use Tests\TestCase;
 
 class ChatTurnPlannerServiceTest extends TestCase
 {
+    public function test_new_guidance_does_not_force_support_after_a_count_when_a_critical_gap_remains(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn(array_replace($this->clarificationResult(), [
+            'critical_gap' => true, 'expected_answer_use' => 'This observation changes whether the proposed task is feasible.',
+        ]));
+        $plan = (new ChatTurnPlannerService($llm))->plan('I still need help.', [], [], null, [], ['consecutive_clarifications' => 2]);
+        $this->assertSame('ask_clarification', $plan['action']);
+        $this->assertSame('N08', $plan['dialogue_route']['node_id']);
+    }
+
+    public function test_planner_receives_known_case_fields_and_does_not_mark_an_untried_step_as_failure(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->withArgs(function (array $messages): bool {
+            $payload = json_decode($messages[1]['content'], true);
+            $guidance = $payload['conversation_guidance'];
+            return $guidance['version'] === '2026-10-22.1'
+                && isset($guidance['known_answers']['child.age'])
+                && in_array('health.head_injury_history', $guidance['field_keys'], true);
+        })->andReturn(array_replace($this->answerResult(), ['intent' => 'implementation_barrier']));
+        $plan = (new ChatTurnPlannerService($llm))->plan('We did not try it because we have no time.', ['profile' => ['age' => 5]], [], 'behavior', [], ['follow_up_needed' => true]);
+        $this->assertFalse($plan['outcome_reported']);
+        $this->assertSame('N11', $plan['dialogue_route']['node_id']);
+    }
+
     public function test_planner_receives_previous_summary_and_proposed_step_before_asking(): void
     {
         $llm = Mockery::mock(LlmProviderInterface::class);

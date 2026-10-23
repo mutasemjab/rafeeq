@@ -1,0 +1,307 @@
+{
+  "version": "0.1",
+  "status": "implementation_spec_not_executable_or_clinically_validated",
+  "entry": "N00",
+  "routing": "Conditions are descriptive; developer must implement deterministic priorities and validated safety protocol. Evaluate on every turn; do not execute all nodes sequentially.",
+  "state_schema": {
+    "child_id": "string|null",
+    "intent": "string",
+    "facts": [
+      {
+        "key": "string",
+        "value": "any",
+        "source_type": "user_message|consented_profile",
+        "source_id": "string",
+        "status": "confirmed|conflicting|superseded"
+      }
+    ],
+    "hypotheses": [],
+    "unknowns": [],
+    "safety_status": "unknown|no_urgent_signal_identified|needs_clarification|protocol_escalation",
+    "active_domains": [],
+    "asked_questions": [],
+    "last_action": null,
+    "outcomes": [],
+    "recommendation_basis": [],
+    "retrieved_evidence": [],
+    "persistence_consent": false
+  },
+  "nodes": [
+    {
+      "id": "N00",
+      "transitions": [
+        {
+          "target": "N02",
+          "condition_en": "Conflicting child identity"
+        },
+        {
+          "target": "N03",
+          "condition_en": "Safety signal"
+        },
+        {
+          "target": "N01",
+          "condition_en": "Other cases"
+        }
+      ],
+      "title_en": "Identify message intent",
+      "action_en": "Identify the request and intended child without restarting the conversation."
+    },
+    {
+      "id": "N01",
+      "transitions": [
+        {
+          "target": "N02",
+          "condition_en": "Material conflict"
+        },
+        {
+          "target": "N03",
+          "condition_en": "Ready"
+        }
+      ],
+      "title_en": "Update facts",
+      "action_en": "Extract facts with their sources; keep hypotheses separate."
+    },
+    {
+      "id": "N02",
+      "transitions": [
+        {
+          "target": "N01",
+          "condition_en": "Clarifying answer"
+        },
+        {
+          "target": "N02",
+          "condition_en": "Still unclear"
+        },
+        {
+          "target": "N03",
+          "condition_en": "Safety signal"
+        }
+      ],
+      "title_en": "Clarify ambiguity or conflict",
+      "action_en": "Clarify conflicting information, child identity, or an ambiguous yes."
+    },
+    {
+      "id": "N03",
+      "transitions": [
+        {
+          "target": "N04",
+          "condition_en": "Urgent under protocol"
+        },
+        {
+          "target": "N05",
+          "condition_en": "Material uncertainty"
+        },
+        {
+          "target": "N06",
+          "condition_en": "No urgent priority identified"
+        }
+      ],
+      "title_en": "Check safety priority",
+      "action_en": "Apply the approved application protocol; do not assume safety when material uncertainty remains."
+    },
+    {
+      "id": "N04",
+      "transitions": [
+        {
+          "target": "N01",
+          "condition_en": "New answer"
+        },
+        {
+          "target": "T00",
+          "condition_en": "Await response"
+        }
+      ],
+      "title_en": "Urgent pathway",
+      "action_en": "Present the approved action appropriate to location; do not delay it with unnecessary questions."
+    },
+    {
+      "id": "N05",
+      "transitions": [
+        {
+          "target": "N01",
+          "condition_en": "Answer received"
+        },
+        {
+          "target": "T00",
+          "condition_en": "Await response"
+        }
+      ],
+      "title_en": "Targeted safety question",
+      "action_en": "Ask only what determines the action; do not delay necessary help."
+    },
+    {
+      "id": "N06",
+      "transitions": [
+        {
+          "target": "N01",
+          "condition_en": "Correction"
+        },
+        {
+          "target": "N07",
+          "condition_en": "Request for explanation"
+        },
+        {
+          "target": "N11",
+          "condition_en": "Outcome of a trial"
+        },
+        {
+          "target": "N10",
+          "condition_en": "Another activity requested"
+        },
+        {
+          "target": "N08",
+          "condition_en": "Material information missing"
+        },
+        {
+          "target": "N12",
+          "condition_en": "Assessment indicated under protocol"
+        },
+        {
+          "target": "N09",
+          "condition_en": "Enough information for support"
+        }
+      ],
+      "title_en": "Choose current task",
+      "action_en": "Address the current request within context and knowledge limits."
+    },
+    {
+      "id": "N07",
+      "transitions": [
+        {
+          "target": "N01",
+          "condition_en": "New information"
+        },
+        {
+          "target": "N08",
+          "condition_en": "Continue clarification"
+        },
+        {
+          "target": "N14",
+          "condition_en": "Ready for review"
+        }
+      ],
+      "title_en": "Explain the decision",
+      "action_en": "Explain evidence and limits; disagreement alone does not change the recommendation."
+    },
+    {
+      "id": "N08",
+      "transitions": [
+        {
+          "target": "N14",
+          "condition_en": "Question ready"
+        },
+        {
+          "target": "N13",
+          "condition_en": "No conclusive answer"
+        }
+      ],
+      "title_en": "Ask the most useful question",
+      "action_en": "Choose one question that changes the decision from the relevant tree; skip known answers."
+    },
+    {
+      "id": "N09",
+      "transitions": [
+        {
+          "target": "N13",
+          "condition_en": "Check evidence"
+        }
+      ],
+      "title_en": "Select support",
+      "action_en": "Identify the family goal and select one step suited to age, abilities, and resources."
+    },
+    {
+      "id": "N10",
+      "transitions": [
+        {
+          "target": "N13",
+          "condition_en": "Check evidence"
+        }
+      ],
+      "title_en": "Additional support",
+      "action_en": "Choose an activity different from the previous one, consistent with the goal and context."
+    },
+    {
+      "id": "N11",
+      "transitions": [
+        {
+          "target": "N08",
+          "condition_en": "Material information missing"
+        },
+        {
+          "target": "N09",
+          "condition_en": "Adjust support"
+        },
+        {
+          "target": "N12",
+          "condition_en": "Assessment indicator"
+        },
+        {
+          "target": "N01",
+          "condition_en": "New information"
+        }
+      ],
+      "title_en": "Review outcome",
+      "action_en": "If improved, build on it; otherwise clarify implementation and impact without blame."
+    },
+    {
+      "id": "N12",
+      "transitions": [
+        {
+          "target": "N13",
+          "condition_en": "Check evidence"
+        }
+      ],
+      "title_en": "Assessment and referral",
+      "action_en": "Link the reason to facts and urgency to the approved protocol; add appropriate support without delaying referral."
+    },
+    {
+      "id": "N13",
+      "transitions": [
+        {
+          "target": "N14",
+          "condition_en": "Suitable evidence"
+        },
+        {
+          "target": "N14",
+          "condition_en": "Evidence unavailable"
+        },
+        {
+          "target": "N08",
+          "condition_en": "Missing information prevents support"
+        }
+      ],
+      "title_en": "Retrieve supporting evidence",
+      "action_en": "Check relevance and supporting passages; disclose missing evidence and never invent it."
+    },
+    {
+      "id": "N14",
+      "transitions": [
+        {
+          "target": "T00",
+          "condition_en": "Pass"
+        },
+        {
+          "target": "N01",
+          "condition_en": "Data error"
+        },
+        {
+          "target": "N14",
+          "condition_en": "Wording error"
+        }
+      ],
+      "title_en": "Review before sending",
+      "action_en": "Check fact provenance, repetition, decision suitability, language, and clarity of the next step."
+    },
+    {
+      "id": "T00",
+      "transitions": [
+        {
+          "target": "N00",
+          "condition_en": "New message"
+        }
+      ],
+      "title_en": "Send and wait",
+      "action_en": "Send the response and retain context according to consent and policy."
+    }
+  ]
+}

@@ -25,6 +25,7 @@ class CaseBriefService
             'current_facts' => array_slice((array) ($state['fact_index'] ?? $existing['current_facts'] ?? []), -30, null, true),
             'known_facts' => self::strings($state['known_facts'] ?? $existing['known_facts'] ?? [], 20, 300),
             'pathway_state' => $state['pathway_state'] ?? [],
+            'dialogue_route' => $state['dialogue_route'] ?? $existing['dialogue_route'] ?? null,
             'current_decision' => self::text($state['decision_to_make'] ?? $existing['current_decision'] ?? null, 400),
             'progress' => self::progress($state['progress'] ?? $existing['progress'] ?? []),
             'previous_progress' => collect($context['previous_progress'] ?? $existing['previous_progress'] ?? [])
@@ -42,6 +43,8 @@ class CaseBriefService
 
         return [
             'status' => $progress['status'] ?? 'proposed',
+            'attempt_note' => self::text($progress['attempt_note'] ?? null, 1200),
+            'attempt_source_message_id' => $progress['attempt_source_message_id'] ?? null,
             'decision' => self::text($progress['decision'] ?? null, 400),
             'recommended_step' => self::text($progress['recommended_step'] ?? null, 2200),
             'recommendation_provenance' => 'Prior assistant recommendation, not a caregiver fact or proof that it was attempted.',

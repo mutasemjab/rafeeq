@@ -1,0 +1,307 @@
+{
+  "version": "0.1",
+  "status": "implementation_spec_not_executable_or_clinically_validated",
+  "entry": "N00",
+  "routing": "Conditions are descriptive; developer must implement deterministic priorities and validated safety protocol. Evaluate on every turn; do not execute all nodes sequentially.",
+  "state_schema": {
+    "child_id": "string|null",
+    "intent": "string",
+    "facts": [
+      {
+        "key": "string",
+        "value": "any",
+        "source_type": "user_message|consented_profile",
+        "source_id": "string",
+        "status": "confirmed|conflicting|superseded"
+      }
+    ],
+    "hypotheses": [],
+    "unknowns": [],
+    "safety_status": "unknown|no_urgent_signal_identified|needs_clarification|protocol_escalation",
+    "active_domains": [],
+    "asked_questions": [],
+    "last_action": null,
+    "outcomes": [],
+    "recommendation_basis": [],
+    "retrieved_evidence": [],
+    "persistence_consent": false
+  },
+  "nodes": [
+    {
+      "id": "N00",
+      "title_ar": "تحديد قصد الرسالة",
+      "action_ar": "حدد الطلب والطفل المقصود دون إعادة بدء الحوار",
+      "transitions": [
+        {
+          "condition_ar": "هوية متعارضة",
+          "target": "N02"
+        },
+        {
+          "condition_ar": "إشارة سلامة",
+          "target": "N03"
+        },
+        {
+          "condition_ar": "باقي الحالات",
+          "target": "N01"
+        }
+      ]
+    },
+    {
+      "id": "N01",
+      "title_ar": "تحديث الحقائق",
+      "action_ar": "استخرج الحقائق مع مصدرها وافصل الاحتمالات",
+      "transitions": [
+        {
+          "condition_ar": "تعارض مؤثر",
+          "target": "N02"
+        },
+        {
+          "condition_ar": "جاهز",
+          "target": "N03"
+        }
+      ]
+    },
+    {
+      "id": "N02",
+      "title_ar": "توضيح تعارض",
+      "action_ar": "اسأل عن معلومة متعارضة أو هوية الطفل أو نعم المبهمة",
+      "transitions": [
+        {
+          "condition_ar": "إجابة توضح",
+          "target": "N01"
+        },
+        {
+          "condition_ar": "لم يتضح",
+          "target": "N02"
+        },
+        {
+          "condition_ar": "إشارة سلامة",
+          "target": "N03"
+        }
+      ]
+    },
+    {
+      "id": "N03",
+      "title_ar": "فحص أولوية السلامة",
+      "action_ar": "طبّق بروتوكول التطبيق المعتمد؛ لا تفترض السلامة عند الغموض المؤثر",
+      "transitions": [
+        {
+          "condition_ar": "عاجل حسب البروتوكول",
+          "target": "N04"
+        },
+        {
+          "condition_ar": "غير واضح مؤثر",
+          "target": "N05"
+        },
+        {
+          "condition_ar": "لا أولوية عاجلة",
+          "target": "N06"
+        }
+      ]
+    },
+    {
+      "id": "N04",
+      "title_ar": "مسار عاجل",
+      "action_ar": "اعرض الإجراء المعتمد المناسب للموقع ولا تؤخره بأسئلة غير ضرورية",
+      "transitions": [
+        {
+          "condition_ar": "إجابة جديدة",
+          "target": "N01"
+        },
+        {
+          "condition_ar": "انتظار",
+          "target": "T00"
+        }
+      ]
+    },
+    {
+      "id": "N05",
+      "title_ar": "سؤال سلامة موجه",
+      "action_ar": "اسأل فقط عما يحدد الإجراء؛ لا تؤخر مساعدة لازمة",
+      "transitions": [
+        {
+          "condition_ar": "إجابة",
+          "target": "N01"
+        },
+        {
+          "condition_ar": "انتظار",
+          "target": "T00"
+        }
+      ]
+    },
+    {
+      "id": "N06",
+      "title_ar": "اختيار العمل الحالي",
+      "action_ar": "أجب عن الاستفسار الحالي ضمن السياق وحدود المعرفة",
+      "transitions": [
+        {
+          "condition_ar": "تصحيح",
+          "target": "N01"
+        },
+        {
+          "condition_ar": "طلب تفسير",
+          "target": "N07"
+        },
+        {
+          "condition_ar": "نتيجة تجربة",
+          "target": "N11"
+        },
+        {
+          "condition_ar": "نشاط آخر",
+          "target": "N10"
+        },
+        {
+          "condition_ar": "نقص مؤثر",
+          "target": "N08"
+        },
+        {
+          "condition_ar": "يستدعي تقييما حسب البروتوكول",
+          "target": "N12"
+        },
+        {
+          "condition_ar": "كفاية للدعم",
+          "target": "N09"
+        }
+      ]
+    },
+    {
+      "id": "N07",
+      "title_ar": "شرح القرار",
+      "action_ar": "اشرح المعطيات والحدود؛ الاعتراض وحده لا يغيّر التوصية",
+      "transitions": [
+        {
+          "condition_ar": "معلومة جديدة",
+          "target": "N01"
+        },
+        {
+          "condition_ar": "استكمال",
+          "target": "N08"
+        },
+        {
+          "condition_ar": "جاهز للإرسال",
+          "target": "N14"
+        }
+      ]
+    },
+    {
+      "id": "N08",
+      "title_ar": "أكثر سؤال إفادة",
+      "action_ar": "اختر سؤالا واحدا يغيّر القرار من الشجرة المناسبة وتخط المعروف",
+      "transitions": [
+        {
+          "condition_ar": "سؤال جاهز",
+          "target": "N14"
+        },
+        {
+          "condition_ar": "لا إجابة قاطعة",
+          "target": "N13"
+        }
+      ]
+    },
+    {
+      "id": "N09",
+      "title_ar": "اختيار دعم",
+      "action_ar": "حدد هدف الأسرة واختر خطوة تناسب العمر والقدرات والموارد",
+      "transitions": [
+        {
+          "condition_ar": "تحقق الدليل",
+          "target": "N13"
+        }
+      ]
+    },
+    {
+      "id": "N10",
+      "title_ar": "دعم إضافي",
+      "action_ar": "اختر نشاطا مختلفا عن السابق مع مراعاة الهدف والسياق",
+      "transitions": [
+        {
+          "condition_ar": "تحقق الدليل",
+          "target": "N13"
+        }
+      ]
+    },
+    {
+      "id": "N11",
+      "title_ar": "متابعة النتيجة",
+      "action_ar": "تحسن: ابن عليه؛ لم يتحسن: استوضح التطبيق والأثر دون لوم",
+      "transitions": [
+        {
+          "condition_ar": "نقص مؤثر",
+          "target": "N08"
+        },
+        {
+          "condition_ar": "تعديل دعم",
+          "target": "N09"
+        },
+        {
+          "condition_ar": "مؤشر تقييم",
+          "target": "N12"
+        },
+        {
+          "condition_ar": "معلومة جديدة",
+          "target": "N01"
+        }
+      ]
+    },
+    {
+      "id": "N12",
+      "title_ar": "تقييم وإحالة",
+      "action_ar": "اربط السبب بالحقائق ومستوى الاستعجال بالبروتوكول؛ أضف الدعم المناسب دون تأخير الإحالة",
+      "transitions": [
+        {
+          "condition_ar": "تحقق الدليل",
+          "target": "N13"
+        }
+      ]
+    },
+    {
+      "id": "N13",
+      "title_ar": "استرجاع الدليل",
+      "action_ar": "تحقق من المقاطع الداعمة والملاءمة؛ عند الغياب صرح بالحد ولا تختلق",
+      "transitions": [
+        {
+          "condition_ar": "دليل مناسب",
+          "target": "N14"
+        },
+        {
+          "condition_ar": "دليل غير متاح",
+          "target": "N14"
+        },
+        {
+          "condition_ar": "نقص يمنع الدعم",
+          "target": "N08"
+        }
+      ]
+    },
+    {
+      "id": "N14",
+      "title_ar": "فحص قبل الإرسال",
+      "action_ar": "تحقق من مصدر الحقائق وعدم التكرار وملاءمة القرار واللغة ووضوح الخطوة",
+      "transitions": [
+        {
+          "condition_ar": "يمر",
+          "target": "T00"
+        },
+        {
+          "condition_ar": "خطأ بيانات",
+          "target": "N01"
+        },
+        {
+          "condition_ar": "خطأ صياغة",
+          "target": "N14"
+        }
+      ]
+    },
+    {
+      "id": "T00",
+      "title_ar": "إرسال وانتظار",
+      "action_ar": "أرسل الرد واحفظ السياق حسب الموافقة والسياسة",
+      "transitions": [
+        {
+          "condition_ar": "رسالة جديدة",
+          "target": "N00"
+        }
+      ]
+    }
+  ]
+}

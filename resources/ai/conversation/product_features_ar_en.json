@@ -1,0 +1,119 @@
+{
+  "version": "0.1",
+  "status": "developer_specification_not_implemented_or_clinically_validated",
+  "rules": [
+    {
+      "id": "F01",
+      "ar": "ملف الطفل والموافقة",
+      "en": "Child profile and consent",
+      "rule_ar": "أنشئ ملفًا لكل طفل بمعرّف مستقل. يشمل العمر أو تاريخ الميلاد حسب الحاجة، وطرق التواصل، والأهداف، وملاحظات الأسرة، والخطوات المجربة ونتائجها. اربط كل معلومة بمصدرها وتاريخها، وميّز التشخيص المبلّغ عنه عن الاستنتاج. اسمح بالعرض والتصحيح والحذف وسحب موافقة الحفظ. اعرض الطفل النشط بوضوح؛ لا تنقل المعلومات بين الأطفال. عند التعارض المؤثر استوضح قبل الاستخدام. طبق صلاحيات وصول وعزل بيانات الأسر، ولا تحفظ أكثر من اللازم.",
+      "rule_en": "Create a separate identifier for each child. Store age or birth date as needed, communication methods, goals, family observations, attempted steps, and outcomes. Keep provenance and dates; distinguish reported diagnoses from inferences. Allow viewing, correction, deletion, and withdrawal of persistence consent. Clearly show the active child and never transfer facts across children. Clarify material conflicts. Enforce access controls, family data isolation, and data minimization.",
+      "example_ar": "إذا بدّل الأب من ملف طفل إلى آخر، يظهر الاسم المختار ويبدأ السياق من بيانات الطفل الجديد فقط.",
+      "example_en": "When a parent switches children, show the selected profile and use only that child's context.",
+      "test_ar": "تبديل الطفل لا يكشف بيانات أخيه؛ رفض الحفظ يمنع التخزين الدائم؛ التصحيح يحدّث المعلومة ومصدرها؛ طلب الحذف يتلقى حالة تنفيذ صادقة وفق سياسة الحذف.",
+      "test_en": "Switching children reveals no sibling data; declining persistence prevents permanent storage; correction updates fact and provenance; deletion requests receive truthful status under the deletion policy."
+    },
+    {
+      "id": "F02",
+      "ar": "خطة متابعة بسيطة",
+      "en": "Simple follow-up plan",
+      "rule_ar": "اربط الخطة بالطفل والهدف وخطوة حالية واحدة ومؤشر ملاحظة مفهوم. سجّل ما جُرّب والنتيجة المبلغ عنها ووقت المتابعة المتفق عليه إن وجد. في الجلسة الجديدة اعرض آخر خطة بإيجاز وتحقق من استمرار ملاءمتها. اسمح بالتعديل والإيقاف. لا تَعِد بتحسن أو تتواصل تلقائيًا دون موافقة وآلية تذكير فعلية. عند تغيّر مهم أعد فحص الأولويات حسب البروتوكول.",
+      "rule_en": "Link the plan to the child, goal, one current step, and an understandable observation indicator. Record attempts, reported outcomes, and an agreed review time if any. On return, briefly surface the latest plan and check whether it still fits. Allow editing and stopping. Never promise improvement or automatic contact without consent and a real reminder mechanism. Reassess priorities under protocol after material changes.",
+      "example_ar": "آخر مرة اتفقنا على خطوة أثناء الواجب؛ هل جرّبتوها، وشو لاحظتوا؟ لا تفترض أن الأسرة نفذتها.",
+      "example_en": "Last time we agreed on a step during homework. Did you try it, and what did you notice? Do not assume implementation.",
+      "test_ar": "العودة للمحادثة تسترجع خطة الطفل الصحيح؛ لم نجربها لا تُسجّل كفشل؛ إيقاف الخطة يمنع استمرار تذكيراتها إن كانت مفعلة.",
+      "test_en": "Returning retrieves the correct child's plan; not tried is not recorded as failure; stopping the plan stops its reminders if enabled."
+    },
+    {
+      "id": "F03",
+      "ar": "ملاحظات الرد وتصحيحه",
+      "en": "Response feedback and repair",
+      "rule_ar": "أضف إجراءً للرد غير المناسب بأسباب مثل فهم خاطئ أو طول أو تكرار أو صعوبة التطبيق، مع تعليق اختياري. اربط الملاحظة بمعرّف الرد، واجمع الحد الأدنى من البيانات. صحح الرد بحسب السبب مع إبقاء قواعد السلامة. لا ترسل نص المحادثة الكامل للتحليلات تلقائيًا؛ تخضع مشاركة عينات للمراجعة للموافقة والسياسة وإزالة التعريف. الملاحظات لا تعني تدريب النموذج تلقائيًا.",
+      "rule_en": "Provide unsuitable-response feedback with reasons such as misunderstanding, length, repetition, or impractical advice, plus an optional comment. Link feedback to the response identifier and minimize collection. Repair the answer according to the reason while preserving safety rules. Do not automatically send full transcripts to analytics; review samples require consent, policy controls, and de-identification. Feedback does not automatically retrain the model.",
+      "example_ar": "اختيار الرد طويل ينتج نسخة أقصر تحتفظ بالخطوة الأساسية وأي تنبيه ضروري.",
+      "example_en": "Selecting too long produces a shorter answer that retains the main action and any necessary safety guidance.",
+      "test_ar": "الرد المصحح يعالج السبب؛ ملاحظات المستخدم لا تلغي إحالة لازمة؛ لا يحتوي حدث التحليلات الافتراضي اسم الطفل أو نص المحادثة.",
+      "test_en": "The repaired response addresses the reason; feedback does not cancel necessary referral; default analytics events contain neither the child's name nor transcript text."
+    },
+    {
+      "id": "F04",
+      "ar": "ملخص قابل للمراجعة والمشاركة",
+      "en": "Reviewable shareable summary",
+      "rule_ar": "أنشئ الملخص عند طلب الأسرة: الهدف والملاحظات المؤرخة وما جُرّب والنتائج والأسئلة للمختص. ميّز كلام الأسرة عن تفسير المساعد والمعلومات الناقصة. اعرض مسودة قابلة للتعديل ومعاينة البيانات التعريفية قبل التصدير. المشاركة باختيار الأسرة فقط، ولا إرسال تلقائيًا. لا تحوّل الملخص إلى تقرير تشخيصي أو تنسب ملاحظة للمختص دون مصدر.",
+      "rule_en": "Generate a summary at the family's request: goal, dated observations, attempted steps, outcomes, and questions for the specialist. Separate family reports, assistant interpretation, and missing information. Offer an editable draft and identity-data preview before export. Sharing is initiated by the family; never send automatically. Do not present a diagnostic report or attribute observations to a clinician without a source.",
+      "example_ar": "يستطيع الأب حذف اسم الطفل أو تعديل ملاحظة قبل تصدير الملخص ومشاركته بنفسه.",
+      "example_en": "The parent can remove the child's name or correct an observation before exporting and sharing the summary themselves.",
+      "test_ar": "الملخص لا يخترع نتائج أو تشخيصًا؛ التعديلات تظهر في التصدير؛ لا تحدث مشاركة خارجية بمجرد إنشاء المسودة.",
+      "test_en": "The summary invents neither outcomes nor diagnoses; edits appear in the export; creating a draft never triggers external sharing."
+    },
+    {
+      "id": "F05",
+      "ar": "اختبارات الجودة والمراجعة",
+      "en": "Quality testing and review",
+      "rule_ar": "أنشئ مجموعة محادثات ثابتة ببيانات وهمية تغطي نقص المعلومات والتعارض وتبديل الأطفال والتصحيح والتكرار والمتابعة والإحالة واللغة والخصوصية. قارن النسخة السابقة والجديدة قبل الإصدار. سجّل النموذج وإعداداته وإصدار التعليمات والمصادر ونتائج التقييم. يقيم مختص عينات مناسبة ومحتوى السلامة، ويُمنع الإصدار عند فشل معيار سلامة أو عزل بيانات حرج. هذه إجراءات اختبار مقترحة وليست نتائج اختبارات منجزة.",
+      "rule_en": "Maintain fixed synthetic conversations covering missing information, conflicts, child switching, corrections, repetition, follow-up, referral, language, and privacy. Compare old and new versions before release. Record model configuration, instruction and source versions, and evaluation results. Specialists review suitable samples and safety content. Block release on critical safety or data-isolation failures. These are proposed procedures, not completed test results.",
+      "example_ar": "أعد حالة نعم هو آمن وتحقق أن النظام لا يخترع العمر أو تعطّل الأنشطة، وأن توصيته مرتبطة بالمعطيات الفعلية.",
+      "example_en": "Replay yes, he is safe and check that no age or activity impairment is invented and recommendations follow actual information.",
+      "test_ar": "تظهر نتائج كل سيناريو وسبب النجاح أو الفشل؛ أي فشل حرج يوقف الإصدار؛ المراجعة البشرية تسجل تصحيحًا ومسؤول متابعة.",
+      "test_en": "Each scenario records its result and rationale; critical failures block release; human review records corrective action and ownership."
+    }
+  ],
+  "data_models": {
+    "child_profile": [
+      "child_id",
+      "family_id",
+      "facts_with_source_and_timestamp",
+      "communication",
+      "goals",
+      "reported_diagnoses",
+      "persistence_consent"
+    ],
+    "follow_up_plan": [
+      "plan_id",
+      "child_id",
+      "goal",
+      "current_step",
+      "observable_indicator",
+      "attempt_status",
+      "reported_outcome",
+      "review_time_optional",
+      "status"
+    ],
+    "feedback": [
+      "response_id",
+      "reason_code",
+      "optional_comment",
+      "review_consent"
+    ],
+    "summary": [
+      "child_id",
+      "date_range",
+      "family_reports",
+      "attempts_and_outcomes",
+      "assistant_interpretations",
+      "unknowns",
+      "parent_edits",
+      "export_identity_fields"
+    ],
+    "quality_run": [
+      "run_id",
+      "model_configuration",
+      "prompt_version",
+      "source_version",
+      "scenario_results",
+      "critical_failures",
+      "reviewer_actions"
+    ]
+  },
+  "implementation_notes": [
+    "Enforce authorization, consent and isolation on the server, not only in prompts.",
+    "Deletion, backups and retention must follow a disclosed policy; do not claim instant removal from all backups.",
+    "Reminder scheduling requires implemented notification infrastructure and explicit opt-in.",
+    "No automatic specialist communication or model training is authorized by these specifications."
+  ],
+  "integration": {
+    "base_tree": "v0.1",
+    "enhancements": "E01-E05",
+    "purpose": "Product features and quality controls complement conversation routing; they do not replace clinical review."
+  }
+}

@@ -404,6 +404,116 @@ class ChildChatOrchestrationTest extends TestCase
         Bus::assertNotDispatchedSync(\App\Jobs\SummarizeConversationJob::class);
     }
 
+    public function test_saved_case_and_readable_report_reach_planner_on_every_turn_without_repeating_child_id(): void
+    {
+        $user = User::factory()->create(['ai_consent_accepted_at' => now()]);
+        $child = Child::factory()->create(['user_id' => $user->id, 'age' => 4, 'birth_date' => null]);
+        $conversation = Conversation::factory()->create(['user_id' => $user->id, 'child_id' => $child->id]);
+        \App\Models\ChildDocument::create([
+            'child_id' => $child->id, 'user_id' => $user->id,
+            'original_name' => 'report.pdf', 'file_path' => 'reports/report.pdf', 'status' => 'processed',
+            'metadata' => ['extracted_text' => 'Caregiver reports that the child uses short phrases.'],
+        ]);
+        $dependencies = $this->baseDependencies();
+        $dependencies['context'] = new ChildContextService();
+        $dependencies['safety']->shouldReceive('evaluate')->twice()->andReturn($this->routineSafety());
+        $dependencies['guard']->shouldReceive('evaluate')->twice()->andReturn($this->allowedDomain());
+        $ages = [];
+        $dependencies['planner']->shouldReceive('plan')->twice()->andReturnUsing(function ($message, $context) use ($child, &$ages): array {
+            $this->assertSame($child->id, $context['profile']['id']);
+            $ages[] = $context['profile']['age'];
+            $this->assertSame('processed', data_get($context, 'documents.child_documents.0.status'));
+            $this->assertStringContainsString('short phrases', data_get($context, 'documents.child_documents.0.excerpts.0.content'));
+
+            return array_merge($this->answerPlan(), [
+                'action' => 'ask_clarification', 'question' => 'Which daily activity would you like help with?',
+            ]);
+        });
+        $service = $this->service($dependencies);
+        $first = $service->ask($conversation, 'Help with the saved case', $user->id);
+        $child->update(['age' => 5]);
+        $second = $service->ask($conversation, 'I updated the case', $user->id);
+        $this->assertSame([4, 5], $ages);
+        $this->assertSame($child->id, $first->child_id);
+        $this->assertSame($child->id, $second->child_id);
+    }
+
+    public function test_case_load_failure_preserves_retryable_turn_without_generating_an_unscoped_answer(): void
+    {
+        $user = User::factory()->create(['ai_consent_accepted_at' => now()]);
+        $child = Child::factory()->create(['user_id' => $user->id]);
+        $conversation = Conversation::factory()->create(['user_id' => $user->id, 'child_id' => $child->id]);
+        $dependencies = $this->baseDependencies();
+        $dependencies['safety']->shouldReceive('evaluate')->once()->andReturn($this->routineSafety());
+        $dependencies['guard']->shouldReceive('evaluate')->once()->andReturn($this->allowedDomain());
+        $dependencies['context']->shouldReceive('build')->once()->andThrow(new \RuntimeException('Temporary case lookup failure'));
+        $dependencies['planner']->shouldNotReceive('plan');
+        $dependencies['llm']->shouldNotReceive('chat');
+        $turns = app(\App\Services\AI\ChatTurnService::class);
+        [$turn] = $turns->accept($conversation, $user, 'case-lookup', 'ساعدني مع الحالة', 'ar');
+        $turns->process($turn, $this->service($dependencies));
+        $this->assertSame('failed', $turn->fresh()->status);
+        $this->assertSame('case_context', $turn->error['stage']);
+        $this->assertStringContainsString('بيانات الحالة', $turn->error['message']);
+        $this->assertDatabaseCount('messages', 1);
+        $this->assertSame('ساعدني مع الحالة', $turn->userMessage->content);
+    }
+
+    public function test_feedback_on_an_old_reply_reaches_guards_and_planner_with_its_original_question(): void
+    {
+        Config::set('ai.recent_messages_limit', 2);
+        $user = User::factory()->create(['ai_consent_accepted_at' => now()]);
+        $conversation = Conversation::factory()->create(['user_id' => $user->id]);
+        $original = $conversation->messages()->create(['user_id' => $user->id, 'role' => 'user', 'content' => 'Help with homework frustration']);
+        $target = $conversation->messages()->create(['user_id' => $user->id, 'role' => 'assistant', 'content' => 'An earlier plan', 'reply_to_message_id' => $original->id]);
+        $conversation->messages()->create(['user_id' => $user->id, 'role' => 'user', 'content' => 'A later topic']);
+        $conversation->messages()->create(['user_id' => $user->id, 'role' => 'assistant', 'content' => 'A later reply']);
+        $dependencies = $this->baseDependencies();
+        $dependencies['safety']->shouldReceive('evaluate')->once()->withArgs(function ($message, $history, $feedback) use ($target) {
+            $this->assertStringContainsString('We only have five minutes', $message);
+            $this->assertSame($target->id, $feedback['message_id']);
+            $this->assertSame('Help with homework frustration', $feedback['original_question']);
+            return true;
+        })->andReturn($this->routineSafety());
+        $dependencies['guard']->shouldReceive('evaluate')->once()->withArgs(function ($message, $history) {
+            $this->assertStringContainsString('homework frustration', $history[count($history) - 2]['content']);
+            return true;
+        })->andReturn($this->allowedDomain());
+        $dependencies['context']->shouldReceive('build')->once()->andReturn(['profile' => null, 'memories' => [], 'summary' => null]);
+        $dependencies['planner']->shouldReceive('plan')->once()->withArgs(function ($message, $context) {
+            $this->assertSame('An earlier plan', $context['reply_feedback']['original_reply']);
+            $this->assertSame('impractical', $context['reply_feedback']['reason']);
+            return true;
+        })->andReturn(array_replace($this->answerPlan(), ['action' => 'ask_clarification', 'question' => 'Which part takes too long?']));
+        $dependencies['llm']->shouldNotReceive('chat');
+        $turns = app(\App\Services\AI\ChatTurnService::class);
+        [$turn] = $turns->accept($conversation, $user, 'old-repair', 'Please adjust that reply', 'en', [
+            'message_id' => $target->id, 'reason' => 'impractical', 'comment' => 'We only have five minutes',
+        ]);
+        $turns->process($turn, $this->service($dependencies));
+        $this->assertSame('completed', $turn->fresh()->status);
+    }
+
+    public function test_a_new_emergency_in_the_feedback_comment_short_circuits_repair(): void
+    {
+        $user = User::factory()->create(['ai_consent_accepted_at' => now()]);
+        $conversation = Conversation::factory()->create(['user_id' => $user->id]);
+        $target = $conversation->messages()->create(['user_id' => $user->id, 'role' => 'assistant', 'content' => 'Earlier routine reply']);
+        $dependencies = $this->baseDependencies();
+        $dependencies['safety'] = new SafetyTriageService($dependencies['llm']);
+        $dependencies['planner']->shouldNotReceive('plan');
+        $dependencies['guard']->shouldNotReceive('evaluate');
+        $dependencies['llm']->shouldNotReceive('chatJson');
+        $turns = app(\App\Services\AI\ChatTurnService::class);
+        [$turn] = $turns->accept($conversation, $user, 'urgent-repair', 'Please correct the reply', 'en', [
+            'message_id' => $target->id, 'reason' => 'misunderstood', 'comment' => 'My child cannot breathe now',
+        ]);
+        $turns->process($turn, $this->service($dependencies));
+        $this->assertSame('completed', $turn->fresh()->status);
+        $this->assertSame('urgent_escalation', $turn->assistantMessage->metadata['response_type']);
+        $this->assertSame('N04', $turn->assistantMessage->metadata['dialogue_route']['node_id']);
+    }
+
     private function baseDependencies(): array
     {
         return [

@@ -1,0 +1,40 @@
+{
+  "version": "2026-10-22.1",
+  "clinical_evidence": false,
+  "sources": [
+    {
+      "archive": "قواعد اساسيه بالعربي.zip",
+      "file": "dialogue_tree.json",
+      "sha256": "64e6ccc165bbf4f234896ac650991c302ffc3d5f736ed6d9d8cb140b110c771d",
+      "archive_sha256": "2c2c675ca13d65c50cb38261ba6f4b0f63fa5549655c8988714fee500a9e31b2"
+    },
+    {
+      "archive": "قواعد اساسيه بالانجليزي.zip",
+      "file": "dialogue_tree_en.json",
+      "sha256": "0d07783634ec6d49fd9c6c94198ded5e0a7a867ab1b0597b1f57826008f0485e",
+      "archive_sha256": "c64aae60458303f67549b8ed93fb48b54c71206cb28e1d2978cd8e6507f3191b"
+    },
+    {
+      "archive": "قواعد تحسين المحادثه.zip",
+      "file": "conversation_enhancements_ar_en.json",
+      "sha256": "1594d97052a7e7e99d2e8752b71a0c424ae32079034584d332acdb60847ba6c8",
+      "archive_sha256": "611e20a45b8da49d419dc1b45b5c53aa459f4be32786db30f03136e154d4782a"
+    },
+    {
+      "archive": "Gateway_Additions_AR_EN (1).zip",
+      "file": "gateway_additions_ar_en.json",
+      "sha256": "b5988abaed88c637ae0c6f6b59f478425a0f4598964c940e2e7983e558223301",
+      "archive_sha256": "b401e7074261de6181c7a3fca8c09c65c7b2138b89c384886db7a56265b64b74"
+    },
+    {
+      "archive": "Rafiq_Product_Features_AR_EN.zip",
+      "file": "product_features_ar_en.json",
+      "sha256": "d1ed94dc8b90ed9e7e47bd51d735bc6c48787f926ee7a018005f6e46304a19c1",
+      "archive_sha256": "55d535f399ef641327f927f2b2c529034684e048c06e040eab77f5e7c3abfda6"
+    },
+    {
+      "file": "نموذج دراسة الحالة محمود (1).doc",
+      "sha256": "c001d28b5faae8ca67b4f9e372647bcaf9df3562c2e18c7f7697fa69a2c6d6fe"
+    }
+  ]
+}

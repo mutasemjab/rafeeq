@@ -38,7 +38,7 @@ class ProcessChildDocumentJob implements ShouldQueue
         if (! User::query()->whereKey($document->user_id)->whereNotNull('ai_consent_accepted_at')->exists()) {
             return;
         }
-        if (! ChildDocument::whereKey($document->id)->where('status', '!=', 'processing')->update(['status' => 'processing', 'processing_error' => null])) {
+        if (! ChildDocument::whereKey($document->id)->whereIn('status', ['uploaded', 'failed'])->update(['status' => 'processing', 'processing_error' => null])) {
             return;
         }
 

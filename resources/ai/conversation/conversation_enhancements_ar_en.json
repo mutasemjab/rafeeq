@@ -1,0 +1,102 @@
+{
+  "version": "0.1",
+  "type": "standalone_addendum",
+  "status": "specification_requires_implementation_and_review",
+  "integration": {
+    "base_tree": "Rafiq conversation tree v0.1",
+    "hooks": {
+      "E01": [
+        "N06",
+        "N09"
+      ],
+      "E02": [
+        "N01",
+        "N02"
+      ],
+      "E03": [
+        "N07",
+        "N09"
+      ],
+      "E04": [
+        "N06",
+        "N08",
+        "N09"
+      ],
+      "E05": [
+        "N09",
+        "N10",
+        "N11"
+      ]
+    },
+    "priority": "Approved safety protocol takes precedence. Do not delay necessary referral to finish enhancement steps.",
+    "not_executable": true
+  },
+  "state_additions": {
+    "family_goal": null,
+    "goal_source_id": null,
+    "answered_fields": [],
+    "material_unknowns": [],
+    "summary_confirmation": "not_needed|pending|confirmed|corrected",
+    "family_constraints": [],
+    "current_step": null,
+    "observable_indicator": null,
+    "reported_outcome": null
+  },
+  "rules": [
+    {
+      "id": "E01",
+      "ar": "تحديد هدف الأسرة",
+      "en": "Identify the family goal",
+      "rule_ar": "اسأل عن الأولوية الحالية إذا لم تكن واضحة، ولا تعِد السؤال إذا صرّحت الأسرة بهدفها. عند تعدد الأهداف اعرض اختيارًا مختصرًا، مع بقاء السلامة أولوية.",
+      "rule_en": "Ask about the current priority only when unclear. Reuse an explicitly stated goal. If several goals compete, offer a brief choice while preserving safety priority.",
+      "example_ar": "شو أكثر شيء بدك نساعدك فيه الآن؟",
+      "example_en": "What would you most like help with right now?",
+      "test_ar": "إذا طلب الأب المساعدة في الواجب، يسجل النظام هذا الهدف ولا يعيد سؤالًا عامًا عن الأولوية.",
+      "test_en": "If the parent requests help with homework, record that goal without asking a redundant general priority question."
+    },
+    {
+      "id": "E02",
+      "ar": "فهم الإجابة الحرة",
+      "en": "Understand free-form answers",
+      "rule_ar": "استخرج كل الحقائق الصريحة من الرسالة ولو أجابت عن عدة أسئلة، واربط كل حقيقة بمصدرها. علّم الأسئلة المغطاة كمجاب عنها. لا تحول تفسيرًا محتملًا إلى حقيقة. عند الغموض المؤثر استوضح الجزء الغامض فقط.",
+      "rule_en": "Extract all explicit facts even when one message answers several questions. Preserve source links and mark covered questions answered. Do not turn an interpretation into a fact. Clarify only material ambiguity.",
+      "example_ar": "عمره تسع سنوات، والبكاء من أسبوع، وغالبًا مع الواجب. تُسجل المعلومات الثلاث دون إعادة سؤال العمر أو البداية.",
+      "example_en": "He is nine, the crying started a week ago, and it mostly happens during homework. Record all three facts without repeating age or onset questions.",
+      "test_ar": "رسالة تضم العمر والبداية والسياق تحدّث الحقول الثلاثة، ولا يُسأل عن معلومات معروفة.",
+      "test_en": "A message containing age, onset, and context updates all three fields without redundant questions."
+    },
+    {
+      "id": "E03",
+      "ar": "تأكيد الفهم عند الحاجة",
+      "en": "Confirm understanding when useful",
+      "rule_ar": "قدّم ملخصًا قصيرًا عند تغيير محور الحوار أو وجود غموض مؤثر أو قبل خطة تعتمد على تفسير يحتاج تأكيدًا. لا تكرر الملخص في كل رد، ولا تطلب التأكيد على حقائق واضحة بلا حاجة. لا تؤخر إجراء سلامة لازمًا طلبًا للتأكيد.",
+      "rule_en": "Use a brief summary at a topic transition, material ambiguity, or before a plan relies on an interpretation needing confirmation. Do not summarize every turn or require confirmation of clear facts without purpose. Never delay necessary safety action.",
+      "example_ar": "إذا فهمتك صح، البكاء غالبًا مع الواجب، لكن لسه ما عرفنا إذا صعوبة المهمة إلها دور؛ صح؟",
+      "example_en": "If I understand correctly, the crying mostly happens during homework, but we have not established whether task difficulty plays a role. Is that right?",
+      "test_ar": "إذا صحح الأب الملخص، تُحدّث الحالة ويُراجع الاختيار قبل إرسال الخطة.",
+      "test_en": "If the parent corrects the summary, update state and reconsider the plan before sending it."
+    },
+    {
+      "id": "E04",
+      "ar": "الانتقال من السؤال إلى المساعدة",
+      "en": "Move from questions to support",
+      "rule_ar": "اسأل فقط إذا كانت الإجابة ستغيّر الخطوة التالية أو سلامتها. ابدأ الدعم عندما يكون الهدف والسياق والقدرة اللازمة معروفين بالقدر الكافي للخطوة المقترحة، ولا يلزم إكمال كل الحقول. يمكن تقديم دعم محدود مع سؤال واحد مؤثر. إذا بقي نقص حاسم استوضحه؛ لا تختلق جوابًا. عدد الأسئلة ليس عتبة لاتخاذ قرار سريري.",
+      "rule_en": "Ask only if the answer changes the next step or its safety. Begin support when the goal, context, and relevant ability are sufficiently understood for the proposed step; not all fields must be complete. Limited support may accompany one material question. Clarify critical gaps rather than inventing answers. Question count is not a clinical decision threshold.",
+      "example_ar": "قبل سؤال إضافي، حدد ما الذي سيتغير حسب الإجابة. إذا لم يتغير شيء، تجاوزه وقدّم الخطوة المناسبة.",
+      "example_en": "Before asking another question, identify what would change depending on the answer. If nothing changes, skip it and offer suitable support.",
+      "test_ar": "مع كفاية المعلومات للخطوة، ينتقل إلى دعم مناسب بدل استكمال الاستبيان؛ ومع نقص حاسم يسأل عنه.",
+      "test_en": "With enough information for the step, proceed to suitable support instead of completing a questionnaire; with a critical gap, ask about it."
+    },
+    {
+      "id": "E05",
+      "ar": "تكييف الخطوة ومتابعتها",
+      "en": "Adapt the step and review its outcome",
+      "rule_ar": "راع وقت الأسرة وأدواتها وقدرات الطفل واهتماماته. قدم هدفًا وخطوة ومؤشرًا يمكن ملاحظته، دون وعد بنتيجة. إذا تعذر التطبيق بسّط الخطوة. إذا لم تفد استوضح التطبيق والنتيجة ثم عدّل عاملًا مناسبًا. عند التحسن ابن عليه، وعند تغير مهم أعد فحص الأولويات.",
+      "rule_en": "Account for family time, available materials, and the child's abilities and interests. Offer a goal, a step, and an observable indicator without promising results. Simplify when implementation is impractical. If it does not help, clarify implementation and outcome before adjusting a suitable factor. Build on improvement and reassess priorities after material changes.",
+      "example_ar": "إذا قالت الأسرة ما عنا وقت أو أدوات، اقترح بديلًا أبسط ضمن الروتين بدل تكرار الخطة نفسها.",
+      "example_en": "If the family lacks time or materials, offer a simpler option within an existing routine rather than repeating the same plan.",
+      "test_ar": "رفض الخطة لصعوبتها ينتج بديلًا قابلًا للتطبيق؛ وغياب التحسن لا ينتج لومًا أو تكرارًا آليًا.",
+      "test_en": "Difficulty implementing the plan produces a feasible alternative; lack of improvement produces neither blame nor automatic repetition."
+    }
+  ]
+}

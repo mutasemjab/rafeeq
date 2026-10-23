@@ -145,6 +145,8 @@ class ChildMemoryManager
                 'fact_status' => $factStatus,
                 'evidence' => mb_substr($evidence, 0, 500),
                 'last_source_message_id' => $sourceMessageId,
+                'answer_status' => in_array($candidate['answer_status'] ?? '', ConversationGuidanceService::ANSWER_STATUSES, true)
+                    ? $candidate['answer_status'] : 'reported',
             ];
 
             if ($existing !== null && trim((string) $existing->content) !== $content) {

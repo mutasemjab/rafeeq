@@ -63,6 +63,9 @@ class PersonContextService
                 ->where('status', 'active')->orderByDesc('last_confirmed_at')->latest('id')
                 ->take((int) config('ai.max_child_memories', 20))->get()->toArray(),
             'summary' => $previous->pluck('summary')->filter()->implode("\n"),
+            'intake_memories' => $person->memories()->where('user_id', $userId)->where('status', 'active')
+                ->whereIn('memory_key', app(ConversationGuidanceService::class)->memoryKeys())
+                ->orderBy('source_message_id')->limit(80)->get()->toArray(),
             'previous_progress' => $previous->map(fn ($item): array => (array) data_get($item->case_state, 'progress', []))->filter()->values()->all(),
         ];
         $context['case_brief'] = CaseBriefService::build($context, (array) $conversation->case_state, $conversation->summary);

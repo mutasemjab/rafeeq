@@ -1,0 +1,154 @@
+{
+  "version": "0.1",
+  "status": "draft_specification_requires_implementation_and_specialist_review",
+  "scope": "New cross-domain routing additions only; not exhaustive clinical coverage.",
+  "entry": "G01",
+  "external_targets": {
+    "BASE_SAFETY": "Existing approved application safety pathway; must be configured before use."
+  },
+  "domains": [
+    "communication_language_hearing",
+    "interaction_play",
+    "learning_attention",
+    "movement_self_care",
+    "behavior_emotions",
+    "daily_routines",
+    "general_clarification"
+  ],
+  "rules": [
+    {
+      "id": "G01",
+      "ar": "الدخول من شكوى الأسرة",
+      "en": "Start from the family concern",
+      "rule_ar": "استقبل الوصف الحر وحدد الطفل والهدف والمعلومات المعروفة. لا تشترط تشخيصًا. استوضح العمر أو مثالًا محددًا إذا كان مؤثرًا ومجهولًا. افحص إشارات السلامة وفق بروتوكول التطبيق المعتمد. عند أولوية سلامة انتقل إلى مسار السلامة الأساسي؛ عند غموض مؤثر اسأل عنه؛ وإلا انتقل إلى فرز المجالات.",
+      "rule_en": "Accept the free-form concern and identify the child, goal, and known facts. Do not require a diagnosis. Clarify age or a concrete example when relevant and unknown. Check safety signals under the approved application protocol. Route safety priorities to the base safety pathway; clarify material uncertainty; otherwise proceed to domain routing.",
+      "example_ar": "الأم تقول ابنتي لا تتجاوب معي. استوضح المقصود بموقف محدد بدل افتراض مشكلة سمع أو توحد.",
+      "example_en": "A parent says her daughter does not respond. Ask for a concrete example rather than assuming hearing difficulty or autism.",
+      "test_ar": "التشخيص المجهول لا يمنع الدخول؛ لا يُسأل عن العمر إذا كان معروفًا؛ لا يؤخر الفرز إجراء سلامة لازمًا.",
+      "test_en": "Unknown diagnosis does not block entry; known age is not asked again; routing never delays necessary safety action."
+    },
+    {
+      "id": "G02",
+      "ar": "اختيار مجال أو مجالات الاستكشاف",
+      "en": "Choose one or more exploration domains",
+      "rule_ar": "فرّع حسب الوصف إلى التواصل واللغة والسمع؛ التفاعل واللعب؛ التعلم والانتباه؛ الحركة والعناية الذاتية؛ السلوك والمشاعر؛ أو الروتين اليومي مثل النوم والطعام واستخدام الحمام. هذه مجالات شكوى وليست تشخيصات. يسمح بتعدد المجالات، مع بدء الأكثر تأثيرًا في الهدف أو الأولوية. إذا لم يناسب الوصف أي مجال، استخدم مسار الاستيضاح العام. انتقل بعدها إلى الاستكشاف الموجه.",
+      "rule_en": "Route the concern to communication, language and hearing; interaction and play; learning and attention; movement and self-care; behavior and emotions; or daily routines such as sleep, eating and toileting. These are concern domains, not diagnoses. Allow multiple domains, prioritizing what affects the goal or urgency. If no domain fits, use general clarification. Then proceed to targeted exploration.",
+      "example_ar": "صعوبة التعبير مع بكاء قد تفتح مجال التواصل ومجال السلوك معًا؛ لا يُفترض أن أحدهما سبب الآخر.",
+      "example_en": "Communication difficulty with crying may open both communication and behavior domains; neither is assumed to cause the other.",
+      "test_ar": "يمكن اختيار أكثر من مجال؛ اختيار مجال لا يُسجل تشخيصًا؛ الشكوى غير المصنفة تحصل على سؤال توضيح.",
+      "test_en": "Multiple domains can be selected; domain selection never becomes a diagnosis; unclassified concerns receive clarification."
+    },
+    {
+      "id": "G03",
+      "ar": "الاستكشاف الموجه بحسب المجال",
+      "en": "Explore the selected domain",
+      "rule_ar": "اختر سؤالًا واحدًا يغيّر الخطوة التالية. التواصل: مثال لما يفهمه الطفل وكيف يطلب وما تغير. التفاعل: مثال للتواصل أو اللعب في سياقه. التعلم: المهمة المحددة وما يستطيع إنجازه ومع أي دعم. الحركة والاستقلالية: المهمة والمساعدة المطلوبة والتغير عن المعتاد. السلوك: وصف ما حدث وقبله وبعده وأثره دون افتراض وظيفة السلوك. الروتين: وصف النمط والتغير والأثر وأي انزعاج مبلغ عنه. افتح الأشجار التخصصية المناسبة وتجاوز الإجابات المعروفة. إذا ظهرت أولوية سلامة ارجع لمسارها؛ إذا نقصت معلومة حاسمة استوضحها؛ وعند الكفاية انتقل لاختيار الخطوة.",
+      "rule_en": "Choose one question that changes the next action. Communication: examples of understanding, requesting, and change. Interaction: a contextual example of communication or play. Learning: the specific task, current ability, and helpful support. Movement and independence: task, assistance, and change from usual. Behavior: observable events before, during, and after, plus impact, without assuming function. Routines: pattern, change, impact, and reported discomfort. Open suitable domain trees and skip known answers. Return to safety routing when needed; clarify critical gaps; proceed when sufficient.",
+      "example_ar": "بدل قائمة طويلة، اسأل عن آخر موقف محدد ثم اختر السؤال التالي من الإجابة.",
+      "example_en": "Instead of a long checklist, ask about the most recent concrete event and choose the next question from the answer.",
+      "test_ar": "إجابة حرة تغطي عدة حقول تحدّثها كلها؛ لا تُكرر الأسئلة المعروفة؛ لا يُطبق استبيان كل المجالات على كل طفل.",
+      "test_en": "Free-form answers update every covered field; answered questions are skipped; not every domain checklist is applied to every child."
+    },
+    {
+      "id": "G04",
+      "ar": "اختيار الدعم أو التقييم",
+      "en": "Choose support or assessment",
+      "rule_ar": "إذا كفت المعلومات لخطوة مناسبة ومدعومة، قدم هدفًا وخطوة ومؤشر ملاحظة. إذا استدعت المعطيات تقييمًا بحسب البروتوكول المعتمد، وضح السبب والجهة والدرجة المناسبة مع دعم لا يؤخر التقييم. إذا لم تكفِ المعلومات أو المصادر، صرح بالحد واستوضح أو وجّه للجهة المناسبة دون اختلاق. لا تحدد تشخيصًا أو شدته. لا تنفذ هذه المرحلة قبل مراجعة تخصصية لقواعد الحالات ومستويات الاستعجال.",
+      "rule_en": "When sufficient information supports a suitable evidence-based step, offer a goal, action, and observation indicator. When the approved protocol indicates assessment, explain the reason, suitable service and urgency, with support that does not delay assessment. If information or evidence is insufficient, disclose limits and clarify or direct appropriately without invention. Do not determine diagnosis or severity. Domain rules and urgency levels require specialist review before deployment.",
+      "example_ar": "الخطوة تُبنى على قدرات الطفل وسياق الأسرة والمصدر الداعم؛ غياب الدليل لا يُملأ بمرجع مختلق.",
+      "example_en": "Base the step on the child's abilities, family context, and supporting evidence; do not fill evidence gaps with invented references.",
+      "test_ar": "كل توصية قابلة للرجوع إلى معطياتها؛ الإحالة موضحة السبب؛ المعلومات غير المعروفة لا تتحول إلى حقائق.",
+      "test_en": "Recommendations are traceable to their inputs; referral has an explained basis; unknowns do not become facts."
+    },
+    {
+      "id": "G05",
+      "ar": "المتابعة والتوثيق القابل للدراسة",
+      "en": "Follow up and retain an evaluable record",
+      "rule_ar": "اسأل عن تطبيق الخطوة والنتيجة؛ لم تُجرب لا تعني فشلًا. عند تحسن ابن عليه، وعند عدم فائدة استوضح وعدّل، وعند تغير مهم أعد الفرز. احفظ بموافقة مناسبة إصدار الشجرة والمسار المختار ومصادر الحقائق وسبب التوصية والنتيجة، مع تقليل البيانات وعزل الأطفال. نوع الدراسة لم يُحدد بعد؛ هذه الحقول تدعم تتبع الأداء ولا تمثل بروتوكول دراسة أو إثبات فعالية أو موافقة بحثية.",
+      "rule_en": "Ask whether the step was tried and what happened; not tried is not failure. Build on improvement, clarify and adjust when unhelpful, and reroute after material change. With appropriate consent, retain tree version, selected route, fact provenance, recommendation basis, and outcome, minimizing data and isolating children. Study type is not yet specified; these fields support evaluation but are not a study protocol, evidence of effectiveness, or research approval.",
+      "example_ar": "عند قول الأم لم أستطع تطبيق الخطوة، يُقترح تعديل قابل للتطبيق دون تسجيل النتيجة كتدهور.",
+      "example_en": "If the parent could not implement the step, offer a feasible adjustment rather than recording deterioration.",
+      "test_ar": "يمكن تتبع المسار والإصدار دون كشف بيانات طفل آخر؛ لا يُدّعى أن التطبيق اختُبر بحثيًا لمجرد توفر السجل.",
+      "test_en": "Route and version are traceable without revealing another child's data; logging alone never becomes a claim of research validation."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "G01",
+      "branches": [
+        {
+          "when": "approved safety priority",
+          "target": "BASE_SAFETY"
+        },
+        {
+          "when": "material ambiguity",
+          "target": "G01"
+        },
+        {
+          "when": "ready",
+          "target": "G02"
+        }
+      ]
+    },
+    {
+      "id": "G02",
+      "branches": [
+        {
+          "when": "domain selected",
+          "target": "G03"
+        },
+        {
+          "when": "unclear concern",
+          "target": "G01"
+        }
+      ]
+    },
+    {
+      "id": "G03",
+      "branches": [
+        {
+          "when": "safety priority",
+          "target": "BASE_SAFETY"
+        },
+        {
+          "when": "critical information missing",
+          "target": "G03"
+        },
+        {
+          "when": "enough for next action",
+          "target": "G04"
+        }
+      ]
+    },
+    {
+      "id": "G04",
+      "branches": [
+        {
+          "when": "clarification needed",
+          "target": "G03"
+        },
+        {
+          "when": "support or referral explained",
+          "target": "G05"
+        }
+      ]
+    },
+    {
+      "id": "G05",
+      "branches": [
+        {
+          "when": "material change",
+          "target": "G01"
+        },
+        {
+          "when": "adjust support",
+          "target": "G04"
+        },
+        {
+          "when": "continue follow-up",
+          "target": "G05"
+        }
+      ]
+    }
+  ]
+}

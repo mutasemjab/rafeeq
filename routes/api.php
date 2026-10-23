@@ -76,6 +76,7 @@ Route::prefix('v1')->group(function () {
         // Child documents
         Route::get( '/children/{child}/documents',        [ChildDocumentController::class, 'index']);
         Route::post('/children/{child}/documents',        [ChildDocumentController::class, 'store']);
+        Route::post('/children/{child}/documents/{document}/retry', [ChildDocumentController::class, 'retry'])->middleware('ai.consent');
         Route::delete('/children/{child}/documents/{document}', [ChildDocumentController::class, 'destroy']);
         Route::get('/children/{child}/documents/{document}/download', [ChildDocumentController::class, 'download'])
             ->name('child-documents.download');
@@ -91,6 +92,7 @@ Route::prefix('v1')->group(function () {
         Route::post(  '/conversations',              [ConversationController::class, 'store']);
         Route::get(   '/conversations/{conversation}',[ConversationController::class, 'show']);
         Route::delete('/conversations/{conversation}',[ConversationController::class, 'destroy']);
+        Route::get('/conversations/{conversation}/summary-draft', [\App\Http\Controllers\Api\ConversationSummaryController::class, 'show']);
 
         // Chat
         Route::get('/chat/usage', [ChildChatController::class, 'usage']);

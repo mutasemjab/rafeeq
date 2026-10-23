@@ -1,0 +1,930 @@
+{
+  "version": "2026-10-22.1",
+  "source_file": "نموذج دراسة الحالة محمود (1).doc",
+  "clinical_evidence": false,
+  "purpose": "Optional adapted questions; not a diagnostic checklist. Blank form options are never child facts.",
+  "fields": [
+    {
+      "key": "child.age",
+      "domains": [
+        "general"
+      ],
+      "source_section": "family",
+      "label": {
+        "ar": "العمر",
+        "en": "Age"
+      },
+      "question": {
+        "ar": "كم عمر الطفل؟",
+        "en": "How old is the child?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "child.birth_date",
+      "domains": [
+        "general"
+      ],
+      "source_section": "family",
+      "label": {
+        "ar": "تاريخ الميلاد",
+        "en": "Birth date"
+      },
+      "question": {
+        "ar": "ما تاريخ ميلاد الطفل؟",
+        "en": "What is the child's birth date?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "family.siblings",
+      "domains": [
+        "family"
+      ],
+      "source_section": "family",
+      "label": {
+        "ar": "الإخوة",
+        "en": "Siblings"
+      },
+      "question": {
+        "ar": "كم عدد إخوة الطفل؟",
+        "en": "How many siblings does the child have?"
+      },
+      "sensitive": true
+    },
+    {
+      "key": "family.household",
+      "domains": [
+        "family"
+      ],
+      "source_section": "family",
+      "label": {
+        "ar": "المقيمون في المنزل",
+        "en": "Household"
+      },
+      "question": {
+        "ar": "من يعيش مع الطفل في المنزل؟",
+        "en": "Who lives with the child at home?"
+      },
+      "sensitive": true
+    },
+    {
+      "key": "family.parent_relationship",
+      "domains": [
+        "family"
+      ],
+      "source_section": "family",
+      "label": {
+        "ar": "قرابة الوالدين",
+        "en": "Parents' relationship"
+      },
+      "question": {
+        "ar": "هل توجد صلة قرابة بين الوالدين؟",
+        "en": "Are the parents related?"
+      },
+      "sensitive": true
+    },
+    {
+      "key": "family.resources",
+      "domains": [
+        "family"
+      ],
+      "source_section": "family",
+      "label": {
+        "ar": "موارد الأسرة",
+        "en": "Family resources"
+      },
+      "question": {
+        "ar": "ما الموارد المتاحة لتنفيذ الخطوة؟",
+        "en": "What resources are available for this step?"
+      },
+      "sensitive": true
+    },
+    {
+      "key": "health.pregnancy_history",
+      "domains": [
+        "development"
+      ],
+      "source_section": "pregnancy",
+      "label": {
+        "ar": "تاريخ الحمل",
+        "en": "Pregnancy history"
+      },
+      "question": {
+        "ar": "هل توجد معلومة عن الحمل ترغب الأسرة في ذكرها؟",
+        "en": "Is there any pregnancy history the family wishes to share?"
+      },
+      "sensitive": true
+    },
+    {
+      "key": "health.gestational_age",
+      "domains": [
+        "development"
+      ],
+      "source_section": "birth",
+      "label": {
+        "ar": "مدة الحمل",
+        "en": "Gestational age"
+      },
+      "question": {
+        "ar": "ما مدة الحمل عند الولادة؟",
+        "en": "What was the gestational age at birth?"
+      },
+      "sensitive": true
+    },
+    {
+      "key": "health.birth_history",
+      "domains": [
+        "development"
+      ],
+      "source_section": "birth",
+      "label": {
+        "ar": "تاريخ الولادة",
+        "en": "Birth history"
+      },
+      "question": {
+        "ar": "هل احتاج الطفل إلى مساعدة طبية عند الولادة؟",
+        "en": "Did the child need medical support at birth?"
+      },
+      "sensitive": true
+    },
+    {
+      "key": "health.birth_weight",
+      "domains": [
+        "development"
+      ],
+      "source_section": "birth",
+      "label": {
+        "ar": "وزن الولادة",
+        "en": "Birth weight"
+      },
+      "question": {
+        "ar": "كم كان وزن الطفل عند الولادة؟",
+        "en": "What was the child's birth weight?"
+      },
+      "sensitive": true
+    },
+    {
+      "key": "health.neonatal_care",
+      "domains": [
+        "development"
+      ],
+      "source_section": "birth",
+      "label": {
+        "ar": "رعاية حديثي الولادة",
+        "en": "Neonatal care"
+      },
+      "question": {
+        "ar": "هل احتاج الطفل إلى رعاية حديثي الولادة؟",
+        "en": "Did the child need neonatal care?"
+      },
+      "sensitive": true
+    },
+    {
+      "key": "health.hearing_assessment",
+      "domains": [
+        "communication"
+      ],
+      "source_section": "assessments",
+      "label": {
+        "ar": "فحص السمع",
+        "en": "Hearing assessment"
+      },
+      "question": {
+        "ar": "هل أُجري فحص سمع للطفل؟",
+        "en": "Has the child had a hearing assessment?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "health.vision_assessment",
+      "domains": [
+        "learning",
+        "movement"
+      ],
+      "source_section": "assessments",
+      "label": {
+        "ar": "فحص البصر",
+        "en": "Vision assessment"
+      },
+      "question": {
+        "ar": "هل أُجري فحص بصر للطفل؟",
+        "en": "Has the child had a vision assessment?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "health.other_assessments",
+      "domains": [
+        "development"
+      ],
+      "source_section": "assessments",
+      "label": {
+        "ar": "فحوصات سابقة",
+        "en": "Previous assessments"
+      },
+      "question": {
+        "ar": "ما الفحوصات السابقة ذات الصلة بالمشكلة الحالية؟",
+        "en": "Which previous assessments relate to the current concern?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "health.assessment_results",
+      "domains": [
+        "development"
+      ],
+      "source_section": "assessments",
+      "label": {
+        "ar": "نتائج الفحوصات",
+        "en": "Assessment results"
+      },
+      "question": {
+        "ar": "ما النتيجة المذكورة في الفحص؟",
+        "en": "What result was reported in the assessment?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "health.ear_history",
+      "domains": [
+        "communication"
+      ],
+      "source_section": "health",
+      "label": {
+        "ar": "تاريخ الأذن",
+        "en": "Ear history"
+      },
+      "question": {
+        "ar": "هل سبق الإبلاغ عن مشكلة في الأذن؟",
+        "en": "Has an ear problem been reported before?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "health.eye_history",
+      "domains": [
+        "learning",
+        "movement"
+      ],
+      "source_section": "health",
+      "label": {
+        "ar": "تاريخ العين",
+        "en": "Eye history"
+      },
+      "question": {
+        "ar": "هل سبق الإبلاغ عن مشكلة في العين؟",
+        "en": "Has an eye problem been reported before?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "health.head_injury_history",
+      "domains": [
+        "development",
+        "movement",
+        "behavior"
+      ],
+      "source_section": "health",
+      "label": {
+        "ar": "سقوط أو إصابة الرأس",
+        "en": "Fall or head injury"
+      },
+      "question": {
+        "ar": "هل سبق أن تعرض الطفل لسقوط على الرأس؟",
+        "en": "Has the child previously fallen on their head?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "health.accident_history",
+      "domains": [
+        "development",
+        "movement"
+      ],
+      "source_section": "health",
+      "label": {
+        "ar": "الحوادث السابقة",
+        "en": "Previous accidents"
+      },
+      "question": {
+        "ar": "هل تعرض الطفل لحادث سابق ذي صلة بما وصفته؟",
+        "en": "Has there been a previous accident relevant to what you described?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "health.seizure_history",
+      "domains": [
+        "development"
+      ],
+      "source_section": "health",
+      "label": {
+        "ar": "تشنجات مبلغ عنها",
+        "en": "Reported seizures"
+      },
+      "question": {
+        "ar": "هل سبق الإبلاغ عن نوبات تشنج؟",
+        "en": "Have seizures been reported before?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "health.medical_history",
+      "domains": [
+        "development"
+      ],
+      "source_section": "health",
+      "label": {
+        "ar": "التاريخ الصحي",
+        "en": "Health history"
+      },
+      "question": {
+        "ar": "هل توجد حالة صحية مبلغ عنها تؤثر في النشاط الحالي؟",
+        "en": "Is there a reported health condition affecting this activity?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "health.medications",
+      "domains": [
+        "development"
+      ],
+      "source_section": "health",
+      "label": {
+        "ar": "الأدوية المبلغ عنها",
+        "en": "Reported medicines"
+      },
+      "question": {
+        "ar": "ما الأدوية المستخدمة حاليًا بحسب الأسرة؟",
+        "en": "Which medicines does the family report are currently used?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "health.allergies",
+      "domains": [
+        "routine"
+      ],
+      "source_section": "health",
+      "label": {
+        "ar": "الحساسية المبلغ عنها",
+        "en": "Reported allergies"
+      },
+      "question": {
+        "ar": "هل توجد حساسية معروفة بحسب الأسرة؟",
+        "en": "Does the family report any known allergy?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "development.sitting",
+      "domains": [
+        "movement"
+      ],
+      "source_section": "milestones",
+      "label": {
+        "ar": "الجلوس",
+        "en": "Sitting"
+      },
+      "question": {
+        "ar": "في أي عمر بدأ الطفل الجلوس دون مساعدة؟",
+        "en": "At what age did the child sit without support?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "development.walking",
+      "domains": [
+        "movement"
+      ],
+      "source_section": "milestones",
+      "label": {
+        "ar": "المشي",
+        "en": "Walking"
+      },
+      "question": {
+        "ar": "في أي عمر بدأ الطفل المشي؟",
+        "en": "At what age did the child start walking?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "development.fine_motor",
+      "domains": [
+        "movement",
+        "learning"
+      ],
+      "source_section": "milestones",
+      "label": {
+        "ar": "الحركة الدقيقة",
+        "en": "Fine motor skills"
+      },
+      "question": {
+        "ar": "كيف يستخدم الطفل يديه في المهمة التي وصفتها؟",
+        "en": "How does the child use their hands in the task you described?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "development.gross_motor",
+      "domains": [
+        "movement"
+      ],
+      "source_section": "milestones",
+      "label": {
+        "ar": "الحركة الكبيرة",
+        "en": "Gross motor skills"
+      },
+      "question": {
+        "ar": "ما الحركة التي يجد الطفل صعوبة فيها؟",
+        "en": "Which movement does the child find difficult?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "development.first_word",
+      "domains": [
+        "communication"
+      ],
+      "source_section": "language",
+      "label": {
+        "ar": "أول كلمة",
+        "en": "First word"
+      },
+      "question": {
+        "ar": "في أي عمر نطق الطفل أول كلمة؟",
+        "en": "At what age did the child say their first word?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "development.first_sentence",
+      "domains": [
+        "communication"
+      ],
+      "source_section": "language",
+      "label": {
+        "ar": "أول جملة",
+        "en": "First sentence"
+      },
+      "question": {
+        "ar": "في أي عمر بدأ الطفل استخدام جمل؟",
+        "en": "At what age did the child start using sentences?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "development.regression",
+      "domains": [
+        "communication",
+        "development"
+      ],
+      "source_section": "language",
+      "label": {
+        "ar": "فقدان مهارة مكتسبة",
+        "en": "Loss of a previously used skill"
+      },
+      "question": {
+        "ar": "هل توقف الطفل عن مهارة كان يستخدمها من قبل؟",
+        "en": "Has the child stopped using a skill they previously had?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "communication.comprehension",
+      "domains": [
+        "communication"
+      ],
+      "source_section": "language",
+      "label": {
+        "ar": "الفهم",
+        "en": "Understanding"
+      },
+      "question": {
+        "ar": "ما مثال لطلب يفهمه الطفل؟",
+        "en": "What is an example of a request the child understands?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "communication.expression",
+      "domains": [
+        "communication"
+      ],
+      "source_section": "language",
+      "label": {
+        "ar": "التعبير",
+        "en": "Expression"
+      },
+      "question": {
+        "ar": "كيف يطلب الطفل ما يحتاجه؟",
+        "en": "How does the child ask for what they need?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "communication.method",
+      "domains": [
+        "communication"
+      ],
+      "source_section": "language",
+      "label": {
+        "ar": "وسيلة التواصل",
+        "en": "Communication method"
+      },
+      "question": {
+        "ar": "ما وسيلة التواصل التي يستخدمها الطفل؟",
+        "en": "Which communication method does the child use?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "communication.phrase_length",
+      "domains": [
+        "communication"
+      ],
+      "source_section": "language",
+      "label": {
+        "ar": "طول الجملة",
+        "en": "Phrase length"
+      },
+      "question": {
+        "ar": "ما مثال لجملة يستخدمها الطفل؟",
+        "en": "What is an example of a phrase the child uses?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "communication.settings",
+      "domains": [
+        "communication",
+        "social"
+      ],
+      "source_section": "language",
+      "label": {
+        "ar": "سياقات الكلام",
+        "en": "Communication settings"
+      },
+      "question": {
+        "ar": "مع من يتواصل الطفل بسهولة؟",
+        "en": "With whom does the child communicate comfortably?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "communication.primary_language",
+      "domains": [
+        "communication"
+      ],
+      "source_section": "language",
+      "label": {
+        "ar": "اللغة المستخدمة",
+        "en": "Language used"
+      },
+      "question": {
+        "ar": "ما اللغة المستخدمة مع الطفل في المنزل؟",
+        "en": "Which language is used with the child at home?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "communication.speech_clarity",
+      "domains": [
+        "communication"
+      ],
+      "source_section": "language",
+      "label": {
+        "ar": "وضوح النطق",
+        "en": "Speech clarity"
+      },
+      "question": {
+        "ar": "ما الأصوات التي يجد الطفل صعوبة في نطقها؟",
+        "en": "Which speech sounds does the child find difficult?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "therapy.speech_support",
+      "domains": [
+        "communication"
+      ],
+      "source_section": "language",
+      "label": {
+        "ar": "دعم النطق الحالي",
+        "en": "Current speech support"
+      },
+      "question": {
+        "ar": "هل يتلقى الطفل دعمًا للنطق حاليًا؟",
+        "en": "Is the child currently receiving speech support?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "social.play_preferences",
+      "domains": [
+        "social"
+      ],
+      "source_section": "social",
+      "label": {
+        "ar": "اللعب المفضل",
+        "en": "Play preferences"
+      },
+      "question": {
+        "ar": "ما نوع اللعب الذي يفضله الطفل؟",
+        "en": "What kind of play does the child prefer?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "social.peer_interaction",
+      "domains": [
+        "social"
+      ],
+      "source_section": "social",
+      "label": {
+        "ar": "التفاعل مع الأقران",
+        "en": "Peer interaction"
+      },
+      "question": {
+        "ar": "كيف يتفاعل الطفل مع أقرانه في موقف محدد؟",
+        "en": "How does the child interact with peers in a specific situation?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "social.family_interaction",
+      "domains": [
+        "social"
+      ],
+      "source_section": "social",
+      "label": {
+        "ar": "التفاعل مع الأسرة",
+        "en": "Family interaction"
+      },
+      "question": {
+        "ar": "كيف يتفاعل الطفل مع الأسرة في النشاط الذي وصفته؟",
+        "en": "How does the child interact with family during the activity you described?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "behavior.onset",
+      "domains": [
+        "behavior"
+      ],
+      "source_section": "behavior",
+      "label": {
+        "ar": "بداية السلوك",
+        "en": "Behavior onset"
+      },
+      "question": {
+        "ar": "متى بدأ السلوك الذي وصفته؟",
+        "en": "When did the behavior you described begin?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "behavior.context",
+      "domains": [
+        "behavior"
+      ],
+      "source_section": "behavior",
+      "label": {
+        "ar": "سياق السلوك",
+        "en": "Behavior context"
+      },
+      "question": {
+        "ar": "في أي موقف يحدث السلوك؟",
+        "en": "In which situation does the behavior happen?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "behavior.antecedent",
+      "domains": [
+        "behavior"
+      ],
+      "source_section": "behavior",
+      "label": {
+        "ar": "ما قبل السلوك",
+        "en": "Before the behavior"
+      },
+      "question": {
+        "ar": "ما الذي حدث قبل السلوك مباشرة؟",
+        "en": "What happened immediately before the behavior?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "behavior.consequence",
+      "domains": [
+        "behavior"
+      ],
+      "source_section": "behavior",
+      "label": {
+        "ar": "ما بعد السلوك",
+        "en": "After the behavior"
+      },
+      "question": {
+        "ar": "ما الذي حدث بعد السلوك مباشرة؟",
+        "en": "What happened immediately after the behavior?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "behavior.frequency",
+      "domains": [
+        "behavior"
+      ],
+      "source_section": "behavior",
+      "label": {
+        "ar": "تكرار السلوك",
+        "en": "Behavior frequency"
+      },
+      "question": {
+        "ar": "كم مرة تلاحظ السلوك؟",
+        "en": "How often do you observe the behavior?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "routine.sleep",
+      "domains": [
+        "routine"
+      ],
+      "source_section": "behavior",
+      "label": {
+        "ar": "النوم",
+        "en": "Sleep"
+      },
+      "question": {
+        "ar": "ما التغير الذي لاحظته في النوم؟",
+        "en": "What change have you noticed in sleep?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "routine.eating",
+      "domains": [
+        "routine"
+      ],
+      "source_section": "behavior",
+      "label": {
+        "ar": "الأكل",
+        "en": "Eating"
+      },
+      "question": {
+        "ar": "ما الصعوبة التي تلاحظها وقت الأكل؟",
+        "en": "What difficulty do you notice at mealtimes?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "routine.toileting",
+      "domains": [
+        "routine"
+      ],
+      "source_section": "milestones",
+      "label": {
+        "ar": "استخدام الحمام",
+        "en": "Toileting"
+      },
+      "question": {
+        "ar": "ما المساعدة التي يحتاجها الطفل في استخدام الحمام؟",
+        "en": "What help does the child need with toileting?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "independence.dressing",
+      "domains": [
+        "movement",
+        "routine"
+      ],
+      "source_section": "milestones",
+      "label": {
+        "ar": "ارتداء الملابس",
+        "en": "Dressing"
+      },
+      "question": {
+        "ar": "ما الخطوة التي ينفذها الطفل بنفسه عند ارتداء الملابس؟",
+        "en": "Which dressing step can the child do independently?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "independence.eating",
+      "domains": [
+        "movement",
+        "routine"
+      ],
+      "source_section": "milestones",
+      "label": {
+        "ar": "الأكل باستقلالية",
+        "en": "Independent eating"
+      },
+      "question": {
+        "ar": "ما المساعدة التي يحتاجها الطفل ليأكل بنفسه؟",
+        "en": "What help does the child need to eat independently?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "learning.school_stage",
+      "domains": [
+        "learning"
+      ],
+      "source_section": "academic",
+      "label": {
+        "ar": "المرحلة الدراسية",
+        "en": "School stage"
+      },
+      "question": {
+        "ar": "ما المرحلة الدراسية الحالية؟",
+        "en": "What is the child's current school stage?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "learning.reading",
+      "domains": [
+        "learning"
+      ],
+      "source_section": "academic",
+      "label": {
+        "ar": "القراءة",
+        "en": "Reading"
+      },
+      "question": {
+        "ar": "ما مثال لمهمة قراءة يستطيع الطفل أداءها؟",
+        "en": "What is an example of a reading task the child can do?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "learning.writing",
+      "domains": [
+        "learning"
+      ],
+      "source_section": "academic",
+      "label": {
+        "ar": "الكتابة",
+        "en": "Writing"
+      },
+      "question": {
+        "ar": "ما مثال لمهمة كتابة يستطيع الطفل أداءها؟",
+        "en": "What is an example of a writing task the child can do?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "learning.math",
+      "domains": [
+        "learning"
+      ],
+      "source_section": "academic",
+      "label": {
+        "ar": "الحساب",
+        "en": "Math"
+      },
+      "question": {
+        "ar": "ما مثال لمهمة حساب يستطيع الطفل أداءها؟",
+        "en": "What is an example of a math task the child can do?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "learning.support",
+      "domains": [
+        "learning"
+      ],
+      "source_section": "academic",
+      "label": {
+        "ar": "الدعم الدراسي",
+        "en": "Learning support"
+      },
+      "question": {
+        "ar": "ما نوع المساعدة الذي يفيد الطفل أثناء التعلم؟",
+        "en": "What kind of help supports the child's learning?"
+      },
+      "sensitive": false
+    },
+    {
+      "key": "learning.concern",
+      "domains": [
+        "learning"
+      ],
+      "source_section": "academic",
+      "label": {
+        "ar": "ملاحظة الأسرة الدراسية",
+        "en": "Family's learning concern"
+      },
+      "question": {
+        "ar": "ما الصعوبة الدراسية التي تريد الأسرة دعمها؟",
+        "en": "Which learning difficulty would the family like help with?"
+      },
+      "sensitive": false
+    }
+  ]
+}

@@ -20,14 +20,27 @@ class ChatTurnService
     }
 
     /** Reserve the user's quota and persist exactly one user message before accepting work. */
-    public function accept(Conversation $conversation, User $user, string $clientId, string $message, string $language): array
+    public function accept(Conversation $conversation, User $user, string $clientId, string $message, string $language, ?array $feedback = null): array
     {
-        return DB::transaction(function () use ($conversation, $user, $clientId, $message, $language) {
+        return DB::transaction(function () use ($conversation, $user, $clientId, $message, $language, $feedback) {
             User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             $conversation = Conversation::whereKey($conversation->id)->lockForUpdate()->firstOrFail();
             abort_unless((int) $conversation->user_id === (int) $user->id, 403);
             app(PersonContextService::class)->assertCanProcess($conversation, (int) $user->id);
-            $hash = hash('sha256', json_encode([$message, $language], JSON_UNESCAPED_UNICODE));
+            $target = null;
+            if ($feedback !== null) {
+                abort_unless(in_array($feedback['reason'] ?? '', ['misunderstood', 'too_long', 'repetitive', 'impractical'], true), 422);
+                $target = Message::whereKey($feedback['message_id'] ?? 0)->where('conversation_id', $conversation->id)
+                    ->where('user_id', $user->id)->where('role', 'assistant')->firstOrFail();
+                $feedback = ['message_id' => $target->id, 'reason' => $feedback['reason'], 'comment' => mb_substr(trim((string) ($feedback['comment'] ?? '')), 0, 1000)];
+            }
+            // Keep an explicit correction in the source message as well as its
+            // metadata. Canonicalize before hashing so history retries agree.
+            $comment = trim((string) ($feedback['comment'] ?? ''));
+            if ($comment !== '' && ! str_contains($message, $comment)) {
+                $message = mb_substr($message, 0, 2900)."\n".$comment;
+            }
+            $hash = hash('sha256', json_encode($feedback === null ? [$message, $language] : [$message, $language, $feedback], JSON_UNESCAPED_UNICODE));
             $existing = ChatTurn::where('conversation_id', $conversation->id)->where('client_message_id', $clientId)->first();
             if ($existing) {
                 abort_unless(hash_equals($existing->request_hash, $hash), 409,
@@ -62,8 +75,15 @@ class ChatTurnService
             $userMessage = Message::create([
                 'conversation_id' => $conversation->id, 'user_id' => $user->id,
                 'child_id' => $conversation->child_id, 'role' => 'user', 'content' => $message,
-                'metadata' => ['client_message_id' => $clientId, 'delivery_status' => 'queued', 'language' => $language],
+                'metadata' => ['client_message_id' => $clientId, 'delivery_status' => 'queued', 'language' => $language, 'feedback' => $feedback],
             ]);
+            if ($target !== null) {
+                // Latest feedback only, scoped to the owned reply. No analytics
+                // event, transcript export, or training upload is performed.
+                $target->update(['metadata' => array_merge($target->metadata ?? [], [
+                    'user_feedback' => array_merge($feedback, ['request_message_id' => $userMessage->id, 'submitted_at' => now()->toISOString()]),
+                ])]);
+            }
             $turn = ChatTurn::create([
                 'conversation_id' => $conversation->id, 'user_id' => $user->id,
                 'client_message_id' => $clientId, 'request_hash' => $hash, 'message' => $message,
@@ -75,6 +95,24 @@ class ChatTurnService
             ])->save();
 
             return [$turn, true];
+        });
+    }
+
+    public function cancel(ChatTurn $turn): ChatTurn
+    {
+        return DB::transaction(function () use ($turn): ChatTurn {
+            $current = ChatTurn::whereKey($turn->id)->lockForUpdate()->firstOrFail();
+            // A reply saved just before the tap is still a completed reply.
+            if ($this->recoverPersistedReply($current)) {
+                return $current->fresh();
+            }
+            if (in_array($current->status, ['queued', 'processing'], true)) {
+                $current->update(['status' => 'cancelled', 'stage' => 'cancelled',
+                    'completed_at' => now(), 'error' => null]);
+                $this->markUserMessage($current, 'cancelled');
+            }
+
+            return $current->fresh();
         });
     }
 
@@ -174,7 +212,7 @@ class ChatTurnService
 
         return DB::transaction(function () use ($turn, $reply, $attempt): bool {
             $current = ChatTurn::whereKey($turn->id)->lockForUpdate()->first();
-            if ($current === null || ($attempt !== null && (int) $current->attempt !== $attempt)) {
+            if ($current === null || $current->status === 'cancelled' || ($attempt !== null && (int) $current->attempt !== $attempt)) {
                 return false;
             }
             if ($current->status === 'completed' && (int) $current->assistant_message_id === (int) $reply->id) {
@@ -209,7 +247,7 @@ class ChatTurnService
 
     private function recoverPersistedReply(ChatTurn $turn): bool
     {
-        if ($turn->user_message_id === null) {
+        if ($turn->user_message_id === null || $turn->fresh()?->status === 'cancelled') {
             return false;
         }
         $reply = Message::where('reply_to_message_id', $turn->user_message_id)

@@ -52,6 +52,27 @@ class ChildDocumentController extends Controller
         return response()->json(new ChildDocumentResource($doc), 201);
     }
 
+    public function retry(Request $request, Child $child, ChildDocument $document): JsonResponse
+    {
+        $this->authorize('update', $child);
+        abort_unless((int) $document->child_id === (int) $child->id
+            && (int) $document->user_id === (int) $request->user()->id, 404);
+        $dispatch = DB::transaction(function () use ($document): bool {
+            $locked = ChildDocument::whereKey($document->id)->lockForUpdate()->firstOrFail();
+            if ($locked->status === 'processed' || ($locked->status === 'processing' && $locked->updated_at->gt(now()->subMinutes(15)))) {
+                return false;
+            }
+            $locked->update(['status' => 'uploaded', 'processing_error' => null, 'processed_at' => null]);
+
+            return true;
+        });
+        if ($dispatch) {
+            app(PrivateFileProcessingDispatcher::class)->dispatch(ProcessChildDocumentJob::class, (int) $document->id);
+        }
+
+        return response()->json(new ChildDocumentResource($document->fresh()));
+    }
+
     public function destroy(Request $request, Child $child, ChildDocument $document): JsonResponse
     {
         $this->authorize('update', $child);

@@ -9,6 +9,20 @@ use Tests\TestCase;
 
 class SafetyTriageServiceTest extends TestCase
 {
+    public function test_plain_style_feedback_rechecks_the_selected_original_risk(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $feedback = ['reason' => 'too_long', 'original_question' => 'Sudden loss of speech', 'original_safety_level' => 'urgent_specialist'];
+        $llm->shouldReceive('chatJson')->once()->withArgs(function ($messages) use ($feedback) {
+            $data = json_decode($messages[1]['content'], true);
+            $this->assertSame($feedback, $data['reply_feedback']);
+            $this->assertStringContainsString('does not establish', $messages[0]['content']);
+            return true;
+        })->andReturn(['level' => 'urgent_specialist', 'reason_code' => 'unresolved_regression', 'confidence' => 1, 'flags' => []]);
+        $result = (new SafetyTriageService($llm))->evaluate('Make it shorter', [], $feedback);
+        $this->assertSame('urgent_specialist', $result['level']);
+    }
+
     public function test_direct_breathing_emergency_is_detected_without_model_call(): void
     {
         $llm = Mockery::mock(LlmProviderInterface::class);
