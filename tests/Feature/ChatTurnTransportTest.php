@@ -14,6 +14,7 @@ use App\Services\AI\ChatTurnService;
 use App\Services\AI\ChildChatService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 use Mockery;
 use Tests\TestCase;
 
@@ -136,6 +137,38 @@ class ChatTurnTransportTest extends TestCase
         $this->assertDatabaseCount('chat_turns', 1);
     }
 
+    /** @dataProvider repeatedProgressStates */
+    public function test_zero_changed_rows_on_repeated_progress_only_stops_an_inactive_attempt(bool $cancel): void
+    {
+        $this->freezeTime();
+        $this->send()->assertStatus(202);
+        $turn = ChatTurn::firstOrFail();
+        $chat = Mockery::mock(ChildChatService::class);
+        $chat->shouldReceive('ask')->once()->andReturnUsing(function ($conversation, $text, $uid, $child, $language, $userMessage, $progress) use ($turn, $cancel) {
+            $progress('turn_planning');
+            if ($cancel) $turn->update(['status' => 'cancelled']);
+            // SQLite normally reports matched rows. Simulate MySQL's zero
+            // changed rows for an identical stage/timestamp update.
+            $pdo = DB::connection()->getPdo();
+            $pdo->setAttribute(\PDO::ATTR_STATEMENT_CLASS, [NoChangeProgressStatement::class]);
+            try {
+                $progress('turn_planning');
+            } finally {
+                $pdo->setAttribute(\PDO::ATTR_STATEMENT_CLASS, [\PDOStatement::class]);
+            }
+            return Message::create(['conversation_id' => $conversation->id, 'user_id' => $uid,
+                'role' => 'assistant', 'content' => 'Reply after repeated progress', 'reply_to_message_id' => $userMessage->id]);
+        });
+        app(ChatTurnService::class)->process($turn, $chat);
+        $this->assertSame($cancel ? 'cancelled' : 'completed', $turn->fresh()->status);
+        $this->assertSame($cancel ? 0 : 1, Message::where('role', 'assistant')->count());
+    }
+
+    public static function repeatedProgressStates(): array
+    {
+        return [[false], [true]];
+    }
+
     public function test_status_and_cancellation_are_owned_and_cancelled_job_does_not_generate(): void
     {
         $this->send()->assertStatus(202);
@@ -198,5 +231,13 @@ class ChatTurnTransportTest extends TestCase
         $this->send()->assertStatus(409)->assertJsonPath('error_code', 'CHAT_TURN_SUPERSEDED')->assertJsonPath('retryable', false);
         $this->getJson("/api/v1/conversations/{$this->conversation->id}")
             ->assertOk()->assertJsonPath('messages.0.language', 'en');
+    }
+}
+
+class NoChangeProgressStatement extends \PDOStatement
+{
+    public function rowCount(): int
+    {
+        return str_starts_with($this->queryString, 'update "chat_turns" set "stage"') ? 0 : parent::rowCount();
     }
 }

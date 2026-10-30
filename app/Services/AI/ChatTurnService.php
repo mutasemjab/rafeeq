@@ -195,8 +195,12 @@ class ChatTurnService
                         || ! app(PersonContextService::class)->canProcess($currentConversation, (int) $turn->user_id)) {
                         throw new RuntimeException('Chat consent or conversation availability changed.');
                     }
-                    if (ChatTurn::whereKey($turn->id)->where('attempt', $attempt)->where('status', 'processing')
-                        ->update(['stage' => $stage, 'updated_at' => now()]) !== 1) {
+                    $activeTurn = ChatTurn::whereKey($turn->id)->where('attempt', $attempt)->where('status', 'processing');
+                    // MySQL reports zero changed rows when the same stage is
+                    // renewed within one second. Confirm ownership of the
+                    // active attempt before treating that no-op as cancellation.
+                    if ($activeTurn->update(['stage' => $stage, 'updated_at' => now()]) !== 1
+                        && ! $activeTurn->exists()) {
                         throw new RuntimeException('This chat attempt is no longer active.');
                     }
                 }, true);
