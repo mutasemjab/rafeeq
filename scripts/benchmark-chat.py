@@ -76,7 +76,8 @@ class Client:
 def run_case(base, name):
     case = CASES[name]
     client = Client(base)
-    result = {"case": name, "language": case["language"], "turns": [], "cleanup": "not_created"}
+    result = {"case": name, "language": case["language"], "expected_turns": len(case["messages"]),
+              "turns": [], "cleanup": "not_created"}
     password = secrets.token_urlsafe(24)
     status, data, _ = client.request("POST", "/auth/register", {
         "first_name": "Synthetic", "last_name": "QA", "email": "rafiq-qa-" + uuid.uuid4().hex + "@example.com",
@@ -161,7 +162,9 @@ def main():
     for name in args.case or CASES:
         report["cases"].append(run_case(args.base_url, name))
         destination.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
-    return 0 if all(case.get("turns") and all(turn["status"] == "completed" for turn in case["turns"])
+    return 0 if all(not case.get("error") and not case.get("setup_error_status")
+                    and len(case.get("turns", [])) == case.get("expected_turns", 0) > 0
+                    and all(turn["status"] == "completed" for turn in case["turns"])
                     and case["cleanup"] == "deleted" for case in report["cases"]) else 1
 
 

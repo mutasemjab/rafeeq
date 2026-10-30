@@ -1,5 +1,7 @@
 # Fast chat and premium extra thinking
 
+**Deployment update, 30 October 2026:** this release and the MySQL progress-renewal fix are deployed to `https://rafeequae.com`. See [the production verification report](QA_FAST_CHAT_DEPLOYMENT_2026_10_30_AR.md) for live timings, the additional follow-up test, backup details and remaining content/performance limits. The 29 October measurements below describe the earlier local validation.
+
 The backend now defaults to a lightweight answer model with no reasoning effort. `extra_thinking=true` selects the configured primary model and reasoning budget, subject to an active, started, unexpired Pro subscription on an active plan. The backend checks entitlement both when accepting a new/retried turn and before a queued turn runs. Completed replays remain idempotent. Omitted/false flags preserve legacy request hashes.
 
 Standalone greetings and thanks use deterministic replies after safety triage. A first-turn greeting completes inline even for asynchronous requests, without a queue worker, model request, or maintenance job. Mixed greeting/question messages follow the normal pipeline. Later social turns retain contextual safety checks.
@@ -43,7 +45,7 @@ AI_DOCUMENT_SIMILARITY_THRESHOLD=0.35
 AI_FAST_WEB_SEARCH_INTERNAL_CONFIDENCE_THRESHOLD=0.40
 ```
 
-Existing `.env` values take precedence over changed defaults. Keep the dedicated chat worker running as described in README; PHP processing measurements exclude queue waiting. The local configured MySQL was unavailable during this work, so live tests used the actual library bundle in isolated SQLite with real API calls. No production deployment or mobile-network latency was verified.
+Existing `.env` values take precedence over changed defaults. Keep the dedicated chat worker running as described in README; PHP processing measurements exclude queue waiting. During the initial 29 October validation, the local configured MySQL was unavailable, so tests used the actual library bundle in isolated SQLite with real API calls. Production deployment and external HTTP validation were subsequently completed on 30 October; physical mobile-device latency remains unverified.
 
 ## Repeatable validation
 
