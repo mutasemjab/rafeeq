@@ -8,5 +8,6 @@ php_binary="${PHP_BINARY:-php}"
 
 # Back up the production database before running this deployment step.
 "${php_binary}" artisan migrate --force
+"${php_binary}" artisan knowledge:optimize-search
 "${php_binary}" artisan config:cache
 "${php_binary}" artisan queue:restart

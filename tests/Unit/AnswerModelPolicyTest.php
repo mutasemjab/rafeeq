@@ -7,6 +7,19 @@ use Tests\TestCase;
 
 class AnswerModelPolicyTest extends TestCase
 {
+    public function test_fast_and_deep_use_different_models_and_compute_budgets(): void
+    {
+        config(['ai.fast_answer_model' => 'fast-model', 'ai.fast_answer_reasoning_effort' => 'none',
+            'ai.answer_model' => 'deep-model', 'ai.answer_reasoning_effort' => 'medium']);
+        $policy = new AnswerModelPolicy();
+        $fast = $policy->options(['risk_level' => 'low', 'response_mode' => 'fast'], 'Explain communication');
+        $deep = $policy->options(['risk_level' => 'low', 'response_mode' => 'deep'], 'Explain communication');
+        $this->assertSame('fast-model', $fast['model']);
+        $this->assertSame('none', $fast['reasoning_effort']);
+        $this->assertSame('deep-model', $deep['model']);
+        $this->assertSame('medium', $deep['reasoning_effort']);
+        $this->assertTrue($policy->requiresCarefulReview(['risk_level' => 'low'], 'هل أغير جرعة الدواء؟'));
+    }
     public function test_primary_model_is_preserved_for_high_risk_complex_routes_and_medication(): void
     {
         config(['ai.routine_answer_model'=>'gpt-6-sol']);

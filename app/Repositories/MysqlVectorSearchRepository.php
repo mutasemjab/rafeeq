@@ -74,7 +74,8 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
                 'c.page_number   as page_number',
                 'c.chunk_index   as chunk_index',
                 'c.content       as content',
-                'c.embedding     as embedding',
+                DB::raw('CASE WHEN c.embedding_vector IS NULL THEN c.embedding ELSE NULL END AS embedding'),
+                'c.embedding_vector as embedding_vector',
                 'c.embedding_dimensions as embedding_dimensions',
                 'c.metadata      as metadata',
             ]);
@@ -102,7 +103,10 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
             ): void {
                 foreach ($rows as $row) {
                     $totalRows++;
-                    $embedding = $this->decodeEmbedding($row->embedding);
+                    $packed = $row->embedding_vector !== null;
+                    $embedding = $packed
+                        ? \App\Services\Search\PackedEmbedding::decode($row->embedding_vector, (int) $row->embedding_dimensions)
+                        : $this->decodeEmbedding($row->embedding);
 
                     if ($embedding === null) {
                         $nullCount++;
@@ -116,7 +120,7 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
                         continue;
                     }
 
-                    $embeddingMagnitude = $this->magnitude($embedding);
+                    $embeddingMagnitude = $packed ? 1.0 : $this->magnitude($embedding);
 
                     foreach ($queryEmbeddings as $queryIndex => $queryEmbedding) {
                         $similarity = $this->cosine(
@@ -154,6 +158,7 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
                             'chunk_index' => $row->chunk_index,
                             'content' => $row->content,
                             'similarity' => $similarity,
+                            'query_similarities' => [$queryIndex => $similarity],
                         ];
 
                         usort(
@@ -401,7 +406,11 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
                     ! isset($merged[$key])
                     || ($result['similarity'] ?? 0) > ($merged[$key]['similarity'] ?? 0)
                 ) {
+                    $querySimilarities = array_replace($merged[$key]['query_similarities'] ?? [], $result['query_similarities'] ?? []);
                     $merged[$key] = $result;
+                    if ($querySimilarities !== []) $merged[$key]['query_similarities'] = $querySimilarities;
+                } elseif (isset($result['query_similarities'])) {
+                    $merged[$key]['query_similarities'] = array_replace($merged[$key]['query_similarities'] ?? [], $result['query_similarities']);
                 }
             }
         }

@@ -28,8 +28,14 @@ class KnowledgeStatusCommand extends Command
                 'processing' => (clone $query)->where('status', 'processing')->count(),
                 'processed' => (clone $query)->where('status', 'processed')->count(),
                 'failed' => (clone $query)->where('status', 'failed')->count(),
+                'approved_with_age_scope' => (clone $query)->where('status', 'processed')->where('is_approved', true)
+                    ->where(fn ($q) => $q->whereNotNull('age_min_months')->orWhereNotNull('age_max_months')->orWhere('audience', 'all_ages'))->count(),
+                'approved_without_age_scope' => (clone $query)->where('status', 'processed')->where('is_approved', true)
+                    ->whereNull('age_min_months')->whereNull('age_max_months')
+                    ->where(fn ($q) => $q->whereNull('audience')->orWhere('audience', '!=', 'all_ages'))->count(),
             ],
             'chunks' => KnowledgeDocumentChunk::query()->whereIn('knowledge_document_id', $ids)->count(),
+            'packed_chunks' => KnowledgeDocumentChunk::query()->whereIn('knowledge_document_id', $ids)->whereNotNull('embedding_vector')->count(),
             'recent_failures' => (clone $query)
                 ->where('status', 'failed')
                 ->latest('updated_at')

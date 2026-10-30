@@ -14,6 +14,15 @@ use Tests\TestCase;
 
 class OpenAiProviderWebAnswerTest extends TestCase
 {
+    public function test_response_options_honor_per_turn_model_reasoning_and_token_budget(): void
+    {
+        config(['ai.openai_api_key' => 'test-key', 'openai.api_key' => 'test-key', 'ai.answer_reasoning_effort' => 'medium']);
+        Http::fake(['api.openai.com/v1/responses' => Http::response(['output_text' => 'Grounded reply.'])]);
+        (new OpenAiProvider(new OpenAiConfigResolver()))->answer([['role' => 'user', 'content' => 'Question']],
+            ['model' => 'fast-model', 'reasoning_effort' => 'none', 'max_completion_tokens' => 700]);
+        Http::assertSent(fn (Request $request) => $request['model'] === 'fast-model'
+            && $request['reasoning']['effort'] === 'none' && $request['max_output_tokens'] === 700);
+    }
     public function test_it_uses_responses_web_search_and_returns_clickable_sources(): void
     {
         Config::set('ai.openai_api_key', 'test-key');

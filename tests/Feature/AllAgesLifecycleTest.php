@@ -66,6 +66,15 @@ class AllAgesLifecycleTest extends TestCase
         $this->assertSame(1,app(ChatUsageService::class)->forUser($this->user)['used']);
     }
 
+    public function test_loaded_expiry_matches_sql_scope_during_the_repeated_cairo_dst_hour(): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-10-29T23:15:00+03:00'));
+        $conversation = Conversation::factory()->create(['user_id' => $this->user->id,
+            'is_temporary' => true, 'expires_at' => now()->subMinute()]);
+        $this->assertFalse(app(PersonContextService::class)->canProcess($conversation, $this->user->id));
+        $this->assertNull(Conversation::find($conversation->id));
+    }
+
     public function test_person_document_is_private_and_processing_rechecks_consent(): void
     {
         $person=$this->person();

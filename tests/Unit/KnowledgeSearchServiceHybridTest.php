@@ -10,6 +10,18 @@ use Tests\TestCase;
 
 class KnowledgeSearchServiceHybridTest extends TestCase
 {
+    public function test_translation_cannot_crowd_out_the_original_question(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $repo = Mockery::mock(VectorSearchRepositoryInterface::class);
+        $repo->shouldReceive('searchKnowledgeMany')->once()->andReturn([
+            ['chunk_id' => 1, 'content' => 'Arabic source', 'similarity' => 0.45, 'query_similarities' => [0 => 0.45]],
+            ['chunk_id' => 2, 'content' => 'English expansion', 'similarity' => 0.95, 'query_similarities' => [1 => 0.95]],
+            ['chunk_id' => 3, 'content' => 'Another English result', 'similarity' => 0.94, 'query_similarities' => [1 => 0.94]],
+        ]);
+        $hits = (new KnowledgeSearchService($llm, $repo))->searchForCase([[1, 0], [0, 1]], ['سؤال', 'translated'], [], 2);
+        $this->assertSame([1, 2], array_column($hits, 'chunk_id'));
+    }
     public function test_hybrid_reranking_uses_query_words_and_case_metadata(): void
     {
         $llm = Mockery::mock(LlmProviderInterface::class);

@@ -381,6 +381,13 @@ PROMPT;
         ];
     }
 
+    public function generalEducationPlan(array $domain): array
+    {
+        return array_merge($this->answerPlan($domain['category'] ?? 'general', $domain['search_queries'] ?? [],
+            $domain['model'] ?? 'domain_guard', 'Standalone general education; no personalized assessment or intervention.'),
+            ['general_education' => true]);
+    }
+
     private function answerPlan(?string $domain, array $queries, string $model, string $reason): array
     {
         return [

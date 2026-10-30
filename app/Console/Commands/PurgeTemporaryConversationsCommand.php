@@ -22,7 +22,7 @@ class PurgeTemporaryConversationsCommand extends Command
         foreach ($ids as $id) {
             DB::transaction(function () use ($id, &$removed): void {
                 $conversation = Conversation::withoutGlobalScope('unexpired')->withTrashed()->whereKey($id)->lockForUpdate()->first();
-                if (! $conversation || ! $conversation->is_temporary || $conversation->expires_at->isFuture()) { return; }
+                if (! $conversation || ! $conversation->is_temporary || ! $conversation->hasExpired()) { return; }
                 app(ChatUsageService::class)->retainDeletedUsage((int) $conversation->user_id, [$conversation->id]);
                 foreach (ChatAttachment::withTrashed()->where('conversation_id', $id)->where('user_id', $conversation->user_id)->lockForUpdate()->get() as $file) {
                     app(PrivateDocumentStorage::class)->delete($file);

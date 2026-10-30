@@ -22,6 +22,12 @@ return [
     'chat_max_completion_tokens' => (int) env('AI_CHAT_MAX_COMPLETION_TOKENS', 900),
     'answer_model' => env('AI_ANSWER_MODEL', env('AI_WEB_ANSWER_MODEL', 'gpt-6-astra')),
     'routine_answer_model' => env('AI_ROUTINE_ANSWER_MODEL'),
+    'fast_answer_model' => env('AI_FAST_ANSWER_MODEL', env('AI_CHAT_MODEL', 'gpt-5.6-luna')),
+    'fast_answer_reasoning_effort' => env('AI_FAST_ANSWER_REASONING_EFFORT', 'none'),
+    'fast_answer_max_output_tokens' => (int) env('AI_FAST_ANSWER_MAX_OUTPUT_TOKENS', 800),
+    'fast_review_model' => env('AI_FAST_REVIEW_MODEL', env('AI_FAST_ANSWER_MODEL', env('AI_CHAT_MODEL', 'gpt-5.6-luna'))),
+    'fast_review_reasoning_effort' => env('AI_FAST_REVIEW_REASONING_EFFORT', 'none'),
+    'fast_general_citation_check_only' => (bool) env('AI_FAST_GENERAL_CITATION_CHECK_ONLY', true),
     'require_age_scoped_evidence' => (bool) env('AI_REQUIRE_AGE_SCOPED_EVIDENCE', true),
     'skip_empty_retrieval_embeddings' => (bool) env('AI_SKIP_EMPTY_RETRIEVAL_EMBEDDINGS', false),
     'answer_reasoning_effort' => env('AI_ANSWER_REASONING_EFFORT', env('AI_WEB_ANSWER_REASONING_EFFORT', 'medium')),
@@ -58,9 +64,10 @@ return [
     | RAG / Retrieval Settings
     |--------------------------------------------------------------------------
     */
-    'document_similarity_threshold' => (float) env('AI_DOCUMENT_SIMILARITY_THRESHOLD', 0.50),
+    'document_similarity_threshold' => (float) env('AI_DOCUMENT_SIMILARITY_THRESHOLD', 0.35),
     'require_retrieved_evidence' => (bool) env('AI_REQUIRE_RETRIEVED_EVIDENCE', true),
     'web_search_internal_confidence_threshold' => (float) env('AI_WEB_SEARCH_INTERNAL_CONFIDENCE_THRESHOLD', 0.68),
+    'fast_web_search_internal_confidence_threshold' => (float) env('AI_FAST_WEB_SEARCH_INTERNAL_CONFIDENCE_THRESHOLD', 0.40),
 
     'max_chat_attachment_chunks' => (int) env('AI_MAX_CHAT_ATTACHMENT_CHUNKS', 6),
     'max_knowledge_chunks' => (int) env('AI_MAX_KNOWLEDGE_CHUNKS', 8),

@@ -10,6 +10,43 @@ use Tests\TestCase;
 
 class AnswerQualityServiceTest extends TestCase
 {
+    public function test_fast_general_fact_checks_citations_without_claiming_semantic_review(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldNotReceive('chatJson');
+        $result = (new AnswerQualityService($llm))->review('What is language?', 'A shared code. [KB_SOURCE_1]',
+            ['response_mode' => 'fast', 'risk_level' => 'low', 'general_education' => true, 'case_specific' => false],
+            [], '[KB_SOURCE_1] Language is a shared code.', 'en');
+        $this->assertTrue($result['passed']);
+        $this->assertFalse($result['reviewed']);
+        $this->assertSame('citation_validation', $result['review_type']);
+    }
+
+    /** @dataProvider fullReviewPlans */
+    public function test_fast_mode_keeps_independent_review_for_personalized_or_risky_answers(array $overrides): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn(['action' => 'approve']);
+        $result = (new AnswerQualityService($llm))->review('Help with the next step.', 'A supported step. [KB_SOURCE_1]',
+            array_merge(['response_mode' => 'fast', 'risk_level' => 'low', 'general_education' => true, 'case_specific' => false], $overrides),
+            [], '[KB_SOURCE_1] Evidence.', 'en');
+        $this->assertTrue($result['reviewed']);
+    }
+
+    public static function fullReviewPlans(): array
+    {
+        return [[['case_specific' => true]], [['risk_level' => 'high']], [['response_mode' => 'deep']], [['general_education' => false]]];
+    }
+
+    public function test_unknown_citation_in_a_fast_general_answer_requires_repair_review(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn(['action' => 'reject']);
+        $result = (new AnswerQualityService($llm))->review('What is language?', 'Unsupported. [KB_SOURCE_99]',
+            ['response_mode' => 'fast', 'risk_level' => 'low', 'general_education' => true, 'case_specific' => false],
+            [], '[KB_SOURCE_1] Real evidence.', 'en');
+        $this->assertFalse($result['passed']);
+    }
     public function test_follow_up_is_returned_in_the_same_quality_review_request(): void
     {
         $llm = Mockery::mock(LlmProviderInterface::class);

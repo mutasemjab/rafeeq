@@ -23,6 +23,7 @@ class PlanResource extends JsonResource
             'has_voice_mode'         => $this->has_voice_mode,
             'has_progress_reports'   => $this->has_progress_reports,
             'is_active'              => $this->is_active,
+            'has_extra_thinking'     => $this->type === 'pro' && $this->is_active,
         ];
     }
 }

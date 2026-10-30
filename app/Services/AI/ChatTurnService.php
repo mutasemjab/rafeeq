@@ -20,9 +20,9 @@ class ChatTurnService
     }
 
     /** Reserve the user's quota and persist exactly one user message before accepting work. */
-    public function accept(Conversation $conversation, User $user, string $clientId, string $message, string $language, ?array $feedback = null): array
+    public function accept(Conversation $conversation, User $user, string $clientId, string $message, string $language, ?array $feedback = null, bool $extraThinking = false): array
     {
-        return DB::transaction(function () use ($conversation, $user, $clientId, $message, $language, $feedback) {
+        return DB::transaction(function () use ($conversation, $user, $clientId, $message, $language, $feedback, $extraThinking) {
             User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             $conversation = Conversation::whereKey($conversation->id)->lockForUpdate()->firstOrFail();
             abort_unless((int) $conversation->user_id === (int) $user->id, 403);
@@ -41,6 +41,8 @@ class ChatTurnService
                 $message = mb_substr($message, 0, 2900)."\n".$comment;
             }
             $hash = hash('sha256', json_encode($feedback === null ? [$message, $language] : [$message, $language, $feedback], JSON_UNESCAPED_UNICODE));
+            // Preserve hashes for older/default requests; changing modes requires a new ID.
+            if ($extraThinking) $hash = hash('sha256', $hash.'|extra_thinking');
             $existing = ChatTurn::where('conversation_id', $conversation->id)->where('client_message_id', $clientId)->first();
             if ($existing) {
                 abort_unless(hash_equals($existing->request_hash, $hash), 409,
@@ -49,6 +51,7 @@ class ChatTurnService
                 if (! in_array($existing->status, ['failed', 'cancelled'], true)) {
                     return [$existing, false];
                 }
+                app(ChatModePolicy::class)->authorize($user, $extraThinking, $language);
                 abort_unless($conversation->status === 'active', 422, $language === 'ar' ? 'المحادثة مغلقة.' : 'Conversation is closed.');
                 $this->assertNoActiveTurn($conversation, $language);
                 if (Message::where('conversation_id', $conversation->id)->where('role', 'user')
@@ -67,6 +70,7 @@ class ChatTurnService
                 return [$existing->fresh(), true];
             }
             abort_unless($conversation->status === 'active', 422, $language === 'ar' ? 'المحادثة مغلقة.' : 'Conversation is closed.');
+            app(ChatModePolicy::class)->authorize($user, $extraThinking, $language);
             $this->assertNoActiveTurn($conversation, $language);
             $usage = $this->usage->forUser($user);
             if ($usage['remaining'] === 0) {
@@ -75,7 +79,8 @@ class ChatTurnService
             $userMessage = Message::create([
                 'conversation_id' => $conversation->id, 'user_id' => $user->id,
                 'child_id' => $conversation->child_id, 'role' => 'user', 'content' => $message,
-                'metadata' => ['client_message_id' => $clientId, 'delivery_status' => 'queued', 'language' => $language, 'feedback' => $feedback],
+                'metadata' => ['client_message_id' => $clientId, 'delivery_status' => 'queued', 'language' => $language, 'feedback' => $feedback,
+                    'extra_thinking' => $extraThinking, 'response_mode' => $extraThinking ? 'deep' : 'fast'],
             ]);
             if ($target !== null) {
                 // Latest feedback only, scoped to the owned reply. No analytics
@@ -174,6 +179,13 @@ class ChatTurnService
 
                 return;
             }
+            if (data_get($turn->userMessage->metadata, 'extra_thinking', false)
+                && ! app(ChatModePolicy::class)->canUseExtraThinking($user)) {
+                $this->fail($turn, 'EXTRA_THINKING_REQUIRES_PREMIUM', $turn->language === 'ar'
+                    ? 'التفكير المتعمق يتطلب اشتراك بريميوم نشط. يمكنك إرسال رسالة جديدة بالوضع السريع.'
+                    : 'Extra thinking requires an active premium subscription. You can send a new message in fast mode.', 'subscription', $attempt);
+                return;
+            }
             $reply = $chat->ask($conversation, $turn->message, (int) $turn->user_id,
                 $conversation->child_id, $turn->language, $turn->userMessage,
                 function (string $stage) use ($turn, $attempt): void {
@@ -188,7 +200,7 @@ class ChatTurnService
                         throw new RuntimeException('This chat attempt is no longer active.');
                     }
                 }, true);
-            if ($this->complete($turn, $reply, $attempt)) {
+            if ($this->complete($turn, $reply, $attempt) && data_get($reply->metadata, 'response_type') !== 'social') {
                 app(ConversationMaintenanceService::class)->dispatch($conversation, $alreadyResponded);
             }
         } catch (Throwable $error) {
@@ -220,6 +232,8 @@ class ChatTurnService
             }
             $reply->forceFill(['metadata' => array_merge($reply->metadata ?? [], [
                 'client_message_id' => $turn->client_message_id, 'user_message_id' => $turn->user_message_id,
+                'extra_thinking' => (bool) data_get($turn->userMessage->metadata, 'extra_thinking', false),
+                'response_mode' => data_get($turn->userMessage->metadata, 'response_mode', 'fast'),
             ])])->save();
             $current->update(['status' => 'completed', 'stage' => 'completed', 'assistant_message_id' => $reply->id,
                 'completed_at' => now(), 'error' => null]);
@@ -236,7 +250,7 @@ class ChatTurnService
             return;
         }
         ChatTurn::whereKey($turn->id)->where('attempt', $attempt ?? $turn->attempt)->whereIn('status', ['queued', 'processing'])->update([
-            'status' => 'failed', 'stage' => 'failed', 'error' => json_encode(['code' => $code, 'message' => $message, 'retryable' => true, 'stage' => $stage]),
+            'status' => 'failed', 'stage' => 'failed', 'error' => json_encode(['code' => $code, 'message' => $message, 'retryable' => $code !== 'EXTRA_THINKING_REQUIRES_PREMIUM', 'stage' => $stage]),
             'completed_at' => now(), 'updated_at' => now(),
         ]);
         $turn->refresh();

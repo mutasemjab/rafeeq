@@ -11,7 +11,7 @@ class PersonContextService
     public function canProcess(Conversation $conversation, int $userId): bool
     {
         if ((int) $conversation->user_id !== $userId || $conversation->trashed()
-            || ($conversation->expires_at !== null && $conversation->expires_at->lte(now()))) {
+            || $conversation->hasExpired()) {
             return false;
         }
         if ($conversation->person_profile_id === null) {

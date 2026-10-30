@@ -69,7 +69,7 @@ class ExportKnowledgeIndexCommand extends Command
             $exportedChunks = 0;
 
             foreach ($documents->cursor() as $document) {
-                $this->writeLine($handle, [
+                $this->writeLine($handle, array_merge($document->only(KnowledgeDocument::EVIDENCE_FIELDS), [
                     'type' => 'document',
                     'source_document_id' => $document->id,
                     'content_hash' => $document->content_hash,
@@ -81,7 +81,7 @@ class ExportKnowledgeIndexCommand extends Command
                     'category' => $document->category,
                     'ingestion_metadata' => $document->ingestion_metadata,
                     'processed_at' => $document->processed_at?->toIso8601String(),
-                ]);
+                ]));
                 $exportedDocuments++;
 
                 foreach ($document->chunks()->orderBy('chunk_index')->cursor() as $chunk) {

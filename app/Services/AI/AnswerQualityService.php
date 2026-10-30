@@ -30,7 +30,25 @@ class AnswerQualityService
             return $this->unreviewed($answer, 'disabled', true);
         }
 
-        $model = (string) config('ai.answer_quality_model', config('ai.answer_model'));
+        $fast = ($turnPlan['response_mode'] ?? null) === 'fast'
+            && ! app(AnswerModelPolicy::class)->requiresCarefulReview($turnPlan, $latestMessage);
+        if ($fast && config('ai.fast_general_citation_check_only', true)
+            && ($turnPlan['general_education'] ?? false) === true
+            && ($turnPlan['case_specific'] ?? true) === false
+            && ($turnPlan['risk_level'] ?? '') === 'low'
+            && trim($sourceContext) !== ''
+            && preg_match('/\[(?:KB|WEB)_SOURCE_\d+\]/', $answer) === 1
+            && ! $this->containsUnknownCitation($answer, $sourceContext, '')) {
+            // This checks source membership, not semantic entailment. Deep mode
+            // and personalized/high-risk guidance retain independent model review.
+            return [
+                'content' => $answer, 'action' => 'approve', 'passed' => true,
+                'reviewed' => false, 'review_type' => 'citation_validation',
+                'revised' => false, 'issues' => [], 'strengths' => [], 'scores' => [], 'model' => null,
+                'follow_up_reviewed' => true, 'follow_up' => ['question' => null],
+            ];
+        }
+        $model = (string) ($fast ? config('ai.fast_review_model') : config('ai.answer_quality_model', config('ai.answer_model')));
         $systemPrompt = <<<'PROMPT'
 You are the final clinical-quality editor for Rafiq, a non-diagnostic support assistant for all ages. Review the draft answer, not the user. Return only the structured result.
 
@@ -80,7 +98,7 @@ PROMPT;
             $options = [
                 'schema_name' => 'rafeeq_answer_quality',
                 'model' => $model,
-                'reasoning_effort' => (string) config('ai.answer_quality_reasoning_effort', 'low'),
+                'reasoning_effort' => (string) ($fast ? config('ai.fast_review_reasoning_effort', 'none') : config('ai.answer_quality_reasoning_effort', 'low')),
                 'max_completion_tokens' => (int) config('ai.answer_quality_max_completion_tokens', 1800),
             ];
             $result = $this->llm->chatJson($messages, $this->schema(), $options);

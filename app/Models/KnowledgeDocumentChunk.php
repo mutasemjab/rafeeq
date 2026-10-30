@@ -26,6 +26,15 @@ class KnowledgeDocumentChunk extends Model
         // embedding is NOT cast — stored as raw JSON string in LONGTEXT
     ];
 
+    protected static function booted(): void
+    {
+        static::saving(function (self $chunk): void {
+            if ($chunk->isDirty(['embedding', 'embedding_dimensions'])) {
+                $chunk->embedding_vector = \App\Services\Search\PackedEmbedding::encode($chunk->embedding, (int) $chunk->embedding_dimensions);
+            }
+        });
+    }
+
     public function knowledgeDocument()
     {
         return $this->belongsTo(KnowledgeDocument::class);

@@ -28,6 +28,9 @@ class KnowledgeBundleCommandTest extends TestCase
             'content_hash' => $hash,
             'source_path' => 'library/speech-guide.txt',
             'category' => 'Speech',
+            'age_min_months' => 24, 'age_max_months' => 120, 'audience' => 'children',
+            'topics' => ['speech'], 'problem_types' => ['language_delay'], 'language' => 'ar',
+            'is_approved' => false, 'source_url' => 'https://example.org/guide', 'evidence_level' => 'educational',
             'status' => 'processed',
             'processed_at' => now(),
         ]);
@@ -55,7 +58,11 @@ class KnowledgeBundleCommandTest extends TestCase
                 'content_hash' => $hash,
                 'status' => 'processed',
                 'index_only' => true,
+                'age_min_months' => 24, 'age_max_months' => 120, 'audience' => 'children',
+                'language' => 'ar', 'is_approved' => false, 'source_url' => 'https://example.org/guide',
             ]);
+            $this->assertSame(['speech'], KnowledgeDocument::sole()->topics);
+            $this->assertSame(['language_delay'], KnowledgeDocument::sole()->problem_types);
             $this->assertDatabaseHas('knowledge_document_chunks', [
                 'chunk_index' => 0,
                 'embedding_dimensions' => 3,

@@ -72,7 +72,7 @@ class KnowledgeSearchService
 
         foreach ($results as &$result) {
             $semantic = max(0.0, min(1.0, (float) ($result['similarity'] ?? 0)));
-            $lexical = $this->lexicalScore($terms, (string) ($result['content'] ?? ''));
+            $lexical = $this->lexicalScore($terms, ($result['title'] ?? '').' '.($result['content'] ?? ''));
             $metadata = $this->metadataScore($result, $filters);
             $authority = $this->authorityScore($result);
             $recency = $this->recencyScore($result);
@@ -102,7 +102,24 @@ class KnowledgeSearchService
             fn (array $left, array $right): int => ($right['retrieval_score'] ?? 0) <=> ($left['retrieval_score'] ?? 0)
         );
 
-        return $this->label(array_slice($results, 0, $limit));
+        // A translated expansion must not crowd out the user's original
+        // question. Reserve evidence for each query before filling by score.
+        $selected = [];
+        if (count($queries) > 1) {
+            $perQuery = max(1, min(2, intdiv($limit, count($queries))));
+            foreach (array_keys($queries) as $queryIndex) {
+                $added = 0;
+                foreach ($results as $result) {
+                    if (isset($result['query_similarities'][$queryIndex]) && ! isset($selected[$result['chunk_id']])) {
+                        $selected[$result['chunk_id']] = $result;
+                        if (++$added >= $perQuery) break;
+                    }
+                }
+            }
+        }
+        foreach ($results as $result) $selected[$result['chunk_id']] ??= $result;
+
+        return $this->label(array_slice(array_values($selected), 0, $limit));
     }
 
     private function label(array $results): array
@@ -120,12 +137,13 @@ class KnowledgeSearchService
 
     private function queryTerms(array $queries): array
     {
-        $text = mb_strtolower(implode(' ', array_map('strval', $queries)));
+        $text = $this->normalizeText(implode(' ', array_map('strval', $queries)));
         $parts = preg_split('/[^\p{L}\p{N}]+/u', $text) ?: [];
 
         return collect($parts)
             ->map(fn (string $term): string => trim($term))
             ->filter(fn (string $term): bool => mb_strlen($term) >= 3)
+            ->reject(fn (string $term): bool => in_array($term, ['the', 'and', 'for', 'what', 'how', 'are', 'from', 'with', 'that', 'which', 'give', 'على', 'علي', 'التي', 'الذي', 'وما', 'كيف', 'عند', 'هذه', 'هذا', 'المذكورة'], true))
             ->unique()
             ->take(80)
             ->values()
@@ -138,10 +156,17 @@ class KnowledgeSearchService
             return 0.0;
         }
 
-        $content = mb_strtolower($content);
+        $content = $this->normalizeText($content);
         $matches = collect($terms)->filter(fn (string $term): bool => str_contains($content, $term))->count();
 
         return min(1.0, $matches / max(1, min(8, count($terms))));
+    }
+
+    private function normalizeText(string $text): string
+    {
+        if (class_exists(\Normalizer::class)) $text = \Normalizer::normalize($text, \Normalizer::FORM_KC) ?: $text;
+        $text = preg_replace('/[\x{064B}-\x{065F}\x{0670}\x{0640}\x{200E}\x{200F}\x{202A}-\x{202E}]/u', '', $text);
+        return strtr(mb_strtolower($text), ['أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ى' => 'ي']);
     }
 
     private function metadataScore(array $result, array $filters): float

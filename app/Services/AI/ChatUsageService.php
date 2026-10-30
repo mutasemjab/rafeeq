@@ -20,6 +20,8 @@ class ChatUsageService
             'limit' => $limit === null ? null : (int) $limit,
             'remaining' => $limit === null ? null : max(0, (int) $limit - $used),
             'resets_at' => today()->addDay()->toISOString(),
+            'can_use_extra_thinking' => app(ChatModePolicy::class)->canUseExtraThinking($user),
+            'default_response_mode' => 'fast',
         ];
     }
 

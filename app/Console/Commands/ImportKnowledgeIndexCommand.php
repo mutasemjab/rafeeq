@@ -145,6 +145,9 @@ class ImportKnowledgeIndexCommand extends Command
             $document->chunks()->delete();
         }
 
+        // Legacy bundles omit these fields. Preserve any reviewed metadata
+        // already on the server instead of clearing it during re-import.
+        $document->fill(array_intersect_key($record, array_flip(KnowledgeDocument::EVIDENCE_FIELDS)));
         $document->fill([
             'content_hash' => $hash,
             'title' => (string) ($record['title'] ?? $record['original_name'] ?? 'Knowledge document'),

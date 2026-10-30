@@ -257,7 +257,7 @@ class OpenAiProvider implements LlmProviderInterface
             'instructions' => $instructions,
             'input' => $input,
             'store' => false,
-            'max_output_tokens' => (int) config('ai.answer_max_output_tokens', 1400),
+            'max_output_tokens' => (int) ($options['max_completion_tokens'] ?? config('ai.answer_max_output_tokens', 1400)),
         ];
 
         if ($webSearch) {
@@ -276,7 +276,7 @@ class OpenAiProvider implements LlmProviderInterface
             $payload['include'] = ['web_search_call.action.sources'];
         }
 
-        $reasoningEffort = trim((string) config('ai.answer_reasoning_effort', 'low'));
+        $reasoningEffort = trim((string) ($options['reasoning_effort'] ?? config('ai.answer_reasoning_effort', 'low')));
         if ($reasoningEffort !== '') {
             $payload['reasoning'] = ['effort' => $reasoningEffort];
         }

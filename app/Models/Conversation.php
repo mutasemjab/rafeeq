@@ -54,6 +54,14 @@ class Conversation extends Model
         return array_keys(self::SOURCE_INPUT_ALIASES);
     }
 
+    public function hasExpired(): bool
+    {
+        // Match the SQL scope's local wall time, including Cairo's repeated
+        // DST hour; the database timestamp does not retain a UTC offset.
+        $expiry = $this->getAttributes()['expires_at'] ?? null;
+        return $expiry !== null && $expiry <= now()->format($this->getDateFormat());
+    }
+
     public static function normalizeSource(?string $source): string
     {
         if ($source === null || trim($source) === '') {

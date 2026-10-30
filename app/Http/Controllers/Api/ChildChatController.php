@@ -33,7 +33,17 @@ class ChildChatController extends Controller
         $user = $request->user();
         $language = $request->input('language', $user->preferred_language ?? 'en') ?: 'en';
         [$turn, $dispatch] = $this->turns->accept($conversation, $user,
-            $request->input('client_message_id') ?: (string) Str::uuid(), $request->input('message'), $language, $request->input('feedback'));
+            $request->input('client_message_id') ?: (string) Str::uuid(), $request->input('message'), $language, $request->input('feedback'), $request->boolean('extra_thinking'));
+        // First-turn greetings require no model or queue worker. Later messages
+        // still run contextual triage before a social response can be selected.
+        $immediate = $dispatch && $request->input('feedback') === null
+            && $conversation->messages()->where('role', 'user')->count() === 1
+            && app(\App\Services\AI\SimpleChatReplyService::class)->reply($turn->message, $language) !== null;
+        if ($immediate) {
+            $this->turns->process($turn, $this->chatService);
+            $turn->refresh();
+            $dispatch = false;
+        }
         if ($request->boolean('async')) {
             if ($dispatch) {
                 try {
@@ -65,7 +75,7 @@ class ChildChatController extends Controller
             return response()->json([
                 'success' => false, 'stage' => $turn->error['stage'] ?? null,
                 'message' => $turn->error['message'], 'error_code' => $turn->error['code'],
-                'retryable' => true, 'client_message_id' => $turn->client_message_id,
+                'retryable' => $turn->error['retryable'] ?? true, 'client_message_id' => $turn->client_message_id,
             ], 503);
         }
 
@@ -94,6 +104,8 @@ class ChildChatController extends Controller
         return response()->json(['turn' => [
             'client_message_id' => $turn->client_message_id, 'user_message_id' => $turn->user_message_id,
             'status' => $turn->status, 'stage' => $turn->stage,
+            'response_mode' => data_get($turn->userMessage?->metadata, 'response_mode', 'fast'),
+            'extra_thinking' => (bool) data_get($turn->userMessage?->metadata, 'extra_thinking', false),
             'message' => $turn->status === 'completed' && $turn->assistantMessage ? new MessageResource($turn->assistantMessage) : null,
             'error' => $turn->error, 'updated_at' => $turn->updated_at?->toISOString(),
         ]], in_array($turn->status, ['queued', 'processing'], true) ? 202 : 200);

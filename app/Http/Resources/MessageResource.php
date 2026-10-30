@@ -17,6 +17,8 @@ class MessageResource extends JsonResource
             'user_message_id' => data_get($this->metadata, 'user_message_id', $this->role === 'user' ? $this->id : $this->reply_to_message_id),
             'delivery_status' => data_get($this->metadata, 'delivery_status'),
             'language' => data_get($this->metadata, 'language'),
+            'response_mode' => data_get($this->metadata, 'response_mode', 'fast'),
+            'extra_thinking' => (bool) data_get($this->metadata, 'extra_thinking', false),
             'feedback' => $this->role === 'user' ? data_get($this->metadata, 'feedback') : null,
             'context_superseded' => (bool) data_get($this->metadata, 'context_superseded', false),
             'sources' => $this->safeSources(),

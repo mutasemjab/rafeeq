@@ -11,6 +11,10 @@ class KnowledgeDocument extends Model
     use HasFactory, SoftDeletes;
 
     public const IN_PROGRESS_STATUSES = ['uploaded', 'processing'];
+    public const EVIDENCE_FIELDS = [
+        'topics', 'problem_types', 'age_min_months', 'age_max_months', 'audience',
+        'language', 'evidence_level', 'publisher', 'source_url', 'published_at', 'reviewed_at', 'is_approved',
+    ];
     public const SUPPORTED_UPLOAD_EXTENSIONS = [
         'pdf',
         'docx',
