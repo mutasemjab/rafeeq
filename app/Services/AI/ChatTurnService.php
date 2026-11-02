@@ -167,9 +167,9 @@ class ChatTurnService
         ]) !== 1) {
             return;
         }
-        $turn->refresh();
-        $this->markUserMessage($turn, 'processing');
         try {
+            $turn->refresh();
+            $this->markUserMessage($turn, 'processing');
             $conversation = $turn->conversation;
             $user = User::find($turn->user_id);
             if (! $conversation || ! $user || ! $user->hasAiConsent() || $conversation->status !== 'active'
@@ -208,7 +208,8 @@ class ChatTurnService
                 app(ConversationMaintenanceService::class)->dispatch($conversation, $alreadyResponded);
             }
         } catch (Throwable $error) {
-            if ($this->recoverPersistedReply($turn)) {
+            // Account or conversation deletion may remove the turn during model work.
+            if (! ChatTurn::whereKey($turn->id)->exists() || $this->recoverPersistedReply($turn)) {
                 return;
             }
             Log::warning('ai.chat_turn.failed', ['turn_id' => $turn->id, 'exception' => $error::class]);
@@ -250,17 +251,21 @@ class ChatTurnService
 
     public function fail(ChatTurn $turn, string $code, string $message, ?string $stage = null, ?int $attempt = null): void
     {
-        if ($this->recoverPersistedReply($turn)) {
-            return;
-        }
-        ChatTurn::whereKey($turn->id)->where('attempt', $attempt ?? $turn->attempt)->whereIn('status', ['queued', 'processing'])->update([
-            'status' => 'failed', 'stage' => 'failed', 'error' => json_encode(['code' => $code, 'message' => $message, 'retryable' => $code !== 'EXTRA_THINKING_REQUIRES_PREMIUM', 'stage' => $stage]),
-            'completed_at' => now(), 'updated_at' => now(),
-        ]);
-        $turn->refresh();
-        if ($turn->status === 'failed') {
-            $this->markUserMessage($turn, 'failed');
-        }
+        DB::transaction(function () use ($turn, $code, $message, $stage, $attempt): void {
+            $current = ChatTurn::whereKey($turn->id)->lockForUpdate()->first();
+            if (! $current || $this->recoverPersistedReply($current)) {
+                return;
+            }
+            if ((int) $current->attempt !== (int) ($attempt ?? $turn->attempt)
+                || ! in_array($current->status, ['queued', 'processing'], true)) {
+                return;
+            }
+            $current->update(['status' => 'failed', 'stage' => 'failed',
+                'error' => ['code' => $code, 'message' => $message, 'retryable' => $code !== 'EXTRA_THINKING_REQUIRES_PREMIUM', 'stage' => $stage],
+                'completed_at' => now()]);
+            $this->markUserMessage($current, 'failed');
+            $turn->refresh();
+        });
     }
 
     private function recoverPersistedReply(ChatTurn $turn): bool

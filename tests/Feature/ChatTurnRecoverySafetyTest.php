@@ -27,6 +27,20 @@ class ChatTurnRecoverySafetyTest extends TestCase
         return [$user, $conversation, $turn];
     }
 
+    public function test_a_worker_finishes_cleanly_when_the_account_disappears_during_processing(): void
+    {
+        [$user, , $turn] = $this->accept();
+        $chat = Mockery::mock(ChildChatService::class);
+        $chat->shouldReceive('ask')->once()->andReturnUsing(function () use ($user) {
+            $user->delete();
+            throw new \RuntimeException('The active account was deleted while preparing the reply.');
+        });
+        $turns = app(ChatTurnService::class);
+        $turns->process($turn, $chat);
+        $turns->fail($turn, 'interrupted', 'No surviving recipient.', null, $turn->attempt);
+        $this->assertDatabaseMissing('chat_turns', ['id' => $turn->id]);
+    }
+
     private function savedReply(ChatTurn $turn): Message
     {
         return Message::create([
