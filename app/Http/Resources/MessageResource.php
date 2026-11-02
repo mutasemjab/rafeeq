@@ -54,7 +54,8 @@ class MessageResource extends JsonResource
             $url = trim((string) data_get($source, 'url', ''));
             if ($url === '' || ! preg_match('~^https?://~i', $url)) continue;
             $quoted = preg_quote($url, '~');
-            $host = preg_quote((string) parse_url($url, PHP_URL_HOST), '~');
+            $canonicalHost = preg_replace('/^www\./i', '', (string) parse_url($url, PHP_URL_HOST));
+            $host = preg_quote($canonicalHost, '~');
             $text = preg_replace('~[ \t]*\(?\[(?:www\.)?'.$host.'\]\('.$quoted.'\)\)?~i', '', $text);
             $isBook = data_get($source, 'source_type') === 'knowledge_base'
                 || str_starts_with((string) data_get($source, 'source_label', ''), 'KB_SOURCE_');

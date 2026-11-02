@@ -26,9 +26,9 @@ class BookDefinitionTest extends TestCase
         $this->assertSame(1, $sources[0]['page_number']);
         $this->assertSame([], $search->findDefinition(['ماذا يعني التوحد؟ وما العلاج؟']));
         $this->assertSame([], $search->findDefinition(['كيف أساعد ابني؟']));
-        $source = ['source_type' => 'web', 'source_label' => 'WEB_SOURCE_1', 'url' => 'https://example.test/reference'];
+        $source = ['source_type' => 'web', 'source_label' => 'WEB_SOURCE_1', 'url' => 'https://www.example.test/reference'];
         $answer = new Message(['role' => 'assistant', 'sources' => [...$sources, $source],
-            'content' => 'إجابة [KB_SOURCE_1] [WEB_SOURCE_1] ([example.test](https://example.test/reference)).']);
+            'content' => 'إجابة [KB_SOURCE_1] [WEB_SOURCE_1] ([example.test](https://www.example.test/reference)) (example.test).']);
         $public = (new MessageResource($answer))->resolve();
         $this->assertSame('إجابة.', $public['content']);
         $this->assertSame([$source], $public['sources']);
