@@ -69,6 +69,23 @@ class DomainGuardServiceTest extends TestCase
         ], $result['search_queries']);
     }
 
+    public function test_fast_planning_keeps_an_explicit_request_for_current_statistics(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn([
+            'allowed' => true, 'confidence' => 0.99, 'category' => 'autism',
+            'search_queries' => ['latest WHO autism prevalence'],
+            'general_education' => true, 'current_sources_requested' => true, 'arabic_register' => 'levantine',
+        ]);
+        $decision = (new DomainGuardService($llm))->evaluate('شو أحدث إحصائية عن انتشار التوحد؟');
+        $plan = app(\App\Services\AI\ChatTurnPlannerService::class)->generalEducationPlan($decision);
+        $this->assertTrue($plan['web_search_needed']);
+        $this->assertTrue($plan['evidence_required']);
+        $this->assertSame('levantine', $decision['arabic_register']);
+        $this->assertFalse(app(\App\Services\AI\ChatTurnPlannerService::class)
+            ->generalEducationPlan(['general_education' => true])['web_search_needed']);
+    }
+
     public function test_it_fails_closed_when_the_classifier_is_unavailable(): void
     {
         $llm = Mockery::mock(LlmProviderInterface::class);

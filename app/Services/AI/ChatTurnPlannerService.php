@@ -385,7 +385,7 @@ PROMPT;
     {
         return array_merge($this->answerPlan($domain['category'] ?? 'general', $domain['search_queries'] ?? [],
             $domain['model'] ?? 'domain_guard', 'Standalone general education; no personalized assessment or intervention.'),
-            ['general_education' => true]);
+            ['general_education' => true, 'web_search_needed' => ($domain['current_sources_requested'] ?? false) === true]);
     }
 
     private function answerPlan(?string $domain, array $queries, string $model, string $reason): array

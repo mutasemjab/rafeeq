@@ -35,7 +35,7 @@ class AnswerQualityServiceTest extends TestCase
 
     public static function fullReviewPlans(): array
     {
-        return [[['case_specific' => true]], [['risk_level' => 'high']], [['response_mode' => 'deep']], [['general_education' => false]]];
+        return [[['case_specific' => true]], [['risk_level' => 'high']], [['response_mode' => 'deep']], [['general_education' => false]], [['web_search_needed' => true]]];
     }
 
     public function test_unknown_citation_in_a_fast_general_answer_requires_repair_review(): void

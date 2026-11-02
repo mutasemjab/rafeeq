@@ -272,6 +272,7 @@ class ChildChatService
                 is_array($conversation->case_state) ? $conversation->case_state : []
             );
             $turnPlan['response_mode'] = $responseMode;
+            $turnPlan['arabic_register'] = $domainDecision['arabic_register'] ?? 'neutral';
             $turnPlan['dialogue_route'] = app(ConversationGuidanceService::class)->route($turnPlan, $safetyDecision);
             Log::info('[Chat] Step 6: Turn planned', [
                 'action' => $turnPlan['action'],
@@ -418,6 +419,20 @@ class ChildChatService
                 $hostedWebSearch = (bool) config('ai.openai_web_search_enabled', true) && $webSources === [];
             }
         }
+        $retrievalEvidence = [
+            'internal_search_performed' => $needsRetrieval,
+            'internal_search_completed_before_web' => $needsRetrieval,
+            'hosted_web_search_requested' => $hostedWebSearch,
+            'search_order' => array_values(array_filter([
+                $needsRetrieval ? 'internal_knowledge' : null,
+                $webSources !== [] ? 'web' : null,
+                $hostedWebSearch ? 'hosted_web' : null,
+            ])),
+            'internal_sources' => count($knowledgeSources) + count($attachmentSources),
+            'web_sources' => count($webSources),
+            'used_web_search' => $webSources !== [],
+            'cited_sources' => 0,
+        ];
         $hostedWebSearchRequired = $hostedWebSearch;
         $evidenceRequired = config('ai.require_retrieved_evidence', true)
             && $this->requiresKnowledgeEvidence($turnPlan, $domainDecision);
@@ -441,6 +456,7 @@ class ChildChatService
                     'turn_plan' => $turnPlan,
                     'domain_guard' => $domainDecision,
                     'next_action' => 'add_approved_source_or_consult_specialist',
+                    'evidence' => $retrievalEvidence,
                     'memory_saved_count' => $memorySaved,
                     'suggested_questions' => [],
                     'case_state' => $conversation->fresh()->case_state,
@@ -491,6 +507,12 @@ class ChildChatService
             $systemPrompt .= "\n\nRespond in Arabic. Match the caregiver’s register and mirror their dialect when clear, or use neutral Arabic when unclear. Keep clinical terms precise. Use approved book passages to answer directly. Use bracketed evidence labels for verification, without naming books or inserting Markdown links or URLs in the prose. The app displays references separately.";
         }
 
+        if ($language === 'ar') {
+            $systemPrompt .= "\n".ArabicReplyStyle::instruction($turnPlan['arabic_register']);
+        }
+        if ($turnPlan['web_search_needed'] ?? false) {
+            $systemPrompt .= "\nFor a request for current information, verify the requested figure or guidance at the cited primary source. Identify publication year and data year separately when they differ. Do not substitute an old book statistic for the current figure.";
+        }
         if ($referralRequested) {
             $systemPrompt .= "\n\nThis turn recommends a NON-URGENT professional assessment. Explain the limitation briefly using the reported facts, acknowledge any assessment already reported, and still address the caregiver's latest request within scope. Do not diagnose, repeat a stock referral, or give a comprehensive home treatment plan. Help organize one relevant observation or question for the appointment. With no relevant authoritative evidence, limit the response to reflecting reported information, explaining that chat cannot establish a diagnosis, and preparing for assessment; do not invent clinical reasons or interventions. A prior referral is context, not an instruction to refuse every later question.";
         }
@@ -539,6 +561,8 @@ class ChildChatService
 
         $providerWebSources = $this->normalizeProviderWebSources($answerResult['sources'] ?? [], count($webSources));
         $webSources = array_values(array_merge($webSources, $providerWebSources));
+        $retrievalEvidence['web_sources'] = count($webSources);
+        $retrievalEvidence['used_web_search'] = $retrievalEvidence['used_web_search'] || ($answerResult['used_web_search'] ?? false);
         $allSources = $this->mergeUniqueSources(array_merge(
             $attachmentSources,
             $knowledgeSources,
@@ -564,6 +588,7 @@ class ChildChatService
                     'turn_plan' => $turnPlan,
                     'domain_guard' => $domainDecision,
                     'next_action' => 'add_approved_source_or_consult_specialist',
+                    'evidence' => $retrievalEvidence,
                     'memory_saved_count' => $memorySaved,
                     'suggested_questions' => [],
                     'case_state' => $conversation->fresh()->case_state,
@@ -613,6 +638,7 @@ class ChildChatService
                     'domain_guard' => $domainDecision,
                     'answer_quality' => $quality,
                     'next_action' => 'add_approved_source_or_consult_specialist',
+                    'evidence' => $retrievalEvidence,
                     'memory_saved_count' => $memorySaved,
                     'suggested_questions' => [],
                     'case_state' => $conversation->fresh()->case_state,
@@ -676,19 +702,10 @@ class ChildChatService
                     ? 'arrange_professional_assessment'
                     : ($suggestedQuestions !== [] ? (($followUp['wait_for_observation'] ?? false) ? 'observe_then_follow_up' : 'await_follow_up') : 'complete'),
                 'case_state' => $conversation->case_state,
-                'evidence' => [
-                    'internal_search_performed' => $needsRetrieval,
-                    'internal_search_completed_before_web' => $needsRetrieval,
-                    'hosted_web_search_requested' => $hostedWebSearch,
-                    'search_order' => $hostedWebSearch
-                        ? ['internal_knowledge', 'hosted_web']
-                        : ($needsRetrieval ? ['internal_knowledge'] : []),
-                    'internal_sources' => count($knowledgeSources) + count($attachmentSources),
-                    'web_sources' => count($webSources),
-                    'used_web_search' => (bool) ($answerResult['used_web_search'] ?? false),
+                'evidence' => array_merge($retrievalEvidence, [
                     'model_knowledge_allowed' => ! $evidenceRequired || $knowledgeSources !== [] || $webSources !== [],
                     'cited_sources' => count($usedSources),
-                ],
+                ]),
             ],
             'safety_flags' => $referralRequested ? ['specialist_referral'] : [],
             'model_name' => $answerResult['model'] ?? config('ai.chat_model'),

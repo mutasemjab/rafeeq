@@ -46,6 +46,9 @@ Rules:
 10. Use case_brief to continue prior proposed steps and reported results. Do not imply a newly proposed step has already been tried. When an observation can only be made later, set wait_for_observation=true and phrase the question explicitly for AFTER the caregiver has a chance to try it. Never invent a deadline, duration, target, or number absent from the answer or reported case. A future observation is optional; do not demand an answer now.
 11. Question history is scoped to a problem and observation_round. Avoid repeated intake for the same situation; a genuinely new observation after trying a step, or a different problem, may need the same measurement again.
 PROMPT;
+        if ($language === 'ar') {
+            $systemPrompt .= "\n".ArabicReplyStyle::instruction($turnPlan['arabic_register'] ?? 'neutral');
+        }
 
         try {
             $messages = [

@@ -61,7 +61,10 @@ For an allowed message, also return search_queries: an array of at most 4 concis
 
 Also return general_education=true ONLY for a standalone factual definition, comparison, or explanation in the supported scope. It must not request a personalized recommendation, activity, treatment, diagnosis, interpretation of a person's report, an assessment, or depend on previous case facts. When uncertain use false. This flag allows general factual questions to skip a separate case-planning call; it never skips evidence retrieval or answer review.
 
-Return JSON only with: allowed (boolean), confidence (0 to 1), category (short string), reason (short string), search_queries (array of strings), general_education (boolean).
+Set current_sources_requested=true for an explicit request for the latest published figures, current guidance, or to search public web sources; false for an ordinary definition or a question about a person's own recent history.
+Identify arabic_register from the writer's own words or explicitly requested style, not book titles or demographics: levantine (e.g. شو، بدي), egyptian (e.g. إزاي), gulf, iraqi, maghrebi, colloquial_other, or neutral for formal/unclear/non-Arabic. If the writer asks for formal Arabic, select neutral.
+
+Return JSON only with: allowed (boolean), confidence (0 to 1), category (short string), reason (short string), search_queries (array of strings), general_education (boolean), current_sources_requested (boolean), arabic_register (string).
 PROMPT;
 
         try {
@@ -78,6 +81,8 @@ PROMPT;
                 'reason' => 'string',
                 'search_queries' => 'array',
                 'general_education' => 'boolean',
+                'current_sources_requested' => 'boolean',
+                'arabic_register' => 'string',
             ], [
                 'model' => $model,
                 'reasoning_effort' => (string) config('ai.domain_guard_reasoning_effort', 'none'),
@@ -103,6 +108,8 @@ PROMPT;
                 'reason' => mb_substr((string) ($result['reason'] ?? 'Classifier did not provide a valid reason.'), 0, 500),
                 'search_queries' => $allowed ? $searchQueries : [],
                 'general_education' => $allowed && ($result['general_education'] ?? false) === true,
+                'current_sources_requested' => $allowed && ($result['current_sources_requested'] ?? false) === true,
+                'arabic_register' => in_array($result['arabic_register'] ?? null, ArabicReplyStyle::REGISTERS, true) ? $result['arabic_register'] : 'neutral',
                 'model' => $model,
             ];
         } catch (Throwable $exception) {
