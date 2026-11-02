@@ -10,7 +10,8 @@ class ChatUsageService
 {
     public function forUser(User $user): array
     {
-        $limit = $user->activeSubscription()?->plan?->ai_messages_per_day;
+        $plan = $user->activeSubscription()?->plan;
+        $limit = $plan?->ai_messages_per_day;
         $used = Message::where('user_id', $user->id)->where('role', 'user')
             ->where('created_at', '>=', today())->where('created_at', '<', today()->addDay())->count();
         $used += (int) DB::table('chat_usage_adjustments')->where('user_id', $user->id)->where('usage_date', today()->toDateString())->value('used');
@@ -22,6 +23,7 @@ class ChatUsageService
             'resets_at' => today()->addDay()->toISOString(),
             'can_use_extra_thinking' => app(ChatModePolicy::class)->canUseExtraThinking($user),
             'default_response_mode' => 'fast',
+            'plan_name' => $plan?->name,
         ];
     }
 

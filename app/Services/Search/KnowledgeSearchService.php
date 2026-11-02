@@ -122,6 +122,54 @@ class KnowledgeSearchService
         return $this->label(array_slice(array_values($selected), 0, $limit));
     }
 
+    /**
+     * Find an actual definition in an approved book before paying for an
+     * embedding search. Ambiguous or compound questions use normal retrieval.
+     */
+    public function findDefinition(array $queries): array
+    {
+        $prefix = '(?:ماذا يعني|ما معنى|ما هو|ما هي|(?:إيش|ايش|شو|وش|إيه|ايه) يعني|يعني (?:إيه|ايه)|what (?:is|are)|define)';
+        $term = '([\p{L}\p{M}]+(?:[ -][\p{L}\p{M}]+){0,5})';
+        if (!preg_match("~^$prefix\\s+{$term}[؟?.!]*$~iu", trim($queries[0] ?? ''), $match)) return [];
+        $subjects = [$match[1]];
+        foreach (array_slice($queries, 1, 2) as $query) {
+            $query = preg_replace('~^(?:what is|definition of)\s+|\s+(?:definition|overview)[?.]?$~i', '', trim($query));
+            if (preg_match("~^{$term}[?.]?$~u", $query, $match)) $subjects[] = $match[1];
+        }
+        foreach (array_unique($subjects) as $subject) {
+            $docs = \Illuminate\Support\Facades\DB::table('knowledge_document_chunks as c')
+                ->join('knowledge_documents as d', 'd.id', '=', 'c.knowledge_document_id')
+                ->whereNull('d.deleted_at')->where('d.status', 'processed')->where('d.is_approved', true)
+                ->where(function ($q) use ($subject) {
+                    $q->where('d.title', 'like', '%'.$subject.'%')
+                        ->orWhere('c.content', 'like', '%'.$subject.' is %')
+                        ->orWhere('c.content', 'like', '%'.$subject.' refers to %')
+                        ->orWhere('c.content', 'like', '%'.$subject.' هو %')
+                        ->orWhere('c.content', 'like', '%'.$subject.' هي %');
+                })->select(['d.id as knowledge_document_id','d.title','d.publisher','d.source_url as url',
+                    'd.evidence_level','d.language','d.age_min_months','d.age_max_months',
+                    'c.id as chunk_id','c.page_number','c.content'])
+                ->orderBy('c.chunk_index')->orderBy('c.id')->limit(12)->get();
+
+            foreach ($docs as $row) {
+                $text = preg_replace('/\s+/u', ' ', $row->content);
+                $quoted = preg_quote($subject, '~');
+                $pattern = "~(?<![\\p{L}\\p{M}])$quoted\\s+(?:is (?:a|an|the) |refers to |هو |هي )~iu";
+                if (!preg_match($pattern, $text, $offset, PREG_OFFSET_CAPTURE)) {
+                    if (mb_stripos($row->title, $subject) === false || mb_stripos($text, $subject) === false
+                        || !preg_match('~(?:التعريف|ما هو\s*؟|definition\s*:)~iu', $text, $offset, PREG_OFFSET_CAPTURE)) continue;
+                }
+                $hit = (array) $row;
+                // PCRE returns a byte offset. Cut at the match's UTF-8 boundary.
+                $hit['content'] = trim(mb_substr(substr($text, $offset[0][1]), 0, (int)config('ai.max_source_context_chars', 1800)));
+                if (mb_strlen($hit['content']) < 80) continue;
+                $hit['definition_match'] = true;
+                return $this->label([$hit]);
+            }
+        }
+        return [];
+    }
+
     private function label(array $results): array
     {
 

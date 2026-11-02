@@ -72,6 +72,9 @@ class ConversationController extends Controller
         $messages = $conversation->messages()
             ->orderBy('id', 'asc')
             ->get();
+        $request->attributes->set('chat_attributed_books', MessageResource::attributedBookIds(
+            $messages->flatMap(fn ($message) => (array) $message->sources)
+        ));
 
         return response()->json([
             'conversation' => new ConversationResource($conversation),

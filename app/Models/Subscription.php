@@ -23,7 +23,10 @@ class Subscription extends Model
         'metadata',
     ];
 
+    protected $hidden = ['store_reference', 'store_purchase_key'];
+
     protected $casts = [
+        'store_reference' => 'encrypted',
         'starts_at'   => 'datetime',
         'ends_at'     => 'datetime',
         'canceled_at' => 'datetime',

@@ -44,6 +44,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'store_account_token',
     ];
 
     /**
@@ -130,7 +131,11 @@ class User extends Authenticatable
         return $this->subscriptions()
             ->with('plan')
             ->where('status', 'active')
-            ->latest()
+            ->where(fn ($q) => $q->whereNull('starts_at')->orWhere('starts_at', '<=', now()))
+            ->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>', now()))
+            ->whereHas('plan', fn ($q) => $q->where('is_active', true))
+            ->orderByDesc(Plan::select('price')->whereColumn('plans.id', 'subscriptions.plan_id'))
+            ->latest('id')
             ->first();
     }
 

@@ -20,6 +20,15 @@ class PlanTest extends TestCase
         $this->assertCount(3, $response->json());
     }
 
+    public function test_pro_catalog_has_the_monthly_and_annual_usd_prices(): void
+    {
+        $this->seed(PlanSeeder::class);
+        $plans = collect($this->getJson('/api/v1/plans')->assertOk()->json())->keyBy('slug');
+        $this->assertSame(10.0, (float) $plans['pro-monthly']['price']);
+        $this->assertSame(100.0, (float) $plans['pro-yearly']['price']);
+        $this->assertSame('USD', $plans['pro-yearly']['currency']);
+    }
+
     public function test_free_plan_allows_one_hundred_ai_messages_per_day(): void
     {
         $this->seed(PlanSeeder::class);

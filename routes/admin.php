@@ -63,6 +63,7 @@ Route::group([
         Route::post('knowledge/openai-config', [KnowledgeController::class, 'updateAiConfig'])->name('knowledge.openai-config');
         Route::post('knowledge', [KnowledgeController::class, 'store'])->name('knowledge.store');
         Route::delete('knowledge/{knowledge}', [KnowledgeController::class, 'destroy'])->name('knowledge.destroy');
+        Route::patch('knowledge/{knowledge}/usage', [KnowledgeController::class, 'updateUsage'])->name('knowledge.usage');
         Route::post('knowledge/{knowledge}/reprocess', [KnowledgeController::class, 'reprocess'])->name('knowledge.reprocess');
 
         // Subscriptions

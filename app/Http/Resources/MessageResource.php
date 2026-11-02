@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources;
 
+use App\Models\KnowledgeDocument;
+use Illuminate\Support\Arr;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class MessageResource extends JsonResource
@@ -12,7 +14,7 @@ class MessageResource extends JsonResource
             'id' => $this->id,
             'conversation_id' => $this->conversation_id,
             'role' => $this->role,
-            'content' => $this->content,
+            'content' => $this->role === 'assistant' ? $this->answerText() : $this->content,
             'client_message_id' => data_get($this->metadata, 'client_message_id'),
             'user_message_id' => data_get($this->metadata, 'user_message_id', $this->role === 'user' ? $this->id : $this->reply_to_message_id),
             'delivery_status' => data_get($this->metadata, 'delivery_status'),
@@ -21,7 +23,7 @@ class MessageResource extends JsonResource
             'extra_thinking' => (bool) data_get($this->metadata, 'extra_thinking', false),
             'feedback' => $this->role === 'user' ? data_get($this->metadata, 'feedback') : null,
             'context_superseded' => (bool) data_get($this->metadata, 'context_superseded', false),
-            'sources' => $this->safeSources(),
+            'sources' => $this->safeSources($request),
             'response_type' => data_get($this->metadata, 'response_type', 'answer'),
             'domain' => data_get($this->metadata, 'turn_plan.domain'),
             'missing_information' => data_get($this->metadata, 'turn_plan.missing_fields', []),
@@ -44,15 +46,47 @@ class MessageResource extends JsonResource
         ];
     }
 
-    private function safeSources(): mixed
+    private function answerText(): string
+    {
+        // Keep the original cited answer on the message for quality review and audit.
+        $text = preg_replace('/[ \t]*\[(?:KB|WEB|MED|CHAT)_SOURCE_\d+\]/i', '', (string) $this->content);
+        foreach ((array) $this->sources as $source) {
+            $url = trim((string) data_get($source, 'url', ''));
+            if ($url === '' || ! preg_match('~^https?://~i', $url)) continue;
+            $quoted = preg_quote($url, '~');
+            $host = preg_quote((string) parse_url($url, PHP_URL_HOST), '~');
+            $text = preg_replace('~[ \t]*\(?\[(?:www\.)?'.$host.'\]\('.$quoted.'\)\)?~i', '', $text);
+            $isBook = data_get($source, 'source_type') === 'knowledge_base'
+                || str_starts_with((string) data_get($source, 'source_label', ''), 'KB_SOURCE_');
+            $text = preg_replace('~\[([^\]]+)\]\('.$quoted.'\)~', $isBook ? '' : '$1', $text);
+            $text = preg_replace('~[ \t]*\('.$quoted.'\)~', '', $text);
+            $text = preg_replace('~[ \t]*'. $quoted .'(?=$|[\s).,،؛؟!])~u', '', $text);
+            $text = preg_replace('~[ \t]*\((?:www\.)?'.$host.'\)~i', '', $text);
+        }
+        return trim(preg_replace('/[ \t]+([.,،؛؟!])/u', '$1', preg_replace('/[ \t]*\(\s*\)/u', '', $text)));
+    }
+
+    public static function attributedBookIds($sources): array
+    {
+        $ids = collect($sources)->pluck('knowledge_document_id')->filter()->unique()->values();
+        return $ids->isEmpty() ? [] : KnowledgeDocument::whereKey($ids->all())
+            ->where('is_approved', true)->where('show_attribution', true)->pluck('id')->flip()->all();
+    }
+
+    private function safeSources($request): mixed
     {
         if (! is_array($this->sources)) {
             return $this->sources;
         }
 
-        return array_map(function ($source) {
+        $attributed = $request->attributes->get('chat_attributed_books') ?? self::attributedBookIds($this->sources);
+        return array_values(array_filter(array_map(function ($source) use ($attributed) {
             if (! is_array($source)) {
                 return $source;
+            }
+            if (($source['source_type'] ?? '') === 'knowledge_base' || str_starts_with($source['source_label'] ?? '', 'KB_SOURCE_')) {
+                if (! isset($attributed[$source['knowledge_document_id'] ?? 0])) return null;
+                return Arr::only($source, ['source_label', 'source_type', 'title', 'publisher', 'url', 'page_number']);
             }
             foreach (['url', 'file_url'] as $key) {
                 $url = (string) ($source[$key] ?? '');
@@ -63,6 +97,6 @@ class MessageResource extends JsonResource
             }
 
             return $source;
-        }, $this->sources);
+        }, $this->sources), static fn ($source) => $source !== null));
     }
 }

@@ -14,7 +14,7 @@ class KnowledgeDocumentController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $docs = KnowledgeDocument::where('status', 'processed')
+        $docs = KnowledgeDocument::where('status', 'processed')->where('is_approved', true)->where('show_attribution', true)
             ->latest()
             ->paginate(20);
 

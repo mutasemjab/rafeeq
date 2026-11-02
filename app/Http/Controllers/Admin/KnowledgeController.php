@@ -167,6 +167,17 @@ class KnowledgeController extends Controller
         return response()->json(['data' => $data]);
     }
 
+    public function updateUsage(Request $request, KnowledgeDocument $knowledge)
+    {
+        $policy = $request->validate(['usage' => 'required|in:blocked,attributed,internal'])['usage'];
+        $knowledge->update([
+            'is_approved' => $policy !== 'blocked',
+            'show_attribution' => $policy === 'attributed',
+        ]);
+
+        return back();
+    }
+
     public function destroy(KnowledgeDocument $knowledge)
     {
         $knowledge->delete();

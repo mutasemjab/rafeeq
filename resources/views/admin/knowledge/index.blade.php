@@ -376,6 +376,16 @@
                             <td>
                                 <div class="d-flex gap-2">
                                     @if(!$doc->trashed())
+                                        <form action="{{ route('admin.knowledge.usage', $doc) }}" method="POST">
+                                            @csrf
+                                            @method('PATCH')
+                                            <select name="usage" aria-label="{{ $locale === 'ar' ? 'إذن استخدام المرجع' : 'Source permission' }}">
+                                                <option value="blocked" @selected(!$doc->is_approved)>{{ $locale === 'ar' ? 'إيقاف الاستخدام' : 'Do not use' }}</option>
+                                                <option value="attributed" @selected($doc->is_approved && $doc->show_attribution)>{{ $locale === 'ar' ? 'استخدام مع ذكر المرجع' : 'Use with attribution' }}</option>
+                                                <option value="internal" @selected($doc->is_approved && !$doc->show_attribution)>{{ $locale === 'ar' ? 'مسموح دون إظهار الاسم' : 'Uncredited use permitted' }}</option>
+                                            </select>
+                                            <button type="submit">{{ $locale === 'ar' ? 'حفظ' : 'Save' }}</button>
+                                        </form>
                                         <form action="{{ route('admin.knowledge.reprocess', $doc->id) }}" method="POST">
                                             @csrf
                                             <button

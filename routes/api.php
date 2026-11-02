@@ -120,6 +120,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/reviews', [SpecialistReviewController::class, 'store']);
 
         // Subscriptions
+        Route::get('/subscription/store', [SubscriptionController::class, 'storeCatalog']);
+        Route::post('/subscription/store/verify', [SubscriptionController::class, 'verifyPurchase'])->middleware('throttle:30,1');
         Route::get('/subscription',         [SubscriptionController::class, 'current']);
         Route::get('/subscription/history', [SubscriptionController::class, 'history']);
 

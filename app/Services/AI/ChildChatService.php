@@ -348,9 +348,19 @@ class ChildChatService
                         ? $turnPlan['search_queries']
                         : ($domainDecision['search_queries'] ?? [])
                 );
-                $queryEmbeddings = ($knowledgeEligible || $attachmentsEligible) ? $this->llm->embeddingMany($retrievalQueries) : [];
+                if (($domainDecision['general_education'] ?? false) && ($turnPlan['risk_level'] ?? '') === 'low'
+                    && !($turnPlan['case_specific'] ?? true) && !($turnPlan['web_search_needed'] ?? false)
+                    && !isset($filters['age_months']) && !$filters['require_age_scope']) {
+                    $knowledgeSources = $this->knowledgeSearch->findDefinition($retrievalQueries);
+                    if ($knowledgeSources !== [] && $attachmentsEligible) {
+                        $attachmentsEligible = $conversation->chatAttachments()->where('user_id', $userId)
+                            ->where('status', 'processed')->exists();
+                    }
+                }
+                $needsSemanticKnowledge = $knowledgeEligible && $knowledgeSources === [];
+                $queryEmbeddings = ($needsSemanticKnowledge || $attachmentsEligible) ? $this->llm->embeddingMany($retrievalQueries) : [];
 
-                if (($knowledgeEligible || $attachmentsEligible) && count($queryEmbeddings) !== count($retrievalQueries)) {
+                if (($needsSemanticKnowledge || $attachmentsEligible) && count($queryEmbeddings) !== count($retrievalQueries)) {
                     throw new \RuntimeException('The embedding provider returned an unexpected number of vectors.');
                 }
 
@@ -379,11 +389,9 @@ class ChildChatService
 
             // 8. Search knowledge base
             try {
-                $knowledgeSources = !$knowledgeEligible ? [] : $this->knowledgeSearch->searchForCase(
-                    $queryEmbeddings,
-                    $retrievalQueries,
-                    $filters
-                );
+                if ($needsSemanticKnowledge) {
+                    $knowledgeSources = $this->knowledgeSearch->searchForCase($queryEmbeddings, $retrievalQueries, $filters);
+                }
                 Log::info('[Chat] Step 5: Knowledge base search', [
                     'chunks_found' => count($knowledgeSources),
                 ]);
@@ -405,8 +413,10 @@ class ChildChatService
             }
 
             // 9. Search web fallback when enabled.
-            $webSources = $this->searchWebSources($userMessage);
-            $hostedWebSearch = $this->shouldUseHostedWebSearch($turnPlan, $knowledgeSources, $domainDecision);
+            if ($this->needsWebFallback($turnPlan, $knowledgeSources, $domainDecision)) {
+                $webSources = $this->searchWebSources($userMessage);
+                $hostedWebSearch = (bool) config('ai.openai_web_search_enabled', true) && $webSources === [];
+            }
         }
         $hostedWebSearchRequired = $hostedWebSearch;
         $evidenceRequired = config('ai.require_retrieved_evidence', true)
@@ -478,7 +488,7 @@ class ChildChatService
         $systemPrompt .= "\nA source without explicit age scope is general educational reference only. Never assume it validates an individualized intervention or is appropriate for the selected person's age. Say when applicability is unknown.";
         $systemPrompt .= "\nFor a practical support request, avoid adding developmental cut-offs, prevalence figures, symptom checklists or diagnostic criteria unless the user asks or the information is indispensable to safety or assessment reasoning. Build on the reported abilities and one supported step. Do not turn a support answer into a diagnostic screening explanation.";
         if ($language === 'ar') {
-            $systemPrompt .= "\n\nRespond in Arabic.";
+            $systemPrompt .= "\n\nRespond in Arabic. Match the caregiver’s register and mirror their dialect when clear, or use neutral Arabic when unclear. Keep clinical terms precise. Use approved book passages to answer directly. Use bracketed evidence labels for verification, without naming books or inserting Markdown links or URLs in the prose. The app displays references separately.";
         }
 
         if ($referralRequested) {
@@ -1049,15 +1059,11 @@ class ChildChatService
         ], fn ($value): bool => $value !== null && $value !== [] && $value !== '');
     }
 
-    private function shouldUseHostedWebSearch(
+    private function needsWebFallback(
         array $turnPlan,
         array $knowledgeSources,
         array $domainDecision
     ): bool {
-        if (! config('ai.openai_web_search_enabled', true)) {
-            return false;
-        }
-
         if (! $this->requiresKnowledgeEvidence($turnPlan, $domainDecision)) {
             return (bool) ($turnPlan['web_search_needed'] ?? false);
         }
@@ -1070,11 +1076,15 @@ class ChildChatService
             return true;
         }
 
+        if (collect($knowledgeSources)->contains('definition_match', true)) {
+            return false;
+        }
+
         $bestScore = collect($knowledgeSources)->max(function (array $source): float {
             return (float) ($source['retrieval_score'] ?? $source['similarity'] ?? 0.0);
         });
 
-        $threshold = ($turnPlan['response_mode'] ?? null) === 'fast' && ($turnPlan['case_specific'] ?? true) === false
+        $threshold = ($turnPlan['case_specific'] ?? true) === false && ($turnPlan['risk_level'] ?? 'low') === 'low'
             ? config('ai.fast_web_search_internal_confidence_threshold', 0.40)
             : config('ai.web_search_internal_confidence_threshold', 0.68);
         return $bestScore < (float) $threshold;

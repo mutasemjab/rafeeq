@@ -13,7 +13,7 @@ class KnowledgeDocument extends Model
     public const IN_PROGRESS_STATUSES = ['uploaded', 'processing'];
     public const EVIDENCE_FIELDS = [
         'topics', 'problem_types', 'age_min_months', 'age_max_months', 'audience',
-        'language', 'evidence_level', 'publisher', 'source_url', 'published_at', 'reviewed_at', 'is_approved',
+        'language', 'evidence_level', 'publisher', 'source_url', 'published_at', 'reviewed_at', 'is_approved', 'show_attribution',
     ];
     public const SUPPORTED_UPLOAD_EXTENSIONS = [
         'pdf',
@@ -62,6 +62,7 @@ class KnowledgeDocument extends Model
         'published_at',
         'reviewed_at',
         'is_approved',
+        'show_attribution',
         'status',
         'uploaded_by',
         'processing_error',
@@ -81,6 +82,7 @@ class KnowledgeDocument extends Model
         'published_at' => 'date',
         'reviewed_at' => 'date',
         'is_approved' => 'boolean',
+        'show_attribution' => 'boolean',
     ];
 
     public function chunks()
