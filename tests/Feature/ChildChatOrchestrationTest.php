@@ -143,6 +143,7 @@ class ChildChatOrchestrationTest extends TestCase
         $dependencies['llm']->shouldReceive('chat')->never();
         $dependencies['attachments']->shouldReceive('searchWithEmbeddings')->once()->andReturn([]);
         $dependencies['knowledge']->shouldReceive('searchForCase')->once()->andReturn([]);
+        $dependencies['knowledge']->shouldReceive('searchDeeper')->once()->andReturn([]);
         $dependencies['web']->shouldReceive('search')->never();
 
         $reply = $this->service($dependencies)->ask(
@@ -214,6 +215,9 @@ class ChildChatOrchestrationTest extends TestCase
             'content' => 'Use one observable first step.',
             'similarity' => 0.55,
         ]]);
+        $dependencies['knowledge']->shouldReceive('searchDeeper')->once()->andReturnUsing(fn ($e, $q, $f, $sources) => $sources);
+        $dependencies['llm']->shouldReceive('chatJson')->twice()->withArgs(fn ($m, $s, $o) => $o['schema_name'] === 'rafeeq_knowledge_coverage')
+            ->andReturn(['sufficient' => false, 'supporting_quotes' => [], 'missing_information' => ['Specific supporting guidance is absent.'], 'search_queries' => []]);
         $dependencies['web']->shouldReceive('search')->never();
         $dependencies['follow_up']->shouldReceive('suggest')->once()->andReturn([
             'question' => 'بعد ثلاثة أيام، ما التغيير الذي لاحظتِه؟',
@@ -278,6 +282,7 @@ class ChildChatOrchestrationTest extends TestCase
         $dependencies['llm']->shouldReceive('embeddingMany')->once()->andReturn([[1.0, 0.0]]);
         $dependencies['attachments']->shouldReceive('searchWithEmbeddings')->once()->andReturn([]);
         $dependencies['knowledge']->shouldReceive('searchForCase')->once()->andReturn([]);
+        $dependencies['knowledge']->shouldReceive('searchDeeper')->once()->andReturn([]);
         $dependencies['llm']->shouldReceive('answer')->once()->withArgs(function (array $messages): bool {
             return str_contains($messages[0]['content'], 'NON-URGENT professional assessment')
                 && str_contains($messages[1]['content'], 'Reported diagnosis: autism; age: 3.');
@@ -376,6 +381,7 @@ class ChildChatOrchestrationTest extends TestCase
             'content' => 'Caregiver report: child hits during transitions.',
         ]]);
         $dependencies['knowledge']->shouldReceive('searchForCase')->once()->andReturn([]);
+        $dependencies['knowledge']->shouldReceive('searchDeeper')->once()->andReturn([]);
         $dependencies['llm']->shouldReceive('answer')->never();
         $reply = $this->service($dependencies)->ask($conversation, 'ما الخطة العلاجية بناء على الملف؟', $user->id, null, 'ar');
 

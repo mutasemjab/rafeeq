@@ -47,6 +47,18 @@ CASES = {
     },
 }
 
+for name, question in {
+    "book_communication": "ما هي الأسس الأربعة التي يقوم عليها التواصل الفعال؟",
+    "book_speech_systems": "ما هي الأنظمة الثلاثة التي تتضمنها عملية الكلام؟",
+    "book_voice_box": "كيف تنتج الحنجرة الصوت وما دور الحبال الصوتية؟",
+    "book_stuttering": "ما المراحل الثلاث للتأتأة من حيث الشدة؟",
+    "book_language": "ما هي مكونات اللغة: الشكل والمحتوى والاستخدام؟",
+    "book_relevance_colloquial": "في التواصل الفعال، إيه المقصود بمبدأ الصلة؟",
+    "book_voice_colloquial": "الصوت بيتكون إزاي قبل ما نحوله لكلام؟",
+    "book_language_example": "ممكن مثال يوضح الفرق بين شكل اللغة ومحتواها واستخدامها؟",
+}.items():
+    CASES[name] = {"language": "ar", "messages": [question], "expect_library_only": True}
+
 
 class Client:
     def __init__(self, base):
@@ -131,6 +143,15 @@ def run_case(base, name):
                       "accepted_s": round(accept_time, 3), "queue_observed_s": None if first_processing is None else round(first_processing, 3),
                       "total_s": round(total, 3), "stages": stages, "answer": answer,
                       "error": turn.get("error", accepted.get("message") if status not in (200, 202) else None)}
+            if case.get("expect_library_only"):
+                evidence = answer.get("evidence") or {}
+                report["technical_checks"] = {
+                    "answered": turn.get("status") == "completed" and answer.get("response_type") == "answer",
+                    "library_sufficient": evidence.get("internal_answer_sufficient") is True,
+                    "no_web_requested": evidence.get("hosted_web_search_requested") is False,
+                    "no_web_used": evidence.get("used_web_search") is False and evidence.get("web_sources") == 0,
+                    "cited_internal_reference": evidence.get("cited_sources", 0) > 0,
+                }
             result["turns"].append(report)
             print(json.dumps({"case": name, "turn": len(result["turns"]), "status": report["status"],
                               "total_s": report["total_s"], "response_type": answer.get("response_type")}, ensure_ascii=False), flush=True)
@@ -164,7 +185,7 @@ def main():
         destination.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
     return 0 if all(not case.get("error") and not case.get("setup_error_status")
                     and len(case.get("turns", [])) == case.get("expected_turns", 0) > 0
-                    and all(turn["status"] == "completed" for turn in case["turns"])
+                    and all(turn["status"] == "completed" and all(turn.get("technical_checks", {}).values()) for turn in case["turns"])
                     and case["cleanup"] == "deleted" for case in report["cases"]) else 1
 
 

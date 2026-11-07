@@ -55,6 +55,7 @@ class ChildChatDomainGuardTest extends TestCase
         $childContext = Mockery::mock(ChildContextService::class);
         $childContext->shouldReceive('build')->never();
         $knowledgeSearch = Mockery::mock(KnowledgeSearchService::class);
+        $knowledgeSearch->shouldReceive('searchDeeper')->andReturn([]);
         $knowledgeSearch->shouldReceive('search')->never();
         $attachmentSearch = Mockery::mock(ChatAttachmentSearchService::class);
         $attachmentSearch->shouldReceive('search')->never();
@@ -121,6 +122,7 @@ class ChildChatDomainGuardTest extends TestCase
             'summary' => null,
         ]);
         $knowledgeSearch = Mockery::mock(KnowledgeSearchService::class);
+        $knowledgeSearch->shouldReceive('searchDeeper')->andReturn([]);
         $knowledgeSearch->shouldReceive('searchForCase')
             ->once()
             ->andReturn([]);
@@ -198,6 +200,7 @@ class ChildChatDomainGuardTest extends TestCase
             'summary' => null,
         ]);
         $knowledgeSearch = Mockery::mock(KnowledgeSearchService::class);
+        $knowledgeSearch->shouldReceive('searchDeeper')->andReturn([]);
         $knowledgeSearch->shouldReceive('searchForCase')
             ->once()
             ->andReturn([]);
@@ -262,6 +265,7 @@ class ChildChatDomainGuardTest extends TestCase
             'summary' => null,
         ]);
         $knowledgeSearch = Mockery::mock(KnowledgeSearchService::class);
+        $knowledgeSearch->shouldReceive('searchDeeper')->andReturn([]);
         $knowledgeSearch->shouldReceive('searchForCase')->once()->andReturn([]);
         $attachmentSearch = Mockery::mock(ChatAttachmentSearchService::class);
         $attachmentSearch->shouldReceive('searchWithEmbeddings')->once()->andReturn([]);
@@ -320,6 +324,7 @@ class ChildChatDomainGuardTest extends TestCase
         $capturedMessages = [];
 
         $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->twice()->andReturn(['sufficient' => false, 'supporting_quotes' => [], 'missing_information' => ['Fixture has no answer.'], 'search_queries' => []]);
         $llm->shouldReceive('embeddingMany')
             ->once()
             ->with([
@@ -341,6 +346,7 @@ class ChildChatDomainGuardTest extends TestCase
             'summary' => null,
         ]);
         $knowledgeSearch = Mockery::mock(KnowledgeSearchService::class);
+        $knowledgeSearch->shouldReceive('searchDeeper')->once()->andReturnUsing(fn ($e, $q, $f, $sources) => $sources);
         $knowledgeSearch->shouldReceive('searchForCase')->once()->andReturn([[
             'source_label' => 'KB_SOURCE_1',
             'source_type' => 'knowledge_base',

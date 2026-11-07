@@ -9,20 +9,8 @@ class KnowledgeSearchService
 {
     public function hasEligibleSources(array $filters): bool
     {
-        $query = \Illuminate\Support\Facades\DB::table('knowledge_documents as d')
-            ->join('knowledge_document_chunks as c','c.knowledge_document_id','=','d.id')
-            ->whereNull('d.deleted_at')->where('d.status','processed')->where('d.is_approved',true)
-            ->where('c.embedding_dimensions',(int)config('ai.embedding_dimensions'));
-        if (isset($filters['age_months'])) {
-            $query->where(fn($q)=>$q->whereNull('d.age_min_months')->orWhere('d.age_min_months','<=',$filters['age_months']))
-                ->where(fn($q)=>$q->whereNull('d.age_max_months')->orWhere('d.age_max_months','>=',$filters['age_months']));
-        }
-        if ($filters['require_age_scope'] ?? false) {
-            $query->where(function($q)use($filters){
-                $q->where(fn($scope)=>$scope->where('d.audience','all_ages')->whereNull('d.age_min_months')->whereNull('d.age_max_months'));
-                if(isset($filters['age_months']))$q->orWhere(fn($scope)=>$scope->whereNotNull('d.age_min_months')->orWhereNotNull('d.age_max_months'));
-            });
-        }
+        $query = KnowledgeSourceQuery::make($filters)
+            ->where('c.embedding_dimensions', (int) config('ai.embedding_dimensions'));
         return $query->exists();
     }
     public function __construct(
@@ -62,11 +50,12 @@ class KnowledgeSearchService
         array $embeddings,
         array $queries,
         array $filters = [],
-        ?int $limit = null
+        ?int $limit = null,
+        ?float $threshold = null
     ): array {
         $limit = $limit ?? (int) config('ai.max_knowledge_chunks');
         $candidateLimit = max($limit, min(40, $limit * 3));
-        $threshold = (float) config('ai.document_similarity_threshold');
+        $threshold ??= (float) config('ai.document_similarity_threshold');
         $results = $this->repo->searchKnowledgeMany($embeddings, $candidateLimit, $threshold, $filters);
         $terms = $this->queryTerms($queries);
 
@@ -120,6 +109,87 @@ class KnowledgeSearchService
         foreach ($results as $result) $selected[$result['chunk_id']] ??= $result;
 
         return $this->label(array_slice(array_values($selected), 0, $limit));
+    }
+
+    /**
+     * A second, bounded search before web fallback. Text retrieval is independent
+     * of embeddings so an exact book passage cannot be excluded by a low cosine
+     * score or an unavailable vector. Adjacent chunks recover split explanations.
+     */
+    public function searchDeeper(array $embeddings, array $queries, array $filters, array $previous = []): array
+    {
+        $limit = max(4, min(12, (int) config('ai.max_knowledge_chunks', 8)));
+        $semantic = $embeddings === [] ? [] : $this->searchForCase($embeddings, $queries, $filters, $limit * 2,
+            min((float) config('ai.document_similarity_threshold', 0.35), 0.20));
+        $termsByQuery = array_map(fn ($query) => $this->queryTerms([$query]), $queries);
+        $lexical = [];
+        if (array_filter($termsByQuery) !== []) {
+            $perQuery = array_fill(0, count($termsByQuery), []);
+            $this->textQuery($filters)->chunkById(200, function ($rows) use (&$perQuery, $termsByQuery, $limit) {
+                foreach ($rows as $row) {
+                    $source = (array) $row;
+                    foreach ($termsByQuery as $index => $terms) {
+                        $bodyScore = $this->lexicalScore($terms, $source['content']);
+                        if ($bodyScore <= 0) continue;
+                        // A matching book title must not give every page the
+                        // same rank and hide the page that actually explains it.
+                        $source['lexical_recovery_score'] = 0.85 * $bodyScore
+                            + 0.15 * $this->lexicalScore($terms, $source['title']);
+                        $perQuery[$index][] = $source;
+                    }
+                }
+                foreach ($perQuery as &$candidates) {
+                    usort($candidates, fn ($a, $b) => $b['lexical_recovery_score'] <=> $a['lexical_recovery_score']);
+                    $candidates = array_slice($candidates, 0, $limit * 2);
+                }
+                unset($candidates);
+            }, 'c.id', 'chunk_id');
+            for ($i = 0; $i < $limit * 2; $i++) {
+                foreach ($perQuery as $candidates) {
+                    if (isset($candidates[$i])) $lexical[$candidates[$i]['chunk_id']] ??= $candidates[$i];
+                }
+            }
+            $lexical = array_values($lexical);
+        }
+
+        // Give each retrieval method room; do not let high-scoring semantic
+        // near-misses crowd out literal matches or already-supported passages.
+        $selected = [];
+        foreach ($previous as $source) {
+            if (($source['covers_question_part'] ?? false) && isset($source['chunk_id'])) {
+                $selected[$source['chunk_id']] = $source;
+            }
+        }
+        for ($i = 0; $i < $limit; $i++) {
+            foreach ([$lexical, $semantic, $previous] as $group) {
+                if (isset($group[$i]['chunk_id'])) $selected[$group[$i]['chunk_id']] ??= $group[$i];
+            }
+        }
+        $anchors = array_slice(array_values($selected), 0, $limit);
+        $anchorIds = array_column($anchors, 'chunk_id');
+        $neighbours = [];
+        foreach (array_slice($anchors, 0, 3) as $source) {
+            if (! isset($source['knowledge_document_id'], $source['chunk_index'])) continue;
+            $rows = $this->textQuery($filters)->where('d.id', $source['knowledge_document_id'])
+                ->whereIn('c.chunk_index', [$source['chunk_index'] - 1, $source['chunk_index'] + 1])
+                ->orderBy('c.chunk_index')->get();
+            foreach ($rows as $row) {
+                if (! in_array($row->chunk_id, $anchorIds)) $neighbours[$row->chunk_id] = (array) $row;
+            }
+        }
+        // Keep the full anchor budget and a small adjacent-text budget. The chat
+        // service assesses exactly the subset that will fit the answer context.
+        return $this->label(array_merge($anchors, array_slice(array_values($neighbours), 0, 4)));
+    }
+
+    private function textQuery(array $filters): \Illuminate\Database\Query\Builder
+    {
+        return KnowledgeSourceQuery::make($filters)->select([
+            'c.id as chunk_id', 'c.chunk_index', 'c.page_number', 'c.content',
+            'd.id as knowledge_document_id', 'd.title', 'd.publisher', 'd.source_url as url',
+            'd.age_min_months', 'd.age_max_months', 'd.audience', 'd.language',
+            'd.evidence_level', 'd.published_at', 'd.reviewed_at',
+        ]);
     }
 
     /**

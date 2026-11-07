@@ -118,7 +118,7 @@ AI_DOMAIN_GUARD_REASONING_EFFORT=none
 AI_DOMAIN_GUARD_MAX_COMPLETION_TOKENS=320
 AI_DOMAIN_GUARD_CONFIDENCE=0.85
 AI_MAX_QUESTIONS_PER_MESSAGE=4
-AI_MAX_SOURCE_CONTEXT_CHARS=1800
+AI_MAX_SOURCE_CONTEXT_CHARS=3600
 AI_CONSENT_VERSION=1.0
 AI_PROVIDER_NAME=OpenAI
 PRIVACY_POLICY_URL=
@@ -272,29 +272,54 @@ The same settings response now includes `privacy`, which summarizes what data is
 
 ## RAG Chat Architecture
 
-```
-User message
-    │
-    ▼
-[ChatAttachmentSearchService]  ← embeds query → cosine search over chat attachment chunks
-    │                                              (scoped to user_id + conversation_id)
-    ▼
-[KnowledgeSearchService]       ← embeds query → cosine search over knowledge base chunks
-    │
-    ▼
-[ChildContextService]          ← loads child profile + extracted memories
-    │
-    ▼
-[LLM (OpenAI GPT-4o)]         ← system prompt + child context + sources + history
-    │
-    ▼
-Assistant message (with sources[])
-    │
-    ├── Every 5 msgs  → [UpdateChildMemoryJob]     (extract new facts about child)
-    └── Every 10 msgs → [SummarizeConversationJob] (compress history into summary)
+```text
+Accept and persist the user message (consent, ownership, quota, request ID)
+  → Safety triage / social reply / subject boundary
+  → Person context, case documents, conversation state and turn planning
+  → Search conversation attachments and approved internal references
+  → Assess whether the actual book passages cover the question
+      ├─ Sufficient → answer from those passages; no web search
+      └─ Incomplete → deeper internal search:
+           alternative queries + wider semantic candidates + normalized text
+           search across eligible chunks + adjacent passages
+           → reassess coverage
+               ├─ Sufficient → answer from the library
+               └─ Still incomplete → web may fill the identified gaps
+  → Generate a faithful, cited explanation
+  → Semantic quality review (including fast general answers)
+  → Persist answer, source attribution and evidence metadata
+  → Return completed reply; dispatch eligible memory/summary maintenance
 ```
 
-**Daily limits (Free plan):** 5 AI messages/day — enforced in `ChildChatController` before the service call.
+Internal references are the primary answer authority. Similarity scores rank
+retrieval candidates; they no longer authorize web fallback. A high-risk flag,
+planner web hint or definition match cannot bypass passage coverage assessment.
+Explicit requests for current information are checked against the dates/content
+of the internal evidence. Partial library support is retained when web evidence
+fills a gap. An assessment outage fails the turn instead of silently using web.
+
+The coverage classifier must select existing, numbered excerpts from retrieved
+passages; those IDs resolve directly to the original text, including OCR artifacts. The answer reviewer checks their meaning, not only citation membership;
+rewritten answers retain the existing independent verification. Case attachments
+remain private, conversation-scoped reported information, not automatic clinical
+authority. Approval, deletion, processing and age-scope filters apply to both
+semantic and deeper text retrieval.
+
+Configuration: `AI_KNOWLEDGE_COVERAGE_MODEL` defaults to `AI_CHAT_MODEL`;
+`AI_MAX_SOURCE_CONTEXT_CHARS` defaults to 3600 (bounded to 6000 per passage).
+The former `AI_FAST_GENERAL_CITATION_CHECK_ONLY` and
+`AI_*WEB_SEARCH_INTERNAL_CONFIDENCE_THRESHOLD` settings no longer affect routing.
+Web enablement flags still apply. No database migration or re-embedding is needed;
+normal configuration-cache refresh and queue-worker restart are required on deployment.
+
+This adds a coverage call and semantic review, plus another search/assessment on
+incomplete evidence. It favors reference fidelity over the earlier fastest path.
+Retrieval is bounded and model-reviewed; it does not prove an answer is absent
+from every book. Unprocessed files, poor extraction or missing age applicability
+still require library curation. Production latency and live answer quality must be
+measured separately from the isolated regression tests.
+
+Daily allowances are enforced by `ChatTurnService` using `ChatUsageService`.
 
 ---
 

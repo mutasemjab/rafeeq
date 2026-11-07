@@ -27,6 +27,22 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 
+// Keep reference/coverage evidence in the private local QA report so failures
+// can be compared with the exact passages. This never records credentials.
+class BenchmarkOpenAiProvider extends \App\Services\AI\Providers\OpenAiProvider
+{
+    public array $coverageChecks = [];
+
+    public function chatJson(array $messages, array $schema = [], array $options = []): array
+    {
+        $result = parent::chatJson($messages, $schema, $options);
+        if (($options['schema_name'] ?? '') === 'rafeeq_knowledge_coverage') {
+            $this->coverageChecks[] = ['input' => json_decode($messages[1]['content'], true), 'result' => $result];
+        }
+        return $result;
+    }
+}
+
 $output = $options['output'];
 if (! is_dir(dirname($output))) mkdir(dirname($output), 0755, true);
 config(['database.default' => 'sqlite', 'database.connections.sqlite.database' => ':memory:',
@@ -38,6 +54,8 @@ if (Artisan::call('migrate', ['--force' => true]) !== 0
     fwrite(STDERR, Artisan::output()); exit(1);
 }
 Bus::fake();
+$provider = new BenchmarkOpenAiProvider(app(\App\Services\AI\OpenAiConfigResolver::class));
+$app->instance(\App\Services\AI\Contracts\LlmProviderInterface::class, $provider);
 $user = User::factory()->create(['ai_consent_accepted_at' => now()]);
 $plan = Plan::factory()->create(['type' => 'pro', 'is_active' => true, 'ai_messages_per_day' => null]);
 Subscription::create(['user_id' => $user->id, 'plan_id' => $plan->id, 'status' => 'active',
@@ -67,6 +85,7 @@ $report = ['synthetic' => true, 'database' => 'isolated in-memory SQLite', 'prod
     'timing_scope' => 'accept + processing; excludes library import, mobile network and queue waiting', 'cases' => []];
 $failed = false;
 foreach ($cases as $name => $case) {
+    $provider->coverageChecks = [];
     $conversation = Conversation::factory()->create(['user_id' => $user->id]);
     $started = microtime(true);
     try {
@@ -80,11 +99,25 @@ foreach ($cases as $name => $case) {
             'mode' => data_get($reply?->metadata, 'response_mode'), 'answer' => $reply?->content,
             'model' => $reply?->model_name, 'sources' => $reply?->sources,
             'evidence' => data_get($reply?->metadata, 'evidence'),
+            'turn_plan' => data_get($reply?->metadata, 'turn_plan'),
             'quality' => data_get($reply?->metadata, 'answer_quality'), 'error' => $turn->error];
         $failed = $failed || $turn->status !== 'completed';
     } catch (Throwable $error) {
         $record = ['status' => 'exception', 'seconds' => round(microtime(true) - $started, 3), 'error_class' => $error::class];
         $failed = true;
+    }
+    $record['coverage_checks'] = $provider->coverageChecks;
+    if (! in_array($name, ['greeting_ar', 'greeting_en', 'emergency', 'unrelated'], true)) {
+        $evidence = $record['evidence'] ?? [];
+        $record['technical_checks'] = [
+            'answered' => ($record['status'] ?? '') === 'completed' && ($record['response_type'] ?? '') === 'answer',
+            'library_sufficient' => ($evidence['internal_answer_sufficient'] ?? false) === true,
+            'no_web_requested' => ($evidence['hosted_web_search_requested'] ?? null) === false,
+            'no_web_used' => ($evidence['used_web_search'] ?? null) === false && ($evidence['web_sources'] ?? -1) === 0,
+            'cited_internal_reference' => collect($record['sources'] ?? [])->contains('source_type', 'knowledge_base'),
+            'semantically_reviewed' => ($record['quality']['reviewed'] ?? false) === true && ($record['quality']['passed'] ?? false) === true,
+        ];
+        $failed = $failed || in_array(false, $record['technical_checks'], true);
     }
     $report['cases'][$name] = $record;
     file_put_contents($output, json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)."\n");

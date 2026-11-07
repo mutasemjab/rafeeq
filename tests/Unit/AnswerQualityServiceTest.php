@@ -10,16 +10,37 @@ use Tests\TestCase;
 
 class AnswerQualityServiceTest extends TestCase
 {
-    public function test_fast_general_fact_checks_citations_without_claiming_semantic_review(): void
+    public function test_a_book_citation_does_not_bypass_a_semantic_rejection(): void
+    {
+        config(['ai.fast_general_citation_check_only' => true]); // Even a stale deployment setting cannot bypass review.
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn(['action' => 'reject', 'issues' => ['The book does not support the extra claim.']]);
+        $result = (new AnswerQualityService($llm))->review('What is language?', 'Invented claim. [KB_SOURCE_1]',
+            ['response_mode' => 'fast', 'risk_level' => 'low', 'general_education' => true, 'case_specific' => false,
+                'knowledge_grounding' => ['mode' => 'internal']], [], '[KB_SOURCE_1] Language is a shared code.', 'en');
+        $this->assertFalse($result['passed']);
+        $this->assertTrue($result['reviewed']);
+    }
+
+    public function test_a_book_answer_must_retain_valid_library_citations_after_review(): void
     {
         $llm = Mockery::mock(LlmProviderInterface::class);
-        $llm->shouldNotReceive('chatJson');
+        $llm->shouldReceive('chatJson')->once()->andReturn(['action' => 'approve']);
+        $result = (new AnswerQualityService($llm))->review('What is language?', 'A shared code. [WEB_SOURCE_1]',
+            ['knowledge_grounding' => ['mode' => 'internal']], [], '[KB_SOURCE_1] Language is a shared code.', 'en');
+        $this->assertFalse($result['passed']);
+    }
+
+    public function test_fast_general_fact_also_receives_semantic_review(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn(['action' => 'approve']);
         $result = (new AnswerQualityService($llm))->review('What is language?', 'A shared code. [KB_SOURCE_1]',
             ['response_mode' => 'fast', 'risk_level' => 'low', 'general_education' => true, 'case_specific' => false],
             [], '[KB_SOURCE_1] Language is a shared code.', 'en');
         $this->assertTrue($result['passed']);
-        $this->assertFalse($result['reviewed']);
-        $this->assertSame('citation_validation', $result['review_type']);
+        $this->assertTrue($result['reviewed']);
+        $this->assertArrayNotHasKey('review_type', $result);
     }
 
     /** @dataProvider fullReviewPlans */

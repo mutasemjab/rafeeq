@@ -32,26 +32,12 @@ class AnswerQualityService
 
         $fast = ($turnPlan['response_mode'] ?? null) === 'fast'
             && ! app(AnswerModelPolicy::class)->requiresCarefulReview($turnPlan, $latestMessage);
-        if ($fast && config('ai.fast_general_citation_check_only', true)
-            && ($turnPlan['general_education'] ?? false) === true
-            && ($turnPlan['case_specific'] ?? true) === false
-            && ($turnPlan['risk_level'] ?? '') === 'low'
-            && ! ($turnPlan['web_search_needed'] ?? false)
-            && trim($sourceContext) !== ''
-            && preg_match('/\[(?:KB|WEB)_SOURCE_\d+\]/', $answer) === 1
-            && ! $this->containsUnknownCitation($answer, $sourceContext, '')) {
-            // This checks source membership, not semantic entailment. Deep mode
-            // and personalized/high-risk guidance retain independent model review.
-            return [
-                'content' => $answer, 'action' => 'approve', 'passed' => true,
-                'reviewed' => false, 'review_type' => 'citation_validation',
-                'revised' => false, 'issues' => [], 'strengths' => [], 'scores' => [], 'model' => null,
-                'follow_up_reviewed' => true, 'follow_up' => ['question' => null],
-            ];
-        }
         $model = (string) ($fast ? config('ai.fast_review_model') : config('ai.answer_quality_model', config('ai.answer_model')));
         $systemPrompt = <<<'PROMPT'
 You are the final clinical-quality editor for Rafiq, a non-diagnostic support assistant for all ages. Review the draft answer, not the user. Return only the structured result.
+
+LIBRARY FIDELITY: Verify each substantive claim against the actual supplied passage, not just citation membership. Preserve the reference's definitions, distinctions, sequence, conditions and limits. Reject or repair a generic answer that cites a book but changes or extends what it says. Do not add facts or recommendations from model knowledge. When turn_plan.knowledge_grounding.mode=internal, clinical/educational claims must use KB_SOURCE evidence and web claims must not be introduced. In web_gap_fill mode, preserve the library-supported parts and use web evidence only for the identified missing_information. Never replace available book guidance with internet guidance. A request for the content of a particular book cannot be answered as that book using a different source.
+For a factual definition or enumeration, a short faithful answer is sufficient. Do not expand it into unrequested advice, a history of the field or extra details from a truncated section. Prefer removing unsupported peripheral details to adding new claims during revision. Attributing a classification to its source does not establish that it is universal or a diagnosis of the user.
 
 Approve the answer only when all of these are true:
 1. It responds to this caregiver's exact concern and reflects at least one relevant known fact when child-specific facts exist.
@@ -95,7 +81,7 @@ PROMPT;
                     'child_documents' => $childContext['documents'] ?? [],
                     'reply_feedback' => $childContext['reply_feedback'] ?? null,
                     'child_memories' => collect($childContext['memories'] ?? [])->take(12)->values()->all(),
-                    'available_evidence' => mb_substr($sourceContext, 0, 22000),
+                    'available_evidence' => $sourceContext,
                     'draft_answer' => mb_substr($answer, 0, 10000),
                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
             ];
@@ -174,8 +160,21 @@ PROMPT;
                 $result['issues'] = array_merge((array) ($result['issues'] ?? []), (array) ($verification['issues'] ?? []));
             }
 
+            $finalAnswer = $action === 'revise' ? $revised : $answer;
+            preg_match_all('/\[(KB_SOURCE_\d+)\]/', $finalAnswer, $libraryCitations);
+            $supportedLabels = (array) data_get($turnPlan, 'knowledge_grounding.supporting_labels', []);
+            if (isset($turnPlan['knowledge_grounding']) && (
+                $this->containsUnknownCitation($finalAnswer, $sourceContext, '')
+                || (($turnPlan['knowledge_grounding']['mode'] ?? '') === 'internal'
+                    && preg_match('/\[KB_SOURCE_\d+\]/', $finalAnswer) !== 1)
+                || ($supportedLabels !== [] && array_intersect($supportedLabels, $libraryCitations[1] ?? []) === [])
+            )) {
+                $action = 'reject';
+                $result['issues'][] = 'The final answer does not cite the available library evidence correctly.';
+            }
+
             return [
-                'content' => $action === 'revise' ? $revised : $answer,
+                'content' => $finalAnswer,
                 'action' => $action,
                 'passed' => $action !== 'reject',
                 'revised' => $action === 'revise',

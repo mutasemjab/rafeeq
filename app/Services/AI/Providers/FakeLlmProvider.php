@@ -33,6 +33,11 @@ class FakeLlmProvider implements LlmProviderInterface
     {
         $properties = is_array($schema['properties'] ?? null) ? $schema['properties'] : $schema;
 
+        if (isset($properties['supporting_quotes'])) {
+            return ['sufficient' => false, 'supporting_quotes' => [],
+                'missing_information' => ['The fake provider does not assess reference coverage.'], 'search_queries' => []];
+        }
+
         if (isset($properties['level']) || $this->messagesHintSafetyTriage($messages)) {
             return [
                 'level' => 'routine',

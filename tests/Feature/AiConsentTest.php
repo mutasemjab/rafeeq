@@ -174,6 +174,7 @@ class AiConsentTest extends TestCase
 
         $this->mock(KnowledgeSearchService::class, function (MockInterface $mock): void {
             $mock->shouldReceive('searchForCase')->once()->andReturn([]);
+            $mock->shouldReceive('searchDeeper')->once()->andReturn([]);
         });
 
         $this->mock(WebSearchServiceInterface::class, function (MockInterface $mock): void {
