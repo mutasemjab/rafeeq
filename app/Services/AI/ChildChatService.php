@@ -417,10 +417,18 @@ class ChildChatService
                     ))), 0, 8);
                     $deeperEmbeddings = $queryEmbeddings;
                     if ($knowledgeEligible && ($deeperQueries !== $retrievalQueries || $deeperEmbeddings === [])) {
-                        $deeperEmbeddings = $this->llm->embeddingMany($deeperQueries);
-                        if (count($deeperEmbeddings) !== count($deeperQueries)) {
+                        // Reuse vectors already generated in this turn. Only
+                        // new alternative queries need another provider call.
+                        $knownEmbeddings = count($retrievalQueries) === count($queryEmbeddings)
+                            ? array_combine($retrievalQueries, $queryEmbeddings) : [];
+                        $newQueries = array_values(array_filter($deeperQueries,
+                            fn ($query) => ! array_key_exists($query, $knownEmbeddings)));
+                        $newEmbeddings = $newQueries === [] ? [] : $this->llm->embeddingMany($newQueries);
+                        if (count($newEmbeddings) !== count($newQueries)) {
                             throw new \RuntimeException('Incomplete embeddings for the deeper library search.');
                         }
+                        foreach ($newQueries as $index => $query) $knownEmbeddings[$query] = $newEmbeddings[$index];
+                        $deeperEmbeddings = array_map(fn ($query) => $knownEmbeddings[$query], $deeperQueries);
                     }
                     $knowledgeSources = $this->selectContextSources($this->normalizeUtf8Value($this->knowledgeSearch->searchDeeper(
                         $deeperEmbeddings, $deeperQueries, $filters, $knowledgeSources

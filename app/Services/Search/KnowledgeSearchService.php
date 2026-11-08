@@ -118,31 +118,40 @@ class KnowledgeSearchService
      */
     public function searchDeeper(array $embeddings, array $queries, array $filters, array $previous = []): array
     {
+        $startedAt = hrtime(true);
         $limit = max(4, min(12, (int) config('ai.max_knowledge_chunks', 8)));
         $semantic = $embeddings === [] ? [] : $this->searchForCase($embeddings, $queries, $filters, $limit * 2,
             min((float) config('ai.document_similarity_threshold', 0.35), 0.20));
+        $semanticFinishedAt = hrtime(true);
         $termsByQuery = array_map(fn ($query) => $this->queryTerms([$query]), $queries);
         $lexical = [];
+        $scannedChunks = 0;
         if (array_filter($termsByQuery) !== []) {
             $perQuery = array_fill(0, count($termsByQuery), []);
-            $this->textQuery($filters)->chunkById(200, function ($rows) use (&$perQuery, $termsByQuery, $limit) {
+            $this->textQuery($filters)->chunkById(200, function ($rows) use (&$perQuery, &$scannedChunks, $termsByQuery, $limit) {
                 foreach ($rows as $row) {
+                    $scannedChunks++;
                     $source = (array) $row;
+                    // The same Unicode normalization applies to every query.
+                    // Normalize each passage once, without changing terms or coverage.
+                    $body = $this->normalizeText($source['content']);
+                    $title = null;
                     foreach ($termsByQuery as $index => $terms) {
-                        $bodyScore = $this->lexicalScore($terms, $source['content']);
+                        $bodyScore = $this->normalizedLexicalScore($terms, $body);
                         if ($bodyScore <= 0) continue;
                         // A matching book title must not give every page the
                         // same rank and hide the page that actually explains it.
+                        $title ??= $this->normalizeText($source['title']);
                         $source['lexical_recovery_score'] = 0.85 * $bodyScore
-                            + 0.15 * $this->lexicalScore($terms, $source['title']);
+                            + 0.15 * $this->normalizedLexicalScore($terms, $title);
+                        $retained = $perQuery[$index];
+                        if (count($retained) >= $limit * 2
+                            && $source['lexical_recovery_score'] <= $retained[count($retained) - 1]['lexical_recovery_score']) continue;
                         $perQuery[$index][] = $source;
+                        usort($perQuery[$index], fn ($a, $b) => $b['lexical_recovery_score'] <=> $a['lexical_recovery_score']);
+                        if (count($perQuery[$index]) > $limit * 2) array_pop($perQuery[$index]);
                     }
                 }
-                foreach ($perQuery as &$candidates) {
-                    usort($candidates, fn ($a, $b) => $b['lexical_recovery_score'] <=> $a['lexical_recovery_score']);
-                    $candidates = array_slice($candidates, 0, $limit * 2);
-                }
-                unset($candidates);
             }, 'c.id', 'chunk_id');
             for ($i = 0; $i < $limit * 2; $i++) {
                 foreach ($perQuery as $candidates) {
@@ -151,6 +160,7 @@ class KnowledgeSearchService
             }
             $lexical = array_values($lexical);
         }
+        $textFinishedAt = hrtime(true);
 
         // Give each retrieval method room; do not let high-scoring semantic
         // near-misses crowd out literal matches or already-supported passages.
@@ -179,7 +189,15 @@ class KnowledgeSearchService
         }
         // Keep the full anchor budget and a small adjacent-text budget. The chat
         // service assesses exactly the subset that will fit the answer context.
-        return $this->label(array_merge($anchors, array_slice(array_values($neighbours), 0, 4)));
+        $results = $this->label(array_merge($anchors, array_slice(array_values($neighbours), 0, 4)));
+        \Illuminate\Support\Facades\Log::info('ai.knowledge.deep_search_completed', [
+            'query_count' => count($queries), 'scanned_text_chunks' => $scannedChunks, 'returned_chunks' => count($results),
+            'semantic_ms' => (int) round(($semanticFinishedAt - $startedAt) / 1_000_000),
+            'text_ms' => (int) round(($textFinishedAt - $semanticFinishedAt) / 1_000_000),
+            'duration_ms' => (int) round((hrtime(true) - $startedAt) / 1_000_000),
+        ]);
+
+        return $results;
     }
 
     private function textQuery(array $filters): \Illuminate\Database\Query\Builder
@@ -274,10 +292,19 @@ class KnowledgeSearchService
             return 0.0;
         }
 
-        $content = $this->normalizeText($content);
-        $matches = collect($terms)->filter(fn (string $term): bool => str_contains($content, $term))->count();
+        return $this->normalizedLexicalScore($terms, $this->normalizeText($content));
+    }
 
-        return min(1.0, $matches / max(1, min(8, count($terms))));
+    private function normalizedLexicalScore(array $terms, string $content): float
+    {
+        if ($terms === [] || $content === '') return 0.0;
+        $denominator = min(8, count($terms));
+        $matches = 0;
+        foreach ($terms as $term) {
+            if (str_contains($content, $term) && ++$matches >= $denominator) return 1.0;
+        }
+
+        return $matches / $denominator;
     }
 
     private function normalizeText(string $text): string

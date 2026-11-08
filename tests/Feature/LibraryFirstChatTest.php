@@ -24,6 +24,7 @@ class LibraryFirstChatTest extends TestCase
 
     private $llm;
     private $search;
+    private array $embeddedQueryBatches = [];
     private User $user;
     private Conversation $conversation;
 
@@ -37,7 +38,10 @@ class LibraryFirstChatTest extends TestCase
         $this->user = User::factory()->create(['ai_consent_accepted_at' => now()]);
         $this->conversation = Conversation::factory()->create(['user_id' => $this->user->id]);
         $this->llm = Mockery::mock(LlmProviderInterface::class);
-        $this->llm->shouldReceive('embeddingMany')->andReturnUsing(fn ($queries) => array_fill(0, count($queries), [1.0, 0.0]));
+        $this->llm->shouldReceive('embeddingMany')->andReturnUsing(function ($queries) {
+            $this->embeddedQueryBatches[] = $queries;
+            return array_map(fn ($query) => [(float) strlen($query), 1.0], $queries);
+        });
         $this->app->instance(LlmProviderInterface::class, $this->llm);
         $this->search = Mockery::mock(KnowledgeSearchService::class);
         $this->app->instance(KnowledgeSearchService::class, $this->search);
@@ -114,6 +118,7 @@ class LibraryFirstChatTest extends TestCase
         $this->search->shouldReceive('searchDeeper')->once()->withArgs(function ($vectors, $queries) {
             $this->assertContains('turn taking listening', $queries);
             $this->assertSame(count($queries), count($vectors));
+            $this->assertSame(array_map(fn ($query) => [(float) strlen($query), 1.0], $queries), $vectors);
             return true;
         })->andReturn([$this->source()]);
         $this->llm->shouldReceive('chatJson')->twice()->withArgs(fn ($m, $s, $o) => $o['schema_name'] === 'rafeeq_knowledge_coverage')
@@ -124,6 +129,8 @@ class LibraryFirstChatTest extends TestCase
         $reply = $this->ask();
         $this->assertSame(2, $reply->metadata['evidence']['internal_search_passes']);
         $this->assertTrue($reply->metadata['evidence']['internal_answer_sufficient']);
+        $this->assertCount(2, $this->embeddedQueryBatches);
+        $this->assertSame(['turn taking listening'], $this->embeddedQueryBatches[1]);
     }
 
     public function test_web_is_used_only_after_both_internal_searches_have_no_answer(): void

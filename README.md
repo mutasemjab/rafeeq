@@ -314,6 +314,16 @@ schema, and requires a completed web tool call; provider failures do not fall
 back to an unsearched review. Library-supported answers keep web access disabled
 during review. Web-assisted review adds a lookup to the fallback path only.
 
+Retrieval avoids repeated work without reducing search coverage: semantic
+scoring still visits every eligible vector, but loads full passages and document
+metadata only for the retained candidates. Stable score ties retain their prior
+ordering. The deeper lexical search normalizes each passage once for all query
+variants and retains the same candidates; all text chunks and adjacent passages
+remain eligible. Query embeddings are reused only within the current turn, so
+only new alternative query strings require another embedding request. Coverage
+assessment, the two internal passes, model choices, context limits and independent
+answer review are unchanged. Search logs include elapsed time and scanned counts.
+
 Configuration: `AI_KNOWLEDGE_COVERAGE_MODEL` defaults to `AI_CHAT_MODEL`;
 `AI_MAX_SOURCE_CONTEXT_CHARS` defaults to 3600 (bounded to 6000 per passage).
 The former `AI_FAST_GENERAL_CITATION_CHECK_ONLY` and

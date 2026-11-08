@@ -18,6 +18,7 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
 
     public function searchKnowledgeMany(array $queryEmbeddings, int $limit, float $threshold, array $filters = []): array
     {
+        $startedAt = hrtime(true);
         $queryEmbeddings = $this->compatibleQueryEmbeddings($queryEmbeddings);
         if ($queryEmbeddings === []) {
             return [];
@@ -28,24 +29,6 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
         $query = \App\Services\Search\KnowledgeSourceQuery::make($filters)
             ->select([
                 'c.id            as chunk_id',
-                'd.id            as document_id',
-                'd.original_name as document_name',
-                'd.title         as title',
-                'd.category      as category',
-                'd.topics        as topics',
-                'd.problem_types as problem_types',
-                'd.age_min_months as age_min_months',
-                'd.age_max_months as age_max_months',
-                'd.audience      as audience',
-                'd.language      as language',
-                'd.evidence_level as evidence_level',
-                'd.publisher     as publisher',
-                'd.source_url    as source_url',
-                'd.published_at  as published_at',
-                'd.reviewed_at   as reviewed_at',
-                'c.page_number   as page_number',
-                'c.chunk_index   as chunk_index',
-                'c.content       as content',
                 DB::raw('CASE WHEN c.embedding_vector IS NULL THEN c.embedding ELSE NULL END AS embedding'),
                 'c.embedding_vector as embedding_vector',
                 'c.embedding_dimensions as embedding_dimensions',
@@ -109,29 +92,16 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
                             continue;
                         }
 
-                        $resultsByQuery[$queryIndex][] = [
-                            'chunk_id' => $row->chunk_id,
-                            'knowledge_document_id' => $row->document_id,
-                            'document_name' => $row->document_name,
-                            'title' => $row->title,
-                            'category' => $row->category,
-                            'topics' => $this->decodeStringList($row->topics),
-                            'problem_types' => $this->decodeStringList($row->problem_types),
-                            'age_min_months' => $row->age_min_months !== null ? (int) $row->age_min_months : null,
-                            'age_max_months' => $row->age_max_months !== null ? (int) $row->age_max_months : null,
-                            'audience' => $row->audience,
-                            'language' => $row->language,
-                            'evidence_level' => $row->evidence_level,
-                            'publisher' => $row->publisher,
-                            'url' => $row->source_url,
-                            'published_at' => $row->published_at,
-                            'reviewed_at' => $row->reviewed_at,
-                            'page_number' => $row->page_number,
-                            'chunk_index' => $row->chunk_index,
-                            'content' => $row->content,
-                            'similarity' => $similarity,
-                            'query_similarities' => [$queryIndex => $similarity],
-                        ];
+                        // Score every eligible vector, but only retain IDs and
+                        // scores for the same top candidates. Equal scores keep
+                        // the earlier chunk, matching the stable sort below.
+                        $retained = $resultsByQuery[$queryIndex];
+                        if (count($retained) >= $perQueryLimit
+                            && $similarity <= $retained[count($retained) - 1]['similarity']) {
+                            continue;
+                        }
+                        $resultsByQuery[$queryIndex][] = ['chunk_id' => $row->chunk_id,
+                            'similarity' => $similarity, 'query_similarities' => [$queryIndex => $similarity]];
 
                         usort(
                             $resultsByQuery[$queryIndex],
@@ -148,6 +118,7 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
         );
 
         $results = $this->mergeRankedResults($resultsByQuery, $limit);
+        $results = $this->loadKnowledgeContent($results, $filters);
 
         Log::info('[VectorSearch] Knowledge: scoring complete', [
             'total_rows' => $totalRows,
@@ -158,6 +129,7 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
             'passed' => count($results),
             'top_similarity' => round($topSimilarity, 4),
             'threshold' => $threshold,
+            'duration_ms' => (int) round((hrtime(true) - $startedAt) / 1_000_000),
         ]);
 
         if ($nullCount > 0) {
@@ -182,6 +154,37 @@ class MysqlVectorSearchRepository implements VectorSearchRepositoryInterface
                     ? 'Consider lowering document_similarity_threshold in config/ai.php'
                     : 'Embeddings may all be null — check if ProcessKnowledgeDocumentJob ran successfully',
             ]);
+        }
+
+        return $results;
+    }
+
+    /** Load complete, current passages only after ranking; never cache book eligibility. */
+    private function loadKnowledgeContent(array $ranked, array $filters): array
+    {
+        if ($ranked === []) return [];
+        $rows = \App\Services\Search\KnowledgeSourceQuery::make($filters)
+            ->whereIn('c.id', array_column($ranked, 'chunk_id'))
+            ->get(['c.id as chunk_id', 'c.page_number', 'c.chunk_index', 'c.content',
+                'd.id as document_id', 'd.original_name as document_name', 'd.title', 'd.category',
+                'd.topics', 'd.problem_types', 'd.age_min_months', 'd.age_max_months', 'd.audience',
+                'd.language', 'd.evidence_level', 'd.publisher', 'd.source_url', 'd.published_at', 'd.reviewed_at'])
+            ->keyBy('chunk_id');
+        $results = [];
+        foreach ($ranked as $hit) {
+            $row = $rows->get($hit['chunk_id']);
+            if ($row === null) continue;
+            $results[] = [
+                'chunk_id' => $row->chunk_id, 'knowledge_document_id' => $row->document_id,
+                'document_name' => $row->document_name, 'title' => $row->title, 'category' => $row->category,
+                'topics' => $this->decodeStringList($row->topics), 'problem_types' => $this->decodeStringList($row->problem_types),
+                'age_min_months' => $row->age_min_months !== null ? (int) $row->age_min_months : null,
+                'age_max_months' => $row->age_max_months !== null ? (int) $row->age_max_months : null,
+                'audience' => $row->audience, 'language' => $row->language, 'evidence_level' => $row->evidence_level,
+                'publisher' => $row->publisher, 'url' => $row->source_url, 'published_at' => $row->published_at,
+                'reviewed_at' => $row->reviewed_at, 'page_number' => $row->page_number, 'chunk_index' => $row->chunk_index,
+                'content' => $row->content, 'similarity' => $hit['similarity'], 'query_similarities' => $hit['query_similarities'],
+            ];
         }
 
         return $results;

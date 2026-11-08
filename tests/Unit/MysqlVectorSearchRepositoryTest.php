@@ -80,6 +80,32 @@ class MysqlVectorSearchRepositoryTest extends TestCase
         $this->assertSame(1, $results[1]['chunk_index']);
     }
 
+    public function test_later_better_vectors_replace_candidates_without_changing_tie_order_or_source_content(): void
+    {
+        config(['ai.embedding_model' => 'test-embedding-model', 'ai.vector_search_chunk_size' => 25]);
+        $document = KnowledgeDocument::create([
+            'title' => 'Complete reference', 'original_name' => 'complete.txt', 'file_path' => 'knowledge/complete.txt',
+            'status' => 'processed', 'is_approved' => true, 'topics' => ['communication'],
+            'publisher' => 'Reference publisher', 'evidence_level' => 'textbook',
+        ]);
+        for ($index = 0; $index < 55; $index++) {
+            KnowledgeDocumentChunk::create([
+                'knowledge_document_id' => $document->id, 'chunk_index' => $index, 'page_number' => $index + 1,
+                'content' => 'Full passage '.$index, 'embedding' => json_encode($index === 54 ? [1.0, 1.0] : [1.0, 0.0]),
+                'embedding_dimensions' => 2, 'metadata' => ['embedding_model' => 'test-embedding-model'],
+            ]);
+        }
+        $results = (new MysqlVectorSearchRepository())->searchKnowledge([1.0, 1.0], 4, 0.2);
+        $this->assertSame([54, 0, 1, 2], array_column($results, 'chunk_index'));
+        foreach ($results as $result) {
+            $this->assertSame('Full passage '.$result['chunk_index'], $result['content']);
+            $this->assertSame($result['chunk_index'] + 1, $result['page_number']);
+            $this->assertSame(['communication'], $result['topics']);
+            $this->assertSame('Reference publisher', $result['publisher']);
+            $this->assertSame([0 => $result['similarity']], $result['query_similarities']);
+        }
+    }
+
     public function test_it_skips_vectors_from_a_different_model_or_dimension(): void
     {
         Config::set('ai.embedding_model', 'current-model');

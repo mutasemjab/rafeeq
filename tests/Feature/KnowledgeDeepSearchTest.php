@@ -67,4 +67,22 @@ class KnowledgeDeepSearchTest extends TestCase
             ->searchDeeper([], ['turn taking communication'], ['approved_only' => true]);
         $this->assertSame($answer->id, $results[0]['chunk_id']);
     }
+
+    public function test_multilingual_matches_and_stable_ties_survive_multiple_text_batches(): void
+    {
+        config(['ai.max_knowledge_chunks' => 4]);
+        $document = $this->document(['title' => 'Reference']);
+        $early = [];
+        for ($index = 0; $index < 205; $index++) {
+            $chunk = $this->chunk($document, 'التواصل فقط. Communication only.', $index);
+            if ($index < 2) $early[] = $chunk->id;
+        }
+        $arabic = $this->chunk($document, 'مَبَادِئ التَّوَاصُل الفَعَّال.', 205);
+        $english = $this->chunk($document, 'Effective communication principles.', 206);
+        $results = (new KnowledgeSearchService(Mockery::mock(LlmProviderInterface::class), new MysqlVectorSearchRepository()))
+            ->searchDeeper([], ['مبادئ التواصل الفعال', 'effective communication principles'], ['approved_only' => true]);
+        $this->assertSame([$arabic->id, $english->id, ...$early], array_slice(array_column($results, 'chunk_id'), 0, 4));
+        $this->assertSame('مَبَادِئ التَّوَاصُل الفَعَّال.', $results[0]['content']);
+        $this->assertSame('Effective communication principles.', $results[1]['content']);
+    }
 }
