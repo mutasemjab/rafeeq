@@ -10,6 +10,34 @@ use Tests\TestCase;
 
 class AnswerQualityServiceTest extends TestCase
 {
+    /** @dataProvider datedEvidenceDrafts */
+    public function test_precise_web_dates_receive_reasoning_review_without_slowing_year_only_or_book_answers(string $draft, string $mode, string $effort): void
+    {
+        config(['ai.fast_review_reasoning_effort' => 'none']);
+        $web = $mode === 'web_gap_fill';
+        $label = $web ? 'WEB_SOURCE_1' : 'KB_SOURCE_1';
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($messages, $schema, $options) =>
+            $options['reasoning_effort'] === $effort && ($options['web_search'] ?? false) === $web)
+            ->andReturn(['action' => 'approve', '_provider_web_search_verified' => $web]);
+        $result = (new AnswerQualityService($llm))->review('What is the figure and data year?', $draft.' ['.$label.']',
+            ['response_mode' => 'fast', 'risk_level' => 'low', 'knowledge_grounding' => ['mode' => $mode]],
+            [], '['.$label.'] The supplied evidence.', 'en');
+        $this->assertTrue($result['passed']);
+    }
+
+    public static function datedEvidenceDrafts(): array
+    {
+        return [
+            ['Published **27 مايو 2025**.', 'web_gap_fill', 'low'],
+            ['Published May 27, 2025.', 'web_gap_fill', 'low'],
+            ['Published 2025-05-27.', 'web_gap_fill', 'low'],
+            ['Published 27/05/2025.', 'web_gap_fill', 'low'],
+            ['Published in 2025, using data from 2022.', 'web_gap_fill', 'none'],
+            ['Published 27 May 2025.', 'internal', 'none'],
+        ];
+    }
+
     public function test_web_gap_review_retrieves_cited_pages_before_approving(): void
     {
         $llm = Mockery::mock(LlmProviderInterface::class);

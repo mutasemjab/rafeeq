@@ -98,6 +98,11 @@ PROMPT;
                 'max_completion_tokens' => (int) config('ai.answer_quality_max_completion_tokens', 1800),
             ];
             if ($webReview) $options['web_search'] = true;
+            // Page review dates can be mistaken for report publication dates.
+            // Keep ordinary replies fast; precise web dates need reasoning.
+            if ($webReview && $options['reasoning_effort'] === 'none' && $this->containsPreciseDate($answer)) {
+                $options['reasoning_effort'] = 'low';
+            }
             $result = $this->llm->chatJson($messages, $this->schema(), $options);
             $this->requireWebVerification($result, $webReview);
 
@@ -221,6 +226,14 @@ PROMPT;
         if ($required && ($result['_provider_web_search_verified'] ?? false) !== true) {
             throw new \RuntimeException('Required independent web verification is unavailable.');
         }
+    }
+
+    private function containsPreciseDate(string $answer): bool
+    {
+        $plain = str_replace(['*', '_', '`'], '', $answer);
+        $months = 'يناير|فبراير|مارس|أبريل|ابريل|مايو|يونيو|يوليو|أغسطس|اغسطس|سبتمبر|أكتوبر|اكتوبر|نوفمبر|ديسمبر|Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?';
+
+        return preg_match('/\b(?:\p{Nd}{1,2}\s+(?:'.$months.')|(?:'.$months.')\s+\p{Nd}{1,2}|\p{Nd}{1,2}[\/-]\p{Nd}{1,2}[\/-]\p{Nd}{2,4}|\p{Nd}{4}-\p{Nd}{1,2}-\p{Nd}{1,2})\b/iu', $plain) === 1;
     }
 
     private function schema(): array
