@@ -74,7 +74,7 @@ class LibraryFirstChatTest extends TestCase
     private function review(): void
     {
         $this->llm->shouldReceive('chatJson')->once()->withArgs(fn ($m, $s, $o) => $o['schema_name'] === 'rafeeq_answer_quality')
-            ->andReturn(['action' => 'approve', 'follow_up' => ['question' => null]]);
+            ->andReturn(['action' => 'approve', 'follow_up' => ['question' => null], '_provider_web_search_verified' => true]);
     }
 
     private function ask()

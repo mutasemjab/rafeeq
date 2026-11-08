@@ -305,6 +305,15 @@ remain private, conversation-scoped reported information, not automatic clinical
 authority. Approval, deletion, processing and age-scope filters apply to both
 semantic and deeper text retrieval.
 
+When the library has a verified gap and the answer cites web sources, the
+independent reviewer uses its own required hosted web lookup to verify those
+pages. Hosted citations can contain only a URL, so a separate text-only reviewer
+must not treat the missing excerpt as missing evidence or approve it from model
+memory. The structured review uses Responses `text.format`, validates the JSON
+schema, and requires a completed web tool call; provider failures do not fall
+back to an unsearched review. Library-supported answers keep web access disabled
+during review. Web-assisted review adds a lookup to the fallback path only.
+
 Configuration: `AI_KNOWLEDGE_COVERAGE_MODEL` defaults to `AI_CHAT_MODEL`;
 `AI_MAX_SOURCE_CONTEXT_CHARS` defaults to 3600 (bounded to 6000 per passage).
 The former `AI_FAST_GENERAL_CITATION_CHECK_ONLY` and

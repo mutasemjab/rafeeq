@@ -10,6 +10,42 @@ use Tests\TestCase;
 
 class AnswerQualityServiceTest extends TestCase
 {
+    public function test_web_gap_review_retrieves_cited_pages_before_approving(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($messages, $schema, $options) =>
+            ($options['web_search'] ?? false) === true && str_contains($messages[0]['content'], 'WEB EVIDENCE VERIFICATION'))
+            ->andReturn(['action' => 'approve', '_provider_web_search_verified' => true,
+                '_provider_web_sources' => [['url' => 'https://www.cdc.gov/report']]]);
+        $result = (new AnswerQualityService($llm))->review('What is the current figure?',
+            'A verified figure. [WEB_SOURCE_1]', ['knowledge_grounding' => ['mode' => 'web_gap_fill']],
+            [], '[WEB_SOURCE_1] URL: https://www.cdc.gov/report', 'en');
+        $this->assertTrue($result['passed']);
+        $this->assertTrue($result['web_evidence_verified']);
+    }
+
+    public function test_web_review_without_provider_confirmation_is_not_approved(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->andReturn(['action' => 'approve']);
+        $result = (new AnswerQualityService($llm))->review('Current figure?', 'An unverified figure. [WEB_SOURCE_1]',
+            ['knowledge_grounding' => ['mode' => 'web_gap_fill'], 'evidence_required' => true],
+            [], '[WEB_SOURCE_1] URL: https://www.cdc.gov/report', 'en');
+        $this->assertFalse($result['passed']);
+        $this->assertFalse($result['reviewed']);
+    }
+
+    public function test_library_answer_review_does_not_enable_web_access(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($messages, $schema, $options) => ! ($options['web_search'] ?? false))
+            ->andReturn(['action' => 'approve']);
+        $result = (new AnswerQualityService($llm))->review('What is communication?', 'A shared message. [KB_SOURCE_1]',
+            ['knowledge_grounding' => ['mode' => 'internal']], [], '[KB_SOURCE_1] A shared message.', 'en');
+        $this->assertTrue($result['passed']);
+        $this->assertFalse($result['web_evidence_verified']);
+    }
+
     public function test_a_book_citation_does_not_bypass_a_semantic_rejection(): void
     {
         config(['ai.fast_general_citation_check_only' => true]); // Even a stale deployment setting cannot bypass review.

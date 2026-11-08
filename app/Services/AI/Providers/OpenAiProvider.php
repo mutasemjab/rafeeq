@@ -138,9 +138,35 @@ class OpenAiProvider implements LlmProviderInterface
         try {
             $schemaName = $this->schemaName((string) ($options['schema_name'] ?? 'structured_response'));
             $strict = ($options['strict'] ?? true) !== false;
-            unset($options['schema_name'], $options['strict']);
+            $webSearch = (bool) ($options['web_search'] ?? false);
+            unset($options['schema_name'], $options['strict'], $options['web_search']);
 
             $normalizedSchema = $schema !== [] ? $this->normalizeSchema($schema) : [];
+            if ($webSearch) {
+                if (! config('ai.openai_web_search_enabled', true)) {
+                    throw new RuntimeException('Required web verification is disabled.');
+                }
+                $format = $normalizedSchema === [] ? ['type' => 'json_object'] : [
+                    'type' => 'json_schema', 'name' => $schemaName, 'strict' => $strict, 'schema' => $normalizedSchema,
+                ];
+                // A URL-only citation cannot be verified by a separate text-only
+                // reviewer. Give that reviewer its own required hosted lookup.
+                // This path never falls back to unsearched Chat Completions.
+                $result = $this->responsesAnswer($messages, true, true, array_merge($options, [
+                    'structured_output_format' => $format, 'schema_name' => $schemaName,
+                ]));
+                if (! ($result['web_search_completed'] ?? false)) {
+                    throw new RuntimeException('Required web verification did not complete.');
+                }
+                $decoded = json_decode($result['content'], true);
+                if (! is_array($decoded)) throw new RuntimeException('Web verification returned invalid JSON.');
+                if ($normalizedSchema !== []) $this->assertMatchesSchema($decoded, $normalizedSchema, '$');
+                // Provider-owned metadata is added only after schema validation.
+                $decoded['_provider_web_search_verified'] = true;
+                $decoded['_provider_web_sources'] = $result['sources'];
+
+                return $decoded;
+            }
             $responseFormat = $normalizedSchema === []
                 ? ['type' => 'json_object']
                 : [
@@ -259,6 +285,9 @@ class OpenAiProvider implements LlmProviderInterface
             'store' => false,
             'max_output_tokens' => (int) ($options['max_completion_tokens'] ?? config('ai.answer_max_output_tokens', 1400)),
         ];
+        if (isset($options['structured_output_format'])) {
+            $payload['text'] = ['format' => $options['structured_output_format']];
+        }
 
         if ($webSearch) {
             $tool = [
@@ -304,17 +333,19 @@ class OpenAiProvider implements LlmProviderInterface
             }
 
             return $response;
-        });
+        }, $options['schema_name'] ?? null);
 
         $data = $response->json();
         $content = '';
         $discoveredSources = [];
         $citedSources = [];
         $usedWebSearch = false;
+        $completedWebSearch = false;
 
         foreach ((array) ($data['output'] ?? []) as $item) {
             if (($item['type'] ?? null) === 'web_search_call') {
                 $usedWebSearch = true;
+                $completedWebSearch = $completedWebSearch || ($item['status'] ?? '') === 'completed';
                 foreach ((array) data_get($item, 'action.sources', []) as $source) {
                     $this->addWebSource($discoveredSources, $source);
                 }
@@ -356,6 +387,7 @@ class OpenAiProvider implements LlmProviderInterface
             'sources' => $sources,
             'model' => $model,
             'used_web_search' => $usedWebSearch,
+            'web_search_completed' => $completedWebSearch,
             'usage' => [
                 'input_tokens' => data_get($data, 'usage.input_tokens'),
                 'output_tokens' => data_get($data, 'usage.output_tokens'),
