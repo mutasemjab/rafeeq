@@ -284,7 +284,8 @@ Accept and persist the user message (consent, ownership, quota, request ID)
            search across eligible chunks + adjacent passages
            → reassess coverage
                ├─ Sufficient → answer from the library
-               └─ Still incomplete → web may fill the identified gaps
+               ├─ Missing personal prerequisite → one focused clarification
+               └─ Missing reference knowledge → web may fill the identified gaps
   → Generate a faithful, cited explanation
   → Semantic quality review (including fast general answers)
   → Persist answer, source attribution and evidence metadata
@@ -305,6 +306,21 @@ remain private, conversation-scoped reported information, not automatic clinical
 authority. Approval, deletion, processing and age-scope filters apply to both
 semantic and deeper text retrieval.
 
+Personalized chat also searches approved books whose age/audience metadata has
+not been recorded. Missing metadata does not make a book universally applicable:
+the passage assessor and reviewer check the actual population, prerequisites and
+limits, while explicit age exclusions remain enforced. Personalized coverage uses
+the configured quality model with low reasoning effort and carries unresolved
+gaps into the second assessment. This avoids asking for a program's target skill
+as though it were a prerequisite.
+Personalized fast answers also use at least low reasoning, with extra token
+capacity for that reasoning; the concise response limit and fast generation
+model remain unchanged. Their review uses the configured quality model.
+General factual answers keep the faster settings.
+A passage-backed question about an unknown personal ability can be returned after
+both searches; internet research cannot establish that ability. This clarification
+is recorded in conversation state so the next reply can build on the observation.
+
 When the library has a verified gap and the answer cites web sources, the
 independent reviewer uses its own required hosted web lookup to verify those
 pages. Hosted citations can contain only a URL, so a separate text-only reviewer
@@ -321,10 +337,13 @@ ordering. The deeper lexical search normalizes each passage once for all query
 variants and retains the same candidates; all text chunks and adjacent passages
 remain eligible. Query embeddings are reused only within the current turn, so
 only new alternative query strings require another embedding request. Coverage
-assessment, the two internal passes, model choices, context limits and independent
-answer review are unchanged. Search logs include elapsed time and scanned counts.
+assessment, the two internal passes, context limits and independent answer review
+remain required. Each query reserves its own strongest semantic matches even when
+candidates overlap, so one expansion cannot dominate the whole result set.
+Search logs include elapsed time and scanned counts.
 
 Configuration: `AI_KNOWLEDGE_COVERAGE_MODEL` defaults to `AI_CHAT_MODEL`;
+`AI_PERSONALIZED_KNOWLEDGE_COVERAGE_MODEL` defaults to the quality/answer model.
 `AI_MAX_SOURCE_CONTEXT_CHARS` defaults to 3600 (bounded to 6000 per passage).
 The former `AI_FAST_GENERAL_CITATION_CHECK_ONLY` and
 `AI_*WEB_SEARCH_INTERNAL_CONFIDENCE_THRESHOLD` settings no longer affect routing.

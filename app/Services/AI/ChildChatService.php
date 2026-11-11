@@ -305,7 +305,9 @@ class ChildChatService
             ]);
         }
 
+        $priorClarifications = (int) data_get($conversation->case_state, 'consecutive_clarifications', 0);
         $this->conversationState?->recordPlan($conversation, $turnPlan, $safetyDecision, (int) $userMsg->id, $userMessage);
+        $childCtx['asked_questions'] = array_slice((array) data_get($conversation->case_state, 'asked_questions', []), -6);
         $childCtx['case_brief'] = app(CaseBriefService::class)->build(
             $childCtx, (array) $conversation->fresh()->case_state, $conversation->summary
         );
@@ -434,7 +436,34 @@ class ChildChatService
                         $deeperEmbeddings, $deeperQueries, $filters, $knowledgeSources
                     )));
                     $internalSearchPasses = 2;
-                    $internalAssessment = $assessor->assess($userMessage, $turnPlan, $childCtx, $knowledgeSources);
+                    $internalAssessment = $assessor->assess($userMessage, array_merge($turnPlan, [
+                        'previous_evidence_gaps' => $internalAssessment['missing_information'],
+                        'previous_evidence_question' => $internalAssessment['clarification_question'] ?? null,
+                    ]), $childCtx, $knowledgeSources);
+                }
+                if (($internalAssessment['clarification_question'] ?? null) !== null) {
+                    // Missing readiness/ability is a person fact. Internet
+                    // research cannot supply it, and it is not absent evidence.
+                    $progress && $progress('persisting_reply');
+                    $turnPlan['action'] = 'ask_clarification';
+                    $turnPlan['question'] = $internalAssessment['clarification_question'];
+                    $turnPlan['information_sufficient'] = false;
+                    $turnPlan['question_target'] = 'source_prerequisite';
+                    $turnPlan['missing_fields'] = $internalAssessment['missing_information'];
+                    $turnPlan['follow_up_needed'] = true;
+                    $this->conversationState?->recordEvidenceClarification($conversation,
+                        $internalAssessment['clarification_question'], $internalAssessment['missing_information'], $priorClarifications);
+                    return $this->persistControlResponse($conversation, $userMsg,
+                        $internalAssessment['clarification_question'], 'clarification', [
+                            'safety' => $safetyDecision, 'turn_plan' => $turnPlan, 'domain_guard' => $domainDecision,
+                            'next_action' => 'await_user_information', 'memory_saved_count' => $memorySaved,
+                            'suggested_questions' => [], 'case_state' => $conversation->fresh()->case_state,
+                            'evidence' => ['internal_search_performed' => true, 'internal_search_completed_before_web' => true,
+                                'internal_search_passes' => $internalSearchPasses, 'internal_answer_sufficient' => false,
+                                'search_order' => ['internal_knowledge'], 'internal_sources' => count($knowledgeSources),
+                                'web_sources' => 0, 'used_web_search' => false, 'hosted_web_search_requested' => false,
+                                'clarification_reason' => 'source_prerequisite_needs_person_context'],
+                        ]);
                 }
                 // Put passages that cover the question ahead of incidental hits,
                 // including when later web results compete for context space.
@@ -571,10 +600,13 @@ class ChildChatService
         if ($responseMode === 'fast') {
             $systemPrompt .= "\nThis is fast mode: normally use at most 120 words and two short paragraphs. A factual definition or enumeration can be a single sentence or short list; there is no minimum length. Answer only what was asked, using the source's actual distinctions and qualifications. Do not pad the answer with peripheral facts, speculative explanations or extra clinical advice. Include the relevant source labels and retain any necessary safety detail.";
         }
-        $systemPrompt .= "\nA source without explicit age scope is general educational reference only. Never assume it validates an individualized intervention or is appropriate for the selected person's age. Say when applicability is unknown.";
+        $systemPrompt .= "\nMissing age metadata does not mean a book lacks relevant guidance. Determine applicability from the actual passage and the reported person's age, abilities and context. General caregiver guidance can support a cautious practical starting step when the passage fits; do not turn it into a diagnosis, age milestone, required schedule or individualized treatment protocol. Never transfer an explicitly child-only protocol to an adult or vice versa. If applicability is unresolved, explain that specific limit or ask one necessary clarification instead of declaring the whole library empty.";
+        if ($hostedWebSearch) {
+            $systemPrompt .= "\nFor newly retrieved web evidence, use the web tool's actual URL citations. Do not invent WEB_SOURCE labels: those labels may be used only when already present in retrieved_sources. Retain supplied KB_SOURCE labels for book-supported claims. A public URL citation is allowed for the web gap even when the reply-language style normally avoids links; the application moves citations into its source list.";
+        }
         $systemPrompt .= "\nFor a practical support request, avoid adding developmental cut-offs, prevalence figures, symptom checklists or diagnostic criteria unless the user asks or the information is indispensable to safety or assessment reasoning. Build on the reported abilities and one supported step. Do not turn a support answer into a diagnostic screening explanation.";
         if ($language === 'ar') {
-            $systemPrompt .= "\n\nRespond in Arabic. Match the caregiver’s register and mirror their dialect when clear, or use neutral Arabic when unclear. Keep clinical terms precise. Use approved book passages to answer directly. Use bracketed evidence labels for verification, without naming books or inserting Markdown links or URLs in the prose. The app displays references separately.";
+            $systemPrompt .= "\n\nRespond in Arabic. Match the caregiver’s register and mirror their dialect when clear, or use neutral Arabic when unclear. Keep clinical terms precise. Use approved book passages to answer directly. Use supplied bracketed evidence labels for verification without naming books in the prose. Newly retrieved hosted-web evidence must use the provider's actual URL citations, not invented labels. The app displays references separately.";
         }
 
         if ($language === 'ar') {
@@ -773,7 +805,7 @@ class ChildChatService
                     : ($suggestedQuestions !== [] ? (($followUp['wait_for_observation'] ?? false) ? 'observe_then_follow_up' : 'await_follow_up') : 'complete'),
                 'case_state' => $conversation->case_state,
                 'evidence' => array_merge($retrievalEvidence, [
-                    'model_knowledge_allowed' => ! $evidenceRequired || $knowledgeSources !== [] || $webSources !== [],
+                    'model_knowledge_allowed' => ! $evidenceRequired,
                     'cited_sources' => count($usedSources),
                 ]),
             ],
@@ -1045,13 +1077,18 @@ class ChildChatService
                 'reviewed_at' => 'Reviewed',
                 'age_min_months' => 'Minimum age (months)',
                 'age_max_months' => 'Maximum age (months)',
+                'audience' => 'Audience',
             ] as $key => $labelText) {
-                if (! empty($source[$key])) {
+                if (isset($source[$key]) && $source[$key] !== '') {
                     $lines[] = $labelText.': '.$source[$key];
                 }
             }
 
             $sourceType = (string) ($source['source_type'] ?? '');
+            if ($sourceType === 'knowledge_base' && !isset($source['age_min_months']) && !isset($source['age_max_months'])
+                && empty($source['audience'])) {
+                $lines[] = 'Age metadata: unrecorded; assess population and applicability from the passage, not from this missing field.';
+            }
             $body = in_array($sourceType, ['knowledge_base', 'chat_attachment'], true)
                 ? ($source['content'] ?? $source['snippet'] ?? '')
                 : ($source['snippet'] ?? $source['content'] ?? '');
@@ -1137,8 +1174,9 @@ class ChildChatService
 
         return array_filter([
             'approved_only' => true,
-            // General education can use unscoped references. Personalized
-            // recommendations retain the stricter age applicability gate.
+            // Keep explicit age exclusions, but read untagged approved books
+            // before deciding applicability from their actual passages.
+            'allow_unscoped_candidates' => true,
             'require_age_scope' => ($turnPlan['case_specific'] ?? true) !== false
                 && (config('ai.require_age_scoped_evidence', true) || ($profile['subject_type'] ?? null) === 'person' || isset($profile['person_profile_id'])),
             'age_months' => is_numeric($ageMonths) ? max(0, (int) $ageMonths) : null,

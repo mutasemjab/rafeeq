@@ -21,6 +21,13 @@ class KnowledgeSourceQuery
                     if (isset($filters['age_months'])) {
                         $scope->orWhere(fn ($q) => $q->whereNotNull('d.age_min_months')->orWhereNotNull('d.age_max_months'));
                     }
+                    if (($filters['allow_unscoped_candidates'] ?? false) === true) {
+                        // Discovery is not an applicability decision. Legacy
+                        // books with missing metadata must reach the passage
+                        // assessor; do not relabel them as suitable for all ages.
+                        $scope->orWhere(fn ($q) => $q->whereNull('d.audience')
+                            ->whereNull('d.age_min_months')->whereNull('d.age_max_months'));
+                    }
                 });
             })
             ->when(isset($filters['age_months']), function ($query) use ($filters) {

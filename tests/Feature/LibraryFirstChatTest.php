@@ -111,6 +111,30 @@ class LibraryFirstChatTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_personalized_question_checks_untagged_book_passages_before_using_web(): void
+    {
+        $this->plan(['case_specific' => true]);
+        $this->search->shouldReceive('searchForCase')->once()->withArgs(fn ($vectors, $queries, $filters) =>
+            $filters['approved_only'] && $filters['require_age_scope'] && $filters['allow_unscoped_candidates'])
+            ->andReturn([$this->source()]);
+        $this->search->shouldNotReceive('searchDeeper');
+        $this->llm->shouldReceive('chatJson')->once()->withArgs(function ($messages, $schema, $options) {
+            $payload = json_decode($messages[1]['content'], true);
+            return $options['schema_name'] === 'rafeeq_knowledge_coverage'
+                && $payload['case_specific'] === true
+                && str_contains($payload['passages']['KB_SOURCE_1']['excerpts'][1], 'taking turns');
+        })->andReturn($this->coverage(true));
+        $this->review();
+        $this->llm->shouldReceive('answer')->once()->withArgs(fn ($messages, $options) =>
+            !$options['web_search'] && str_contains($messages[1]['content'], 'Age metadata: unrecorded'))
+            ->andReturn(['content' => 'Take turns and listen. [KB_SOURCE_1]', 'sources' => []]);
+        $reply = $this->ask();
+        $this->assertSame('answer', $reply->metadata['response_type']);
+        $this->assertTrue($reply->metadata['evidence']['internal_answer_sufficient']);
+        $this->assertFalse($reply->metadata['evidence']['used_web_search']);
+        $this->assertFalse($reply->metadata['evidence']['model_knowledge_allowed']);
+    }
+
     public function test_a_second_internal_search_finds_the_answer_before_web_is_allowed(): void
     {
         $this->plan();
@@ -131,6 +155,38 @@ class LibraryFirstChatTest extends TestCase
         $this->assertTrue($reply->metadata['evidence']['internal_answer_sufficient']);
         $this->assertCount(2, $this->embeddedQueryBatches);
         $this->assertSame(['turn taking listening'], $this->embeddedQueryBatches[1]);
+    }
+
+    public function test_missing_person_prerequisite_is_clarified_after_both_book_searches_without_web(): void
+    {
+        $this->conversation->forceFill(['case_state' => ['consecutive_clarifications' => 2]])->save();
+        $this->plan(['case_specific' => true]);
+        $this->search->shouldReceive('searchForCase')->once()->andReturn([$this->source('This program requires following a simple instruction.')]);
+        $this->search->shouldReceive('searchDeeper')->once()->andReturn([$this->source('This program requires following a simple instruction.')]);
+        $assessment = ['sufficient' => false, 'supporting_quotes' => [['source_label' => 'KB_SOURCE_1', 'excerpt_id' => 1]],
+            'missing_information' => ['Whether this child follows a simple instruction.'], 'search_queries' => [],
+            'clarification_question' => 'What happens when you ask for one familiar object?'];
+        $coverageCalls = 0;
+        $this->llm->shouldReceive('chatJson')->twice()->withArgs(function ($m, $s, $o) use (&$coverageCalls, $assessment) {
+            $payload = json_decode($m[1]['content'], true);
+            $coverageCalls++;
+            return $o['schema_name'] === 'rafeeq_knowledge_coverage' && $o['reasoning_effort'] === 'low'
+                && ($coverageCalls === 1 || ($payload['previous_evidence_gaps'] === $assessment['missing_information']
+                    && $payload['previous_evidence_question'] === $assessment['clarification_question']));
+        })
+            ->andReturn($assessment);
+        $this->llm->shouldNotReceive('answer');
+        $reply = $this->ask();
+        $this->assertSame('clarification', $reply->metadata['response_type']);
+        $this->assertSame($assessment['clarification_question'], $reply->content);
+        $this->assertSame(2, $reply->metadata['evidence']['internal_search_passes']);
+        $this->assertFalse($reply->metadata['evidence']['used_web_search']);
+        $state = $this->conversation->fresh();
+        $this->assertSame($reply->content, $state->next_question);
+        $this->assertSame('ask_clarification', $state->case_state['last_action']);
+        $this->assertSame(3, $state->case_state['consecutive_clarifications']);
+        $this->assertFalse($reply->metadata['turn_plan']['information_sufficient']);
+        $this->assertSame($reply->content, $state->case_state['asked_questions'][0]['question']);
     }
 
     public function test_web_is_used_only_after_both_internal_searches_have_no_answer(): void

@@ -10,6 +10,24 @@ use Tests\TestCase;
 
 class AnswerQualityServiceTest extends TestCase
 {
+    public function test_personalized_fast_review_reasons_and_verifies_revisions_without_a_second_rewrite(): void
+    {
+        config(['ai.fast_review_reasoning_effort' => 'none']);
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($m, $s, $o) =>
+            $o['schema_name'] === 'rafeeq_answer_quality' && $o['reasoning_effort'] === 'low' && !($o['web_search'] ?? false))
+            ->andReturn(['action' => 'revise', 'revised_answer' => 'Use a short instruction. [KB_SOURCE_1]']);
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($m, $s, $o) =>
+            $o['schema_name'] === 'rafeeq_answer_quality_verification' && $o['reasoning_effort'] === 'low'
+            && $s['properties']['action']['enum'] === ['approve', 'reject'])
+            ->andReturn(['action' => 'approve']);
+        $result = (new AnswerQualityService($llm))->review('Help my child understand.', 'A longer unsupported plan. [KB_SOURCE_1]',
+            ['response_mode' => 'fast', 'risk_level' => 'low', 'case_specific' => true,
+                'knowledge_grounding' => ['mode' => 'internal']], [], '[KB_SOURCE_1] Use short instructions.', 'en');
+        $this->assertTrue($result['passed']);
+        $this->assertTrue($result['revision_verified']);
+    }
+
     /** @dataProvider datedEvidenceDrafts */
     public function test_precise_web_dates_receive_reasoning_review_without_slowing_year_only_or_book_answers(string $draft, string $mode, string $effort): void
     {
@@ -89,10 +107,13 @@ class AnswerQualityServiceTest extends TestCase
     public function test_a_book_answer_must_retain_valid_library_citations_after_review(): void
     {
         $llm = Mockery::mock(LlmProviderInterface::class);
-        $llm->shouldReceive('chatJson')->once()->andReturn(['action' => 'approve']);
+        $llm->shouldReceive('chatJson')->twice()->andReturn(
+            ['action' => 'approve'], ['action' => 'revise', 'revised_answer' => 'A shared code. [WEB_SOURCE_1]']
+        );
         $result = (new AnswerQualityService($llm))->review('What is language?', 'A shared code. [WEB_SOURCE_1]',
             ['knowledge_grounding' => ['mode' => 'internal']], [], '[KB_SOURCE_1] Language is a shared code.', 'en');
         $this->assertFalse($result['passed']);
+        $this->assertSame('reject', $result['action']);
     }
 
     public function test_fast_general_fact_also_receives_semantic_review(): void
@@ -217,7 +238,8 @@ class AnswerQualityServiceTest extends TestCase
         $llm = Mockery::mock(LlmProviderInterface::class);
         $llm->shouldReceive('chatJson')->twice()->withArgs(
             fn (array $messages, array $schema, array $options): bool => str_contains((string) data_get($messages, '0.content'), 'final clinical-quality editor')
-                && ($schema['properties']['action']['enum'] ?? []) === ['approve', 'revise', 'reject']
+                && ($schema['properties']['action']['enum'] ?? []) === (($options['schema_name'] ?? '') === 'rafeeq_answer_quality_verification'
+                    ? ['approve', 'reject'] : ['approve', 'revise', 'reject'])
                 && ($options['model'] ?? null) === 'quality-model'
         )->andReturn([
             'action' => 'revise',
@@ -314,6 +336,43 @@ class AnswerQualityServiceTest extends TestCase
         $this->assertTrue($result['passed']);
         $this->assertTrue($result['revision_verified']);
         $this->assertStringNotContainsString('invented', $result['content']);
+    }
+
+    public function test_an_approved_draft_with_an_unbound_web_label_must_be_repaired_and_independently_verified(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $verified = ['_provider_web_search_verified' => true];
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($m, $s, $o) => $o['schema_name'] === 'rafeeq_answer_quality')
+            ->andReturn(array_merge($verified, ['action' => 'approve']));
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($m, $s, $o) => $o['schema_name'] === 'rafeeq_answer_quality_citation_repair')
+            ->andReturn(array_merge($verified, ['action' => 'revise', 'revised_answer' => 'Supported help. [WEB_SOURCE_1]']));
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($m, $s, $o) => $o['schema_name'] === 'rafeeq_answer_quality_verification')
+            ->andReturn(array_merge($verified, ['action' => 'approve']));
+        $result = (new AnswerQualityService($llm))->review('Help.', 'Supported help. [WEB_SOURCE_2]',
+            ['knowledge_grounding' => ['mode' => 'web_gap_fill']], [],
+            '[WEB_SOURCE_1] URL: https://example.org/verified', 'en');
+        $this->assertTrue($result['passed']);
+        $this->assertTrue($result['revision_verified']);
+        $this->assertSame('Supported help. [WEB_SOURCE_1]', $result['content']);
+    }
+
+    public function test_a_known_but_wrong_library_citation_gets_one_verified_repair(): void
+    {
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($m, $s, $o) => $o['schema_name'] === 'rafeeq_answer_quality')
+            ->andReturn(['action' => 'approve']);
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($m, $s, $o) =>
+            $o['schema_name'] === 'rafeeq_answer_quality_citation_repair'
+            && json_decode($m[2]['content'], true)['library_support_to_preserve'] === ['KB_SOURCE_3'])
+            ->andReturn(['action' => 'revise', 'revised_answer' => 'Supported step. [KB_SOURCE_3]']);
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($m, $s, $o) => $o['schema_name'] === 'rafeeq_answer_quality_verification')
+            ->andReturn(['action' => 'approve']);
+        $result = (new AnswerQualityService($llm))->review('Help.', 'Supported step. [KB_SOURCE_1]',
+            ['knowledge_grounding' => ['mode' => 'internal', 'supporting_labels' => ['KB_SOURCE_3']]], [],
+            "[KB_SOURCE_1] Background.\n[KB_SOURCE_3] Supported step.", 'en');
+        $this->assertTrue($result['passed']);
+        $this->assertTrue($result['revision_verified']);
+        $this->assertSame('Supported step. [KB_SOURCE_3]', $result['content']);
     }
 
     public function test_citation_repair_cannot_approve_the_original_flawed_draft(): void

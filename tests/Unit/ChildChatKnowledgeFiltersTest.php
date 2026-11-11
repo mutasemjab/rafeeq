@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 class ChildChatKnowledgeFiltersTest extends TestCase
 {
-    public function test_only_general_education_can_read_unscoped_sources(): void
+    public function test_chat_can_discover_unscoped_candidates_without_disabling_known_age_filters(): void
     {
         config(['ai.require_age_scoped_evidence' => true]);
         $reflection = new ReflectionClass(ChildChatService::class);
@@ -18,6 +18,7 @@ class ChildChatKnowledgeFiltersTest extends TestCase
             $filters = $method->invoke($service, ['profile' => ['subject_type' => 'person', 'age_months' => 480]], ['case_specific' => $specific], 'ar');
             $this->assertSame($specific, $filters['require_age_scope']);
             $this->assertSame(480, $filters['age_months']);
+            $this->assertTrue($filters['allow_unscoped_candidates']);
         }
     }
     public function test_an_uncorrected_profile_retains_its_typed_age_filter(): void

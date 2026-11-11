@@ -7,6 +7,20 @@ use Tests\TestCase;
 
 class AnswerModelPolicyTest extends TestCase
 {
+    public function test_personalized_fast_answers_get_reasoning_without_changing_the_model_or_downgrading_config(): void
+    {
+        config(['ai.fast_answer_model' => 'fast-model', 'ai.fast_answer_reasoning_effort' => 'none',
+            'ai.fast_answer_max_output_tokens' => 800]);
+        $plan = ['risk_level' => 'low', 'response_mode' => 'fast', 'case_specific' => true];
+        $policy = new AnswerModelPolicy();
+        $options = $policy->options($plan, 'Help with following instructions.');
+        $this->assertSame('fast-model', $options['model']);
+        $this->assertSame('low', $options['reasoning_effort']);
+        $this->assertGreaterThanOrEqual(1600, $options['max_completion_tokens']);
+        config(['ai.fast_answer_reasoning_effort' => 'medium']);
+        $this->assertSame('medium', $policy->options($plan, 'Help')['reasoning_effort']);
+    }
+
     public function test_fast_and_deep_use_different_models_and_compute_budgets(): void
     {
         config(['ai.fast_answer_model' => 'fast-model', 'ai.fast_answer_reasoning_effort' => 'none',

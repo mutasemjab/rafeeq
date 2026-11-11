@@ -28,6 +28,7 @@ return [
     'fast_review_model' => env('AI_FAST_REVIEW_MODEL', env('AI_FAST_ANSWER_MODEL', env('AI_CHAT_MODEL', 'gpt-5.6-luna'))),
     'fast_review_reasoning_effort' => env('AI_FAST_REVIEW_REASONING_EFFORT', 'none'),
     'knowledge_coverage_model' => env('AI_KNOWLEDGE_COVERAGE_MODEL', env('AI_CHAT_MODEL', 'gpt-5.6-luna')),
+    'personalized_knowledge_coverage_model' => env('AI_PERSONALIZED_KNOWLEDGE_COVERAGE_MODEL', env('AI_ANSWER_QUALITY_MODEL', env('AI_ANSWER_MODEL', 'gpt-6-astra'))),
     'require_age_scoped_evidence' => (bool) env('AI_REQUIRE_AGE_SCOPED_EVIDENCE', true),
     'skip_empty_retrieval_embeddings' => (bool) env('AI_SKIP_EMPTY_RETRIEVAL_EMBEDDINGS', false),
     'answer_reasoning_effort' => env('AI_ANSWER_REASONING_EFFORT', env('AI_WEB_ANSWER_REASONING_EFFORT', 'medium')),

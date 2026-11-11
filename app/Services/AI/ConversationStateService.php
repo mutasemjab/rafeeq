@@ -6,6 +6,24 @@ use App\Models\Conversation;
 
 class ConversationStateService
 {
+    public function recordEvidenceClarification(Conversation $conversation, string $question, array $gaps, int $priorClarifications = 0): void
+    {
+        $state = (array) $conversation->case_state;
+        $state['last_action'] = 'ask_clarification';
+        $state['last_reason'] = 'source_prerequisite_needs_person_context';
+        $state['last_question_target'] = 'source_prerequisite';
+        $state['missing_fields'] = $gaps;
+        $state['follow_up_needed'] = true;
+        $state['consecutive_clarifications'] = $priorClarifications + 1;
+        $state['asked_questions'] = $this->appendQuestion($this->askedQuestions($state), $question, [
+            'source' => 'clarification', 'target' => 'source_prerequisite',
+            'scope' => $state['question_scope'] ?? null,
+            'observation_round' => (int) ($state['observation_round'] ?? 0),
+        ]);
+        $state['updated_at'] = now()->toISOString();
+        $conversation->forceFill(['case_state' => $state, 'next_question' => $question])->save();
+    }
+
     public function recordPlan(Conversation $conversation, array $plan, array $safety, ?int $sourceMessageId = null, ?string $latestMessage = null): void
     {
         $previous = is_array($conversation->case_state) ? $conversation->case_state : [];

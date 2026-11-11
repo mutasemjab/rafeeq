@@ -14,6 +14,20 @@ import uuid
 from pathlib import Path
 
 CASES = {
+    "parenting_unlinked": {
+        "language": "ar",
+        "messages": [
+            "طفلي عمره 2 وبدي ادربه على شلح الحفاظه كيف",
+            "طفلي ما يتبع تعليماتي شو اعمل",
+            "بيجيب الكرة إذا أشرتله، بس إذا حكيتله بدون إشارة ما بجيبها",
+        ],
+        "expect_useful_response": True,
+    },
+    "toileting_ready": {
+        "language": "ar",
+        "messages": ["طفلي عمره سنتين، بيقدر يقعد بهدوء على الحمام دقيقتين وبيفهم وينفذ تعليمة هات الكرة بدون إشارة. بدي أدربه يترك الحفاظة، من وين أبدأ؟"],
+        "expect_library_only": True,
+    },
     "speech_ar": {
         "language": "ar",
         "messages": [
@@ -152,6 +166,10 @@ def run_case(base, name):
                     "no_web_used": evidence.get("used_web_search") is False and evidence.get("web_sources") == 0,
                     "cited_internal_reference": evidence.get("cited_sources", 0) > 0,
                 }
+            if case.get("expect_useful_response"):
+                report.setdefault("technical_checks", {})["useful_response"] = (
+                    turn.get("status") == "completed" and answer.get("response_type") in ("answer", "clarification")
+                )
             result["turns"].append(report)
             print(json.dumps({"case": name, "turn": len(result["turns"]), "status": report["status"],
                               "total_s": report["total_s"], "response_type": answer.get("response_type")}, ensure_ascii=False), flush=True)

@@ -98,8 +98,14 @@ class KnowledgeSearchService
             $perQuery = max(1, min(2, intdiv($limit, count($queries))));
             foreach (array_keys($queries) as $queryIndex) {
                 $added = 0;
-                foreach ($results as $result) {
-                    if (isset($result['query_similarities'][$queryIndex]) && ! isset($selected[$result['chunk_id']])) {
+                $queryResults = array_values(array_filter($results,
+                    fn ($result) => isset($result['query_similarities'][$queryIndex])));
+                // A chunk may match several queries. Its global maximum score
+                // must not displace the best match for this particular query.
+                usort($queryResults, fn ($a, $b) =>
+                    $b['query_similarities'][$queryIndex] <=> $a['query_similarities'][$queryIndex]);
+                foreach ($queryResults as $result) {
+                    if (! isset($selected[$result['chunk_id']])) {
                         $selected[$result['chunk_id']] = $result;
                         if (++$added >= $perQuery) break;
                     }

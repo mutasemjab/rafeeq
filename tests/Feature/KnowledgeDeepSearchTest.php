@@ -56,6 +56,35 @@ class KnowledgeDeepSearchTest extends TestCase
         $this->assertSame([$validChunk->id], array_column($results, 'chunk_id'));
     }
 
+    public function test_case_discovery_reads_untagged_books_but_keeps_approval_and_explicit_age_exclusions(): void
+    {
+        config(['ai.embedding_dimensions' => 2, 'ai.embedding_model' => 'test-model']);
+        $legacy = $this->document(['audience' => null]);
+        $chunk = $this->chunk($legacy, 'A caregiver can make a simple instruction clear during familiar play.');
+        $chunk->update(['embedding' => '[1.0,0.0]', 'embedding_dimensions' => 2,
+            'metadata' => ['embedding_model' => 'test-model']]);
+        foreach ([['is_approved' => false], ['status' => 'failed'], ['deleted_at' => now()],
+            ['age_min_months' => 216], ['audience' => 'adults']] as $attributes) {
+            $document = $this->document(array_merge(['audience' => null], $attributes));
+            if (isset($attributes['deleted_at'])) $document->forceFill(['deleted_at' => $attributes['deleted_at']])->save();
+            $bad = $this->chunk($document, $chunk->content);
+            $bad->update(['embedding' => '[1.0,0.0]', 'embedding_dimensions' => 2,
+                'metadata' => ['embedding_model' => 'test-model']]);
+        }
+        $filters = ['approved_only' => true, 'require_age_scope' => true,
+            'allow_unscoped_candidates' => true, 'age_months' => 24];
+        $repo = new MysqlVectorSearchRepository();
+        $search = new KnowledgeSearchService(Mockery::mock(LlmProviderInterface::class), $repo);
+        $this->assertTrue($search->hasEligibleSources($filters));
+        $semantic = $repo->searchKnowledge([1.0, 0.0], 10, 0, $filters);
+        $lexical = $search->searchDeeper([], ['caregiver simple instruction'], $filters);
+        $this->assertSame([$chunk->id], array_column($semantic, 'chunk_id'));
+        $this->assertSame([$chunk->id], array_column($lexical, 'chunk_id'));
+        $this->assertNull($semantic[0]['age_min_months']);
+        $this->assertNull($semantic[0]['audience']);
+        $this->assertNull($legacy->fresh()->audience);
+    }
+
     public function test_matching_book_titles_do_not_hide_the_answer_on_a_later_page(): void
     {
         $document = $this->document(['title' => 'Turn taking communication reference']);

@@ -10,6 +10,19 @@ use Tests\TestCase;
 
 class KnowledgeSearchServiceHybridTest extends TestCase
 {
+    public function test_each_query_reserves_its_own_best_match_when_candidates_overlap(): void
+    {
+        $repo = Mockery::mock(VectorSearchRepositoryInterface::class);
+        $repo->shouldReceive('searchKnowledgeMany')->once()->andReturn([
+            ['chunk_id' => 1, 'content' => 'Original question answer', 'similarity' => 0.75, 'query_similarities' => [0 => 0.75, 1 => 0.3]],
+            ['chunk_id' => 2, 'content' => 'Expansion answer', 'similarity' => 0.95, 'query_similarities' => [0 => 0.4, 1 => 0.95]],
+            ['chunk_id' => 3, 'content' => 'Expansion background', 'similarity' => 0.94, 'query_similarities' => [0 => 0.35, 1 => 0.94]],
+        ]);
+        $hits = (new KnowledgeSearchService(Mockery::mock(LlmProviderInterface::class), $repo))
+            ->searchForCase([[1, 0], [0, 1]], ['سؤال', 'translated'], [], 2);
+        $this->assertSame([1, 2], array_column($hits, 'chunk_id'));
+    }
+
     public function test_translation_cannot_crowd_out_the_original_question(): void
     {
         $llm = Mockery::mock(LlmProviderInterface::class);

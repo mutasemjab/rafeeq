@@ -15,10 +15,12 @@ class AnswerModelPolicy
             ];
         }
         if (($plan['response_mode'] ?? null) === 'fast' && ! $this->requiresCarefulReview($plan, $message)) {
+            $effort = (string) config('ai.fast_answer_reasoning_effort', 'none');
+            $personalized = ($plan['case_specific'] ?? false) === true;
             return [
                 'model' => (string) config('ai.fast_answer_model'),
-                'reasoning_effort' => (string) config('ai.fast_answer_reasoning_effort', 'none'),
-                'max_completion_tokens' => (int) config('ai.fast_answer_max_output_tokens', 800),
+                'reasoning_effort' => $personalized && $effort === 'none' ? 'low' : $effort,
+                'max_completion_tokens' => max($personalized ? 1600 : 0, (int) config('ai.fast_answer_max_output_tokens', 800)),
             ];
         }
         $routine = trim((string) config('ai.routine_answer_model', ''));
