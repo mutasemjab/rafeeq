@@ -20,7 +20,8 @@ class UpdateChildMemoryJob implements ShouldQueue
 
     public function __construct(
         private int $conversationId,
-        private ?int $childId
+        private ?int $childId,
+        private ?int $costMessageId = null
     ) {
     }
 
@@ -31,6 +32,9 @@ class UpdateChildMemoryJob implements ShouldQueue
             return;
         }
 
+        $meter = app(\App\Services\AI\AiUsageMeter::class);
+        $message = isset($this->costMessageId) ? Message::where('conversation_id', $this->conversationId)->find($this->costMessageId) : null;
+        $previousCostScope = $meter->begin($message, 'maintenance');
         try {
             $conversation = Conversation::with('messages')->findOrFail($this->conversationId);
             if ($conversation->is_temporary) { return; }
@@ -136,6 +140,8 @@ PROMPT;
                 'child_id' => $this->childId,
                 'error' => $e->getMessage(),
             ]);
+        } finally {
+            $meter->restore($previousCostScope);
         }
     }
 }

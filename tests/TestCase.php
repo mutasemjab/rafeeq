@@ -11,6 +11,13 @@ abstract class TestCase extends BaseTestCase
 {
     use CreatesApplication;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Automated tests must never spend production API credit.
+        \Illuminate\Support\Facades\Http::preventStrayRequests();
+    }
+
     protected function setUpPassport(): void
     {
         $this->loadPassportKeys();

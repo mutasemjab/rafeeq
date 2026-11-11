@@ -17,12 +17,15 @@ class SummarizeConversationJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function __construct(private int $conversationId)
+    public function __construct(private int $conversationId, private ?int $costMessageId = null)
     {
     }
 
     public function handle(): void
     {
+        $meter = app(\App\Services\AI\AiUsageMeter::class);
+        $message = isset($this->costMessageId) ? Message::where('conversation_id', $this->conversationId)->find($this->costMessageId) : null;
+        $previousCostScope = $meter->begin($message, 'maintenance');
         try {
             $conv = Conversation::findOrFail($this->conversationId);
             if ($conv->is_temporary) { return; }
@@ -100,6 +103,8 @@ PROMPT;
                 'conversation_id' => $this->conversationId,
                 'error'           => $e->getMessage(),
             ]);
+        } finally {
+            $meter->restore($previousCostScope);
         }
     }
 

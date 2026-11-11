@@ -17,12 +17,13 @@ class ConversationMaintenanceService
             return;
         }
         $count = $conversation->fresh()?->message_count ?? 0;
+        $messageId = $conversation->messages()->where('role', 'user')->orderByDesc('id')->value('id');
         $jobs = [];
         if ($conversation->child_id && $count > 0 && $count % 5 === 0) {
-            $jobs[] = new UpdateChildMemoryJob($conversation->id, $conversation->child_id);
+            $jobs[] = new UpdateChildMemoryJob($conversation->id, $conversation->child_id, $messageId);
         }
         if ($count > 0 && $count % 10 === 0) {
-            $jobs[] = new SummarizeConversationJob($conversation->id);
+            $jobs[] = new SummarizeConversationJob($conversation->id, $messageId);
         }
         foreach ($jobs as $job) {
             try {

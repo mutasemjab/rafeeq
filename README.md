@@ -336,6 +336,41 @@ Hosted answers are prompted to prefer readable official HTML/full-text pages so
 the independent reviewer can reopen the exact citation; an unreadable PDF or a
 search snippet alone is not treated as verified evidence.
 
+AI costs are recorded per provider request in `ai_request_usages`, linked to the
+user's question and attempt. This includes coverage, drafting, review, revision
+verification, embeddings and question-triggered background maintenance. Reports
+contain counters and identifiers, never question text, book text or API keys.
+Account/conversation/message deletion removes the identifying foreign-key links;
+anonymous cost counters remain. Synthetic QA is tagged separately.
+Standalone document vision/transcription ingestion is outside this per-question
+report; it is separate from chat retrieval and must still be reconciled with the
+provider invoice when calculating total project spend.
+
+`php artisan ai:cost-report --days=7 --by=question --json` reports each question;
+use `--by=stage` or `--by=day` to compare stages or dates. Evaluation requests are
+excluded unless `--include-evaluations` is supplied. Costs are USD estimates from
+provider usage and the versioned rates in `config/ai_costs.php`, not invoices.
+Cached reads, 30m/12h writes, output (including reasoning), service tier and web
+search actions are counted without double charging. Unknown models, unavailable
+usage and ambiguous tool counts remain unpriced; reports show an incomplete
+subtotal, never a falsely complete zero. Historical costs cannot be backfilled
+from response duration or the old final-answer-only token fields.
+
+`AI_OPTIMIZE_PROMPT_CACHE=true` caches the unchanged instruction prefix explicitly
+for 30 minutes on supported models, avoiding cache-write charges on the changing
+question/reference suffix. All models, passage limits, search passes and review
+checks remain unchanged. Raw Chat Completions usage is read directly because the
+installed SDK discards cache accounting details. Requests select the standard
+service tier. Set the flag to `false` for a measured baseline or rollback.
+
+Automated tests block unmocked HTTP calls. The optional, paid
+`scripts/benchmark-ai-cost.php --live --bundle=... --output=...` runs only two
+synthetic questions in two variants, against an isolated imported index. It caps
+requests at 32, stops on failed checks or unknown usage, and stops before another
+request once estimated spend reaches $1.50 (a between-request threshold, not an
+invoice ceiling). Separate cache partitions isolate the variants. It does not
+run automatically during deployment and never changes the production database.
+
 Retrieval avoids repeated work without reducing search coverage: semantic
 scoring still visits every eligible vector, but loads full passages and document
 metadata only for the retained candidates. Stable score ties retain their prior

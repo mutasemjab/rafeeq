@@ -16,6 +16,7 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton(\App\Services\AI\AiUsageMeter::class);
         $this->app->singleton(LlmProviderInterface::class, function ($app) {
             return $app->make(AiProviderManager::class)->driver();
         });

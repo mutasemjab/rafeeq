@@ -6,7 +6,8 @@ use App\Services\AI\Contracts\LlmProviderInterface;
 use App\Services\AI\OpenAiConfigResolver;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use OpenAI\Laravel\Facades\OpenAI;
+use App\Services\AI\AiUsageMeter;
+use App\Services\AI\PromptCachePolicy;
 use RuntimeException;
 use Throwable;
 
@@ -59,13 +60,9 @@ class OpenAiProvider implements LlmProviderInterface
 
             $payload = array_merge($defaults, $options);
 
-            $response = $this->observeRequest(
-                'chat',
-                (string) $payload['model'],
-                fn () => OpenAI::chat()->create($payload)
-            );
+            $response = $this->chatRequest($payload, 'chat');
 
-            $content = trim((string) ($response->choices[0]->message->content ?? ''));
+            $content = trim((string) data_get($response, 'choices.0.message.content', ''));
             if ($content === '') {
                 throw new RuntimeException('OpenAI chat returned an empty response.');
             }
@@ -184,22 +181,15 @@ class OpenAiProvider implements LlmProviderInterface
                 'response_format' => $responseFormat,
             ], $options);
 
-            $response = $this->observeRequest(
-                'chat_json',
-                (string) $payload['model'],
-                fn () => OpenAI::chat()->create($payload),
-                $schemaName
-            );
+            $response = $this->chatRequest($payload, 'chat_json', $schemaName);
 
-            $message = $response->choices[0]->message ?? null;
-            $refusal = is_object($message) && isset($message->refusal)
-                ? trim((string) $message->refusal)
-                : '';
+            $message = data_get($response, 'choices.0.message', []);
+            $refusal = trim((string) ($message['refusal'] ?? ''));
             if ($refusal !== '') {
                 throw new RuntimeException('OpenAI refused the structured request: '.$refusal);
             }
 
-            $content = $message->content ?? '';
+            $content = $message['content'] ?? '';
             if (! is_string($content) || trim($content) === '') {
                 throw new RuntimeException('OpenAI chatJson returned an empty response.');
             }
@@ -283,6 +273,7 @@ class OpenAiProvider implements LlmProviderInterface
             'instructions' => $instructions,
             'input' => $input,
             'store' => false,
+            'service_tier' => 'default',
             'max_output_tokens' => (int) ($options['max_completion_tokens'] ?? config('ai.answer_max_output_tokens', 1400)),
         ];
         if (isset($options['structured_output_format'])) {
@@ -309,12 +300,12 @@ class OpenAiProvider implements LlmProviderInterface
         if ($reasoningEffort !== '') {
             $payload['reasoning'] = ['effort' => $reasoningEffort];
         }
+        $payload = app(PromptCachePolicy::class)->apply($payload, 'responses');
 
         $request = Http::withToken($this->apiKey)
             ->acceptJson()
             ->connectTimeout(max(1, (int) config('ai.web_search_connect_timeout', 15)))
-            ->timeout(max(10, (int) config('ai.web_search_request_timeout', 120)))
-            ->retry(1, 750);
+            ->timeout(max(10, (int) config('ai.web_search_request_timeout', 120)));
 
         if (is_string($this->organization) && trim($this->organization) !== '') {
             $request = $request->withHeaders([
@@ -322,18 +313,8 @@ class OpenAiProvider implements LlmProviderInterface
             ]);
         }
 
-        $response = $this->observeRequest('responses', $model, function () use ($request, $payload) {
-            $response = $request->post('https://api.openai.com/v1/responses', $payload);
-            if ($response->failed()) {
-                throw new RuntimeException(sprintf(
-                    'OpenAI Responses request failed with HTTP %d: %s',
-                    $response->status(),
-                    mb_substr((string) $response->body(), 0, 1000)
-                ));
-            }
-
-            return $response;
-        }, $options['schema_name'] ?? null);
+        $response = $this->observeRequest('responses', $model,
+            fn () => $request->post('https://api.openai.com/v1/responses', $payload), $options['schema_name'] ?? null);
 
         $data = $response->json();
         $content = '';
@@ -398,25 +379,55 @@ class OpenAiProvider implements LlmProviderInterface
 
     private function observeRequest(string $operation, string $model, callable $request, ?string $schemaName = null): mixed
     {
+        $this->beforeRequest($operation, $model);
         $startedAt = hrtime(true);
         $succeeded = false;
+        $response = null;
 
         try {
             $response = $request();
+            if ($response->failed()) {
+                throw new RuntimeException(sprintf('OpenAI %s request failed with HTTP %d: %s',
+                    $operation, $response->status(), mb_substr((string) $response->body(), 0, 1000)));
+            }
             $succeeded = true;
 
             return $response;
         } finally {
+            $milliseconds = (int) round((hrtime(true) - $startedAt) / 1_000_000);
+            app(AiUsageMeter::class)->record($operation, $model, $schemaName, $milliseconds, $succeeded,
+                is_array($response?->json()) ? $response->json() : [], $response?->header('x-request-id'));
             // Timing metadata only: no messages, child details, raw output, or
             // exception text. Schema identifies planner/reviewer/follow-up cost.
             Log::info('ai.provider.request_completed', [
                 'operation' => $operation,
                 'model' => $model,
                 'schema' => $schemaName,
-                'duration_ms' => (int) round((hrtime(true) - $startedAt) / 1_000_000),
+                'duration_ms' => $milliseconds,
                 'succeeded' => $succeeded,
             ]);
         }
+    }
+
+    /** Allows bounded evaluation harnesses to stop before another billable request. */
+    protected function beforeRequest(string $operation, string $model): void
+    {
+    }
+
+    private function chatRequest(array $payload, string $operation, ?string $schemaName = null): array
+    {
+        // Read raw usage: the installed SDK discards cached/write/reasoning token details.
+        $payload['store'] = false;
+        $payload['service_tier'] = 'default';
+        $payload = app(PromptCachePolicy::class)->apply($payload, 'chat/completions');
+        $request = Http::withToken($this->apiKey)->acceptJson()
+            ->connectTimeout(max(1, (int) config('ai.web_search_connect_timeout', 15)))
+            ->timeout(max(10, (int) config('openai.request_timeout', 300)));
+        if (is_string($this->organization) && trim($this->organization) !== '') {
+            $request = $request->withHeaders(['OpenAI-Organization' => trim($this->organization)]);
+        }
+        return $this->observeRequest($operation, (string) $payload['model'],
+            fn () => $request->post('https://api.openai.com/v1/chat/completions', $payload), $schemaName)->json();
     }
 
     private function allowedWebDomains(): array
@@ -584,8 +595,7 @@ class OpenAiProvider implements LlmProviderInterface
             $request = Http::withToken($this->apiKey)
                 ->acceptJson()
                 ->connectTimeout(max(1, (int) config('ai.embedding_connect_timeout', 15)))
-                ->timeout(max(5, (int) config('ai.embedding_request_timeout', 90)))
-                ->retry(2, 750);
+                ->timeout(max(5, (int) config('ai.embedding_request_timeout', 90)));
 
             if (is_string($this->organization) && trim($this->organization) !== '') {
                 $request = $request->withHeaders([
@@ -599,14 +609,15 @@ class OpenAiProvider implements LlmProviderInterface
                 'characters_total' => array_sum(array_map('mb_strlen', $inputs)),
             ]);
 
-            $response = $request->post('https://api.openai.com/v1/embeddings', $payload);
-
-            if ($response->failed()) {
-                throw new RuntimeException(sprintf(
-                    'OpenAI embedding request failed with HTTP %d: %s',
-                    $response->status(),
-                    mb_substr((string) $response->body(), 0, 800)
-                ));
+            for ($attempt = 1; $attempt <= 2; $attempt++) {
+                try {
+                    $response = $this->observeRequest('embeddings', $model,
+                        fn () => $request->post('https://api.openai.com/v1/embeddings', $payload));
+                    break;
+                } catch (Throwable $error) {
+                    if ($attempt === 2) throw $error;
+                    usleep(750000);
+                }
             }
 
             $data = $response->json('data');

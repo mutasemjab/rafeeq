@@ -68,12 +68,16 @@ class ChildChatService
         }
         $startedAt = microtime(true);
         $responseType = 'failed';
+        $meter = app(AiUsageMeter::class);
+        $previousCostScope = $meter->begin($persistedUserMessage, 'chat', (int) ($this->activeAttempts[$persistedUserMessage?->id] ?? 1));
         try {
             $reply = $this->processTurn($conversation, $userMessage, $userId, $childId, $language, $persistedUserMessage, $progress, $deferMaintenance);
             $responseType = $reply->metadata['response_type'] ?? 'answer';
 
             return $reply;
         } finally {
+            $meter->finishQuestion($responseType !== 'failed');
+            $meter->restore($previousCostScope);
             if ($persistedUserMessage !== null) unset($this->activeAttempts[$persistedUserMessage->id]);
             Log::info('ai.chat.completed', [
                 'conversation_id' => $conversation->id,
@@ -113,6 +117,7 @@ class ChildChatService
             'content' => $userMessage,
         ]);
         Log::info('[Chat] Step 1: User message saved', ['message_id' => $userMsg->id]);
+        app(AiUsageMeter::class)->attach($userMsg);
 
         // 2. Load bounded history once for safety, scope, and turn planning.
         $recentMessages = $conversation->messages()
