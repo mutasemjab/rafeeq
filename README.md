@@ -332,6 +332,9 @@ memory. The structured review uses Responses `text.format`, validates the JSON
 schema, and requires a completed web tool call; provider failures do not fall
 back to an unsearched review. Library-supported answers keep web access disabled
 during review. Web-assisted review adds a lookup to the fallback path only.
+Hosted answers are prompted to prefer readable official HTML/full-text pages so
+the independent reviewer can reopen the exact citation; an unreadable PDF or a
+search snippet alone is not treated as verified evidence.
 
 Retrieval avoids repeated work without reducing search coverage: semantic
 scoring still visits every eligible vector, but loads full passages and document
