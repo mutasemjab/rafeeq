@@ -7,6 +7,27 @@ use Tests\TestCase;
 
 class AnswerModelPolicyTest extends TestCase
 {
+    /** @dataProvider groundedFastPlans */
+    public function test_primary_drafting_is_limited_to_personalized_book_answers(array $overrides, string $expectedModel): void
+    {
+        config(['ai.fast_answer_model' => 'fast-model', 'ai.answer_model' => 'primary-model',
+            'ai.fast_answer_reasoning_effort' => 'none', 'ai.fast_answer_max_output_tokens' => 800]);
+        $plan = array_merge(['risk_level' => 'low', 'response_mode' => 'fast'], $overrides);
+        $options = (new AnswerModelPolicy())->options($plan, 'Help with a familiar instruction.');
+        $this->assertSame($expectedModel, $options['model']);
+        $this->assertSame(($plan['case_specific'] ?? false) ? 'low' : 'none', $options['reasoning_effort']);
+    }
+
+    public static function groundedFastPlans(): array
+    {
+        return [
+            [['case_specific' => true, 'knowledge_grounding' => ['mode' => 'internal']], 'primary-model'],
+            [['case_specific' => false, 'knowledge_grounding' => ['mode' => 'internal']], 'fast-model'],
+            [['case_specific' => true, 'knowledge_grounding' => ['mode' => 'web_gap_fill']], 'fast-model'],
+            [['case_specific' => true], 'fast-model'],
+        ];
+    }
+
     public function test_personalized_fast_answers_get_reasoning_without_changing_the_model_or_downgrading_config(): void
     {
         config(['ai.fast_answer_model' => 'fast-model', 'ai.fast_answer_reasoning_effort' => 'none',

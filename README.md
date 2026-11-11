@@ -314,8 +314,11 @@ the configured quality model with low reasoning effort and carries unresolved
 gaps into the second assessment. This avoids asking for a program's target skill
 as though it were a prerequisite.
 Personalized fast answers also use at least low reasoning, with extra token
-capacity for that reasoning; the concise response limit and fast generation
-model remain unchanged. Their review uses the configured quality model.
+capacity for that reasoning. When the books cover the answer, drafting uses the
+configured primary answer model to reduce unsupported additions that would need
+a rewrite and a second verification. Their review still uses the configured
+quality model, with independent verification of every revision. The concise
+response limit, search coverage and evidence checks remain unchanged.
 General factual answers keep the faster settings.
 A passage-backed question about an unknown personal ability can be returned after
 both searches; internet research cannot establish that ability. This clarification
