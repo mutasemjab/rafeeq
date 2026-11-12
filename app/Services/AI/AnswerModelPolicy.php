@@ -17,13 +17,16 @@ class AnswerModelPolicy
         if (($plan['response_mode'] ?? null) === 'fast' && ! $this->requiresCarefulReview($plan, $message)) {
             $effort = (string) config('ai.fast_answer_reasoning_effort', 'none');
             $personalized = ($plan['case_specific'] ?? false) === true;
-            // A weak first draft repeatedly needs a full rewrite and another
-            // verification call. Use the primary model for personalized book
-            // answers; the independent review and repair path still apply.
+            // Keep personalized book drafting on the primary model unless the
+            // conservative router explicitly selects the balanced model.
             $groundedPersonalAnswer = $personalized
                 && data_get($plan, 'knowledge_grounding.mode') === 'internal';
+            $model = (string) config($groundedPersonalAnswer ? 'ai.answer_model' : 'ai.fast_answer_model');
+            if (app(PersonalizedModelRouter::class)->grounded($plan, $message)) {
+                $model = app(PersonalizedModelRouter::class)->model();
+            }
             return [
-                'model' => (string) config($groundedPersonalAnswer ? 'ai.answer_model' : 'ai.fast_answer_model'),
+                'model' => $model,
                 'reasoning_effort' => $personalized && $effort === 'none' ? 'low' : $effort,
                 'max_completion_tokens' => max($personalized ? 1600 : 0, (int) config('ai.fast_answer_max_output_tokens', 800)),
             ];

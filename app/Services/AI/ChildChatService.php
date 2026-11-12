@@ -278,6 +278,8 @@ class ChildChatService
                 is_array($conversation->case_state) ? $conversation->case_state : []
             );
             $turnPlan['response_mode'] = $responseMode;
+            if ($replyFeedback !== null || ($safetyDecision['level'] ?? 'routine') !== 'routine'
+                || !empty($safetyDecision['flags'])) $turnPlan['cost_routing_force_primary'] = true;
             // A factual question remains evidence-based even if the separate
             // planner mistakenly calls it nonclinical/supportive (e.g. deep mode).
             if (($domainDecision['general_education'] ?? false) === true) {
@@ -486,6 +488,8 @@ class ChildChatService
                     'mode' => $internalAssessment['sufficient'] ? 'internal' : 'web_gap_fill',
                     'supporting_labels' => $supportingLabels,
                     'missing_information' => $internalAssessment['missing_information'],
+                    'coverage_escalated' => $internalAssessment['model_escalated'] ?? false,
+                    'coverage_model' => $internalAssessment['model'] ?? null,
                 ];
                 Log::info('[Chat] Step 5: Knowledge base search', [
                     'chunks_found' => count($knowledgeSources),

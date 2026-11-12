@@ -75,10 +75,29 @@ PROMPT],
             'reasoning_effort' => ($plan['case_specific'] ?? true) ? 'low' : 'none',
             'max_completion_tokens' => ($plan['case_specific'] ?? true) ? 1800 : 1000,
         ];
-        $result = $this->llm->chatJson($messages, $schema, $options);
+        $primaryModel = $options['model'];
+        $router = app(PersonalizedModelRouter::class);
+        $balanced = $router->eligible($plan, $question, $context);
+        $escalated = config('ai.adaptive_personalized_routing', true)
+            && ($plan['case_specific'] ?? false) === true && !empty($plan['previous_evidence_gaps']);
+        if ($balanced) $options['model'] = $router->model();
+        // A second search's absence/prerequisite decision always uses the primary
+        // personalized reader. The cheaper first pass cannot decide to use web.
+        if ($escalated) $options['schema_name'] = 'rafeeq_knowledge_coverage_escalation';
+        $result = null;
         try {
-            return $this->validatedAssessment($result, $passages, ($plan['case_specific'] ?? true) !== false);
-        } catch (RuntimeException $exception) {
+            $result = $this->llm->chatJson($messages, $schema, $options);
+            return $this->validatedAssessment($result, $passages, ($plan['case_specific'] ?? true) !== false)
+                + ['model' => $options['model'], 'model_escalated' => $escalated];
+        } catch (\Throwable $exception) {
+            if ($balanced) {
+                // Fresh primary evaluation, without the failed reader's verdict.
+                $options['model'] = $primaryModel;
+                $options['schema_name'] = 'rafeeq_knowledge_coverage_escalation';
+                return $this->validatedAssessment($this->llm->chatJson($messages, $schema, $options), $passages, true)
+                    + ['model' => $primaryModel, 'model_escalated' => true];
+            }
+            if ($result === null || !($exception instanceof RuntimeException)) throw $exception;
             // A malformed source reference is not proof of a library gap.
             // Allow one ID repair; never skip validation or jump to web.
             $messages[] = ['role' => 'user', 'content' => json_encode([
@@ -86,7 +105,8 @@ PROMPT],
                 'previous_result' => $result,
                 'instruction' => 'Repair this coverage result using the SAME supplied passages. Reference only existing source_label and integer excerpt_id pairs. Do not copy or rewrite the text. A reference-formatting error does not mean the library lacks the answer. Return the complete schema again.',
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)];
-            return $this->validatedAssessment($this->llm->chatJson($messages, $schema, $options), $passages, ($plan['case_specific'] ?? true) !== false);
+            return $this->validatedAssessment($this->llm->chatJson($messages, $schema, $options), $passages, ($plan['case_specific'] ?? true) !== false)
+                + ['model' => $options['model'], 'model_escalated' => $escalated];
         }
     }
 

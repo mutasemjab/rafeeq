@@ -53,7 +53,9 @@ class AiUsageMeter
         try {
             $cost = app(AiCostCalculator::class)->calculate($response, $model, $operation);
             $row = array_merge($this->context ?? ['run_id' => (string) Str::uuid(), 'purpose' => 'background', 'attempt' => 1], $cost, [
-                'variant' => config('ai_costs.optimize_prompt_cache', true) ? 'stable_cache_v1' : 'baseline',
+                'variant' => config('ai.adaptive_personalized_routing', true)
+                    ? (config('ai_costs.optimize_prompt_cache', true) ? 'adaptive_personal_v1' : 'adaptive_nocache_v1')
+                    : (config('ai_costs.optimize_prompt_cache', true) ? 'stable_cache_v1' : 'baseline'),
                 'operation' => $operation, 'stage' => $stage ?? $operation,
                 'provider_request_id' => $requestId ? mb_substr($requestId, 0, 150) : null,
                 'succeeded' => $succeeded, 'duration_ms' => $milliseconds, 'created_at' => now(),

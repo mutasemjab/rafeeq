@@ -25,6 +25,25 @@ class AiCostAccountingTest extends TestCase
         return Message::create(['user_id' => $user->id, 'conversation_id' => $conversation->id, 'role' => 'user', 'content' => 'PRIVATE QUESTION']);
     }
 
+    public function test_policy_variants_and_escalation_cost_are_linked_to_the_same_question(): void
+    {
+        $meter = app(AiUsageMeter::class);
+        $previous = $meter->begin($this->message());
+        $usage = ['usage' => ['input_tokens' => 1000, 'output_tokens' => 100]];
+        config(['ai_costs.optimize_prompt_cache' => true, 'ai.adaptive_personalized_routing' => false]);
+        $meter->record('chat_json', 'gpt-6-astra', 'rafeeq_answer_quality', 10, true, $usage);
+        config(['ai.adaptive_personalized_routing' => true]);
+        $meter->record('chat_json', 'gpt-6-sol', 'rafeeq_answer_quality', 10, true, $usage);
+        $meter->record('chat_json', 'gpt-6-astra', 'rafeeq_answer_quality_escalation', 10, true, $usage);
+        $meter->restore($previous);
+        $rows = DB::table('ai_request_usages')->get();
+        $this->assertSame(['stable_cache_v1', 'adaptive_personal_v1', 'adaptive_personal_v1'], $rows->pluck('variant')->all());
+        $this->assertSame(1, $rows->pluck('question_key')->unique()->count());
+        $this->assertSame('rafeeq_answer_quality_escalation', $rows[2]->stage);
+        $this->assertGreaterThan($rows[1]->estimated_cost_usd, $rows[2]->estimated_cost_usd);
+        $this->assertFalse($rows->contains(fn ($row) => $row->estimated_cost_usd === null));
+    }
+
     public function test_each_provider_stage_is_recorded_and_linked_without_private_text(): void
     {
         config(['ai.openai_api_key' => 'test-key', 'openai.api_key' => 'test-key', 'ai.embedding_dimensions' => 2]);

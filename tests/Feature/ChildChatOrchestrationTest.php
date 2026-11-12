@@ -216,7 +216,8 @@ class ChildChatOrchestrationTest extends TestCase
             'similarity' => 0.55,
         ]]);
         $dependencies['knowledge']->shouldReceive('searchDeeper')->once()->andReturnUsing(fn ($e, $q, $f, $sources) => $sources);
-        $dependencies['llm']->shouldReceive('chatJson')->twice()->withArgs(fn ($m, $s, $o) => $o['schema_name'] === 'rafeeq_knowledge_coverage')
+        $dependencies['llm']->shouldReceive('chatJson')->twice()->withArgs(fn ($m, $s, $o) =>
+            in_array($o['schema_name'], ['rafeeq_knowledge_coverage', 'rafeeq_knowledge_coverage_escalation'], true))
             ->andReturn(['sufficient' => false, 'supporting_quotes' => [], 'missing_information' => ['Specific supporting guidance is absent.'], 'search_queries' => []]);
         $dependencies['web']->shouldReceive('search')->never();
         $dependencies['follow_up']->shouldReceive('suggest')->once()->andReturn([

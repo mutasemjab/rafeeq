@@ -72,7 +72,8 @@ $output = $options['output'];
 if (! is_dir(dirname($output))) mkdir(dirname($output), 0755, true);
 config(['database.default' => 'sqlite', 'database.connections.sqlite.database' => ':memory:',
     'database.connections.sqlite.url' => null, 'logging.default' => 'single',
-    'logging.channels.single.path' => $output.'.log', 'cache.default' => 'array', 'ai_costs.evaluation' => true]);
+    'logging.channels.single.path' => $output.'.log', 'cache.default' => 'array', 'ai_costs.evaluation' => true,
+    'ai.adaptive_personalized_routing' => false]);
 DB::purge('sqlite');
 if (Artisan::call('migrate', ['--force' => true]) !== 0
     || Artisan::call('knowledge:import-index', ['bundle' => $bundle]) !== 0) {

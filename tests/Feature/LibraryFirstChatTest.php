@@ -170,7 +170,8 @@ class LibraryFirstChatTest extends TestCase
         $this->llm->shouldReceive('chatJson')->twice()->withArgs(function ($m, $s, $o) use (&$coverageCalls, $assessment) {
             $payload = json_decode($m[1]['content'], true);
             $coverageCalls++;
-            return $o['schema_name'] === 'rafeeq_knowledge_coverage' && $o['reasoning_effort'] === 'low'
+            return $o['schema_name'] === ($coverageCalls === 1 ? 'rafeeq_knowledge_coverage' : 'rafeeq_knowledge_coverage_escalation')
+                && $o['model'] === config('ai.personalized_knowledge_coverage_model') && $o['reasoning_effort'] === 'low'
                 && ($coverageCalls === 1 || ($payload['previous_evidence_gaps'] === $assessment['missing_information']
                     && $payload['previous_evidence_question'] === $assessment['clarification_question']));
         })

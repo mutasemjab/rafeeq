@@ -309,16 +309,30 @@ semantic and deeper text retrieval.
 Personalized chat also searches approved books whose age/audience metadata has
 not been recorded. Missing metadata does not make a book universally applicable:
 the passage assessor and reviewer check the actual population, prerequisites and
-limits, while explicit age exclusions remain enforced. Personalized coverage uses
-the configured quality model with low reasoning effort and carries unresolved
-gaps into the second assessment. This avoids asking for a program's target skill
-as though it were a prerequisite.
-Personalized fast answers also use at least low reasoning, with extra token
-capacity for that reasoning. When the books cover the answer, drafting uses the
-configured primary answer model to reduce unsupported additions that would need
-a rewrite and a second verification. Their review still uses the configured
-quality model, with independent verification of every revision. The concise
-response limit, search coverage and evidence checks remain unchanged.
+limits, while explicit age exclusions remain enforced. Personalized coverage
+carries unresolved gaps into the second assessment. This avoids asking for a
+program's target skill as though it were a prerequisite.
+
+`AI_ADAPTIVE_PERSONALIZED_ROUTING=true` selects `AI_BALANCED_PERSONALIZED_MODEL`
+(default `gpt-6-sol`) for fast, explicitly low-risk personalized answers when the
+planner's confidence is at least 0.9 and no critical gap, complex pathway,
+medication concern, safety flag, feedback correction or post-referral state is
+present. Missing risk/confidence keeps the primary model. The balanced reader
+receives the same full retrieved passages; the second personalized coverage
+assessment always uses the configured primary model before declaring a gap or
+requesting a missing personal prerequisite. Malformed/failed balanced assessments
+also receive one fresh primary assessment, never permission to bypass the books.
+
+Only internally supported eligible answers use balanced drafting. Personalized
+semantic review ALWAYS retains the configured primary quality model, regardless
+of the cheaper reader/writer's confidence. A primary rewrite retains independent
+verification. Escalated coverage also keeps primary drafting. Deep and complex
+cases retain their original models; web verification is unchanged. A live
+prototype using balanced review missed a target-versus-prerequisite error in a
+book passage and was rejected; that review policy is not enabled or deployed.
+Personalized reasoning remains at least low, with unchanged token limits,
+retrieval candidates and two-pass search policy. Set the routing flag to false
+and refresh configuration/restart workers to restore the previous models.
 General factual answers keep the faster settings.
 A passage-backed question about an unknown personal ability can be returned after
 both searches; internet research cannot establish that ability. This clarification
@@ -358,8 +372,8 @@ from response duration or the old final-answer-only token fields.
 
 `AI_OPTIMIZE_PROMPT_CACHE=true` caches the unchanged instruction prefix explicitly
 for 30 minutes on supported models, avoiding cache-write charges on the changing
-question/reference suffix. All models, passage limits, search passes and review
-checks remain unchanged. Raw Chat Completions usage is read directly because the
+question/reference suffix. This cache setting does not change model selection,
+passage limits, search passes or review checks. Raw Chat Completions usage is read directly because the
 installed SDK discards cache accounting details. Requests select the standard
 service tier. Set the flag to `false` for a measured baseline or rollback.
 
@@ -370,6 +384,22 @@ requests at 32, stops on failed checks or unknown usage, and stops before anothe
 request once estimated spend reaches $1.50 (a between-request threshold, not an
 invoice ceiling). Separate cache partitions isolate the variants. It does not
 run automatically during deployment and never changes the production database.
+The cache benchmark fixes adaptive model routing off to preserve its original
+comparison. `scripts/benchmark-model-routing.php --live --bundle=... --output=...`
+compares the routing flag with prompt caching enabled in both arms: two synthetic
+book questions before/after, retaining primary semantic review in both variants.
+It has a 36-request cap and the same $1.50 stop threshold and stops on a failed
+check. `--reuse-baseline=/path/prior-report.json` reuses completed baseline cases
+from the identical index and runs only their optimized counterparts, counting
+ALL earlier QA requests/spend (including rejected prototypes and audits) against
+the same cumulative limit. Neither live benchmark runs in the test suite.
+The ledger marks the new routing policy `adaptive_personal_v1` (or
+`adaptive_nocache_v1`), versus the previous `stable_cache_v1`; escalation schemas
+and actual provider models remain visible per request for before/after reports.
+A policy variant labels configuration, not a promise that every question used
+the balanced model. Small synthetic comparisons do not replace production quality
+and cost monitoring.
+
 
 Retrieval avoids repeated work without reducing search coverage: semantic
 scoring still visits every eligible vector, but loads full passages and document
