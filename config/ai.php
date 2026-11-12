@@ -24,6 +24,7 @@ return [
     'routine_answer_model' => env('AI_ROUTINE_ANSWER_MODEL'),
     'adaptive_personalized_routing' => (bool) env('AI_ADAPTIVE_PERSONALIZED_ROUTING', true),
     'balanced_personalized_model' => env('AI_BALANCED_PERSONALIZED_MODEL', 'gpt-6-sol'),
+    'reference_faithful_drafting' => (bool) env('AI_REFERENCE_FAITHFUL_DRAFTING', true),
     'fast_answer_model' => env('AI_FAST_ANSWER_MODEL', env('AI_CHAT_MODEL', 'gpt-5.6-luna')),
     'fast_answer_reasoning_effort' => env('AI_FAST_ANSWER_REASONING_EFFORT', 'none'),
     'fast_answer_max_output_tokens' => (int) env('AI_FAST_ANSWER_MAX_OUTPUT_TOKENS', 800),

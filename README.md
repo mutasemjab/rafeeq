@@ -333,6 +333,20 @@ book passage and was rejected; that review policy is not enabled or deployed.
 Personalized reasoning remains at least low, with unchanged token limits,
 retrieval candidates and two-pass search policy. Set the routing flag to false
 and refresh configuration/restart workers to restore the previous models.
+`AI_REFERENCE_FAITHFUL_DRAFTING=true` also gives the eligible balanced writer
+explicit checks already required by the primary reviewer: distinguish a program's
+outcome from an entry prerequisite, build on reported abilities when the source
+allows progression, and propose one useful source-backed observation. This aims
+to avoid preventable revisions and their additional verification call. When a
+supporting passage contains both explicit prerequisites and structured task/target
+steps, drafting uses the primary model from the outset; the balanced first-pass
+reader is retained. This local pattern check affects only writer selection, never
+source eligibility, coverage or the decision to use web. Other eligible routine
+answers retain balanced drafting. It never
+skips that call when a revision is needed, reduces retrieval, or changes the
+reviewer's model, instructions, reasoning budget or citation checks. Set only
+this flag to false to restore the preceding writer prompt/routing while retaining the
+cost-saving model routing. Latency still varies with the question and provider.
 General factual answers keep the faster settings.
 A passage-backed question about an unknown personal ability can be returned after
 both searches; internet research cannot establish that ability. This clarification
@@ -396,6 +410,15 @@ the same cumulative limit. Neither live benchmark runs in the test suite.
 The ledger marks the new routing policy `adaptive_personal_v1` (or
 `adaptive_nocache_v1`), versus the previous `stable_cache_v1`; escalation schemas
 and actual provider models remain visible per request for before/after reports.
+With reference-faithful drafting enabled, the variant is `adaptive_faithful_v1`
+(or `faithful_nocache_v1`). The older cache/model-routing benchmarks explicitly
+disable this drafting flag to preserve their original comparisons.
+`scripts/benchmark-reply-latency.php --live --bundle=... --output=... --baseline=...`
+runs one full synthetic book question and reuses the previous verified adaptive
+routing result against the identical index as its baseline. It caps NEW provider
+requests at 20 and stops before another call once NEW estimated spend reaches
+$0.50; this is a between-request guard, not an invoice cap. `--prior-qa=...` carries earlier latency-experiment requests and spend into that
+cumulative limit. It retains and meters primary review and any repair/verification. It does not run at deployment.
 A policy variant labels configuration, not a promise that every question used
 the balanced model. Small synthetic comparisons do not replace production quality
 and cost monitoring.

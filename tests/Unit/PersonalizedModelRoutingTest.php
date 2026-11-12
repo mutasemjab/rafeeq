@@ -7,6 +7,7 @@ use App\Services\AI\AnswerQualityService;
 use App\Services\AI\Contracts\LlmProviderInterface;
 use App\Services\AI\KnowledgeEvidenceService;
 use App\Services\AI\PersonalizedModelRouter;
+use App\Services\AI\ReferenceDraftGuidance;
 use Mockery;
 use Tests\TestCase;
 
@@ -43,6 +44,40 @@ class PersonalizedModelRoutingTest extends TestCase
         return ['sufficient' => $sufficient, 'supporting_quotes' => [['source_label' => 'KB_SOURCE_1', 'excerpt_id' => 1]],
             'missing_information' => $sufficient ? [] : ['An applicable explanation is missing.'],
             'search_queries' => $sufficient ? [] : ['receptive language familiar instructions'], 'clarification_question' => null];
+    }
+
+    public function test_structured_reference_routes_only_drafting_to_primary_and_flag_restores_old_policy(): void
+    {
+        config(['ai.reference_faithful_drafting' => true]);
+        $plan = $this->plan();
+        $plan['knowledge_grounding']['structured_protocol'] = true;
+        $this->assertSame('primary', app(AnswerModelPolicy::class)->options($plan, 'Help')['model']);
+        $this->assertTrue(app(PersonalizedModelRouter::class)->eligible($plan, 'Help'));
+        $llm = Mockery::mock(LlmProviderInterface::class);
+        $llm->shouldReceive('chatJson')->once()->withArgs(fn ($m, $s, $o) => $o['model'] === 'balanced')
+            ->andReturn($this->coverage());
+        $this->assertTrue((new KnowledgeEvidenceService($llm))->assess('Help', $plan, [], $this->sources())['sufficient']);
+        config(['ai.reference_faithful_drafting' => false]);
+        $this->assertSame('balanced', app(AnswerModelPolicy::class)->options($plan, 'Help')['model']);
+    }
+
+    /** @dataProvider referenceStructures */
+    public function test_only_structured_prerequisite_passages_require_primary_drafting(array $sources, bool $expected): void
+    {
+        $this->assertSame($expected, ReferenceDraftGuidance::structuredProtocol($sources));
+    }
+
+    public static function referenceStructures(): array
+    {
+        return [
+            [[['content' => 'Target 14: Increase the interval. Ensure pre-requisite skills have been taught.']], true],
+            [[['content' => 'Prerequisites for this task analysis include a familiar instruction.']], true],
+            [[['content' => 'تحليل المهمة: مهارات مسبقة يجب إتقانها.']], true],
+            [[['content' => 'A prerequisite is a skill needed before another skill.']], false],
+            [[['content' => 'Target 1 is communication during play.']], false],
+            [[['content' => 'Pre-requisite skills.'], ['content' => 'Target 1.']], false],
+            [[], false],
+        ];
     }
 
     /** @dataProvider carefulPlans */

@@ -22,7 +22,9 @@ class AnswerModelPolicy
             $groundedPersonalAnswer = $personalized
                 && data_get($plan, 'knowledge_grounding.mode') === 'internal';
             $model = (string) config($groundedPersonalAnswer ? 'ai.answer_model' : 'ai.fast_answer_model');
-            if (app(PersonalizedModelRouter::class)->grounded($plan, $message)) {
+            $structuredProtocol = config('ai.reference_faithful_drafting', true)
+                && data_get($plan, 'knowledge_grounding.structured_protocol', false);
+            if (app(PersonalizedModelRouter::class)->grounded($plan, $message) && !$structuredProtocol) {
                 $model = app(PersonalizedModelRouter::class)->model();
             }
             return [

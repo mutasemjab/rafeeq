@@ -30,14 +30,16 @@ class AiCostAccountingTest extends TestCase
         $meter = app(AiUsageMeter::class);
         $previous = $meter->begin($this->message());
         $usage = ['usage' => ['input_tokens' => 1000, 'output_tokens' => 100]];
-        config(['ai_costs.optimize_prompt_cache' => true, 'ai.adaptive_personalized_routing' => false]);
+        config(['ai_costs.optimize_prompt_cache' => true, 'ai.adaptive_personalized_routing' => false, 'ai.reference_faithful_drafting' => false]);
         $meter->record('chat_json', 'gpt-6-astra', 'rafeeq_answer_quality', 10, true, $usage);
         config(['ai.adaptive_personalized_routing' => true]);
         $meter->record('chat_json', 'gpt-6-sol', 'rafeeq_answer_quality', 10, true, $usage);
         $meter->record('chat_json', 'gpt-6-astra', 'rafeeq_answer_quality_escalation', 10, true, $usage);
+        config(['ai.reference_faithful_drafting' => true]);
+        $meter->record('responses', 'gpt-6-sol', 'responses', 10, true, $usage);
         $meter->restore($previous);
         $rows = DB::table('ai_request_usages')->get();
-        $this->assertSame(['stable_cache_v1', 'adaptive_personal_v1', 'adaptive_personal_v1'], $rows->pluck('variant')->all());
+        $this->assertSame(['stable_cache_v1', 'adaptive_personal_v1', 'adaptive_personal_v1', 'adaptive_faithful_v1'], $rows->pluck('variant')->all());
         $this->assertSame(1, $rows->pluck('question_key')->unique()->count());
         $this->assertSame('rafeeq_answer_quality_escalation', $rows[2]->stage);
         $this->assertGreaterThan($rows[1]->estimated_cost_usd, $rows[2]->estimated_cost_usd);

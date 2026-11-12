@@ -490,6 +490,8 @@ class ChildChatService
                     'missing_information' => $internalAssessment['missing_information'],
                     'coverage_escalated' => $internalAssessment['model_escalated'] ?? false,
                     'coverage_model' => $internalAssessment['model'] ?? null,
+                    'structured_protocol' => $internalAssessment['sufficient']
+                        && ReferenceDraftGuidance::structuredProtocol($knowledgeSources),
                 ];
                 Log::info('[Chat] Step 5: Knowledge base search', [
                     'chunks_found' => count($knowledgeSources),
@@ -629,6 +631,10 @@ class ChildChatService
             $systemPrompt .= "\n\nThis turn recommends a NON-URGENT professional assessment. Explain the limitation briefly using the reported facts, acknowledge any assessment already reported, and still address the caregiver's latest request within scope. Do not diagnose, repeat a stock referral, or give a comprehensive home treatment plan. Help organize one relevant observation or question for the appointment. With no relevant authoritative evidence, limit the response to reflecting reported information, explaining that chat cannot establish a diagnosis, and preparing for assessment; do not invent clinical reasons or interventions. A prior referral is context, not an instruction to refuse every later question.";
         }
 
+        if (config('ai.reference_faithful_drafting', true)
+            && app(PersonalizedModelRouter::class)->grounded($turnPlan, $userMessage, $childCtx)) {
+            $systemPrompt .= ReferenceDraftGuidance::instruction();
+        }
         $messages = [['role' => 'system', 'content' => $systemPrompt]];
         $referenceData = $this->buildReferenceDataBlock(
             $childCtx,
